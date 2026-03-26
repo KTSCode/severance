@@ -1,0 +1,72 @@
+defmodule Severance.CountdownTest do
+  use ExUnit.Case, async: false
+
+  alias Severance.Countdown
+
+  describe "overtime/0" do
+    test "switches mode from severance to overtime" do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert :ok = Countdown.overtime()
+      assert Countdown.mode() == :overtime
+    end
+  end
+
+  describe "mode/0" do
+    test "defaults to severance mode" do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert Countdown.mode() == :severance
+    end
+  end
+
+  describe "phase_for_remaining/1" do
+    test "returns gentle for 30 to 16 minutes" do
+      assert Countdown.phase_for_remaining(30) == :gentle
+      assert Countdown.phase_for_remaining(16) == :gentle
+    end
+
+    test "returns aggressive for 15 to 6 minutes" do
+      assert Countdown.phase_for_remaining(15) == :aggressive
+      assert Countdown.phase_for_remaining(6) == :aggressive
+    end
+
+    test "returns final for 5 to 1 minutes" do
+      assert Countdown.phase_for_remaining(5) == :final
+      assert Countdown.phase_for_remaining(1) == :final
+    end
+
+    test "returns shutdown for 0 or negative" do
+      assert Countdown.phase_for_remaining(0) == :shutdown
+      assert Countdown.phase_for_remaining(-1) == :shutdown
+    end
+  end
+
+  describe "tick_interval_ms/1" do
+    test "gentle phase ticks every 5 minutes" do
+      assert Countdown.tick_interval_ms(:gentle) == 5 * 60 * 1000
+    end
+
+    test "aggressive phase ticks every 2 minutes" do
+      assert Countdown.tick_interval_ms(:aggressive) == 2 * 60 * 1000
+    end
+
+    test "final phase ticks every 1 minute" do
+      assert Countdown.tick_interval_ms(:final) == 60 * 1000
+    end
+  end
+
+  describe "weekend detection" do
+    test "weekend?/1 returns true for Saturday and Sunday" do
+      # 2026-03-28 is a Saturday
+      assert Countdown.weekend?(~D[2026-03-28]) == true
+      # 2026-03-29 is a Sunday
+      assert Countdown.weekend?(~D[2026-03-29]) == true
+    end
+
+    test "weekend?/1 returns false for weekdays" do
+      # 2026-03-26 is a Thursday
+      assert Countdown.weekend?(~D[2026-03-26]) == false
+    end
+  end
+end
