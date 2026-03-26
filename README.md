@@ -87,6 +87,10 @@ sev --shutdown-time 17:00
 
 Default: `16:30` (4:30 PM).
 
+## TODO
+
+- [ ] Use [Burrito](https://github.com/burrito-elixir/burrito) to compile to a single standalone binary
+
 ## Requirements
 
 - Elixir 1.19+ / OTP 28+
