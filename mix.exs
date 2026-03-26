@@ -21,7 +21,9 @@ defmodule Severance.MixProject do
 
   defp deps do
     [
-      {:tz, "~> 0.28"}
+      {:tz, "~> 0.28"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 
