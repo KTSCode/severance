@@ -31,7 +31,8 @@ defmodule Severance.MixProject do
     [
       severance: [
         steps: [:assemble],
-        include_executables_for: [:unix]
+        include_executables_for: [:unix],
+        overlays: ["rel/overlays"]
       ]
     ]
   end
