@@ -20,6 +20,8 @@ defmodule Severance.Countdown do
   @overtime_burst_interval_ms 5 * 1000
   @overtime_burst_count 12
   @stale_threshold_minutes 15
+  @base_retry_ms 5_000
+  @max_retries 4
 
   defstruct [
     :shutdown_time,
@@ -72,6 +74,14 @@ defmodule Severance.Countdown do
   def tick_interval_ms(:gentle), do: @gentle_interval_ms
   def tick_interval_ms(:aggressive), do: @aggressive_interval_ms
   def tick_interval_ms(:final), do: @final_interval_ms
+
+  @doc """
+  Returns the retry delay in ms for a given attempt number,
+  or `:stop` if max retries exceeded. Uses exponential backoff.
+  """
+  @spec retry_delay_ms(non_neg_integer()) :: non_neg_integer() | :stop
+  def retry_delay_ms(attempt) when attempt >= @max_retries, do: :stop
+  def retry_delay_ms(attempt), do: @base_retry_ms * Integer.pow(2, attempt)
 
   @doc """
   Returns true if the given date falls on a weekend.
@@ -136,6 +146,20 @@ defmodule Severance.Countdown do
   end
 
   @impl true
+  def handle_info({:retry_shutdown, attempt}, state) do
+    case retry_delay_ms(attempt) do
+      :stop ->
+        Notifier.send_countdown(0, :severance, :final)
+        {:noreply, state}
+
+      delay ->
+        Severance.System.adapter().shutdown_machine()
+        Process.send_after(self(), {:retry_shutdown, attempt + 1}, delay)
+        {:noreply, state}
+    end
+  end
+
+  @impl true
   def handle_info({:overtime_burst, 0}, state) do
     Tmux.set_status_right(state.original_tmux_status)
     {:noreply, %{state | phase: :done}}
@@ -175,6 +199,7 @@ defmodule Severance.Countdown do
         Notifier.send_countdown(0, :severance, :final)
         Tmux.set_status_right(state.original_tmux_status)
         Severance.System.adapter().shutdown_machine()
+        Process.send_after(self(), {:retry_shutdown, 1}, @base_retry_ms)
 
       :overtime ->
         Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)

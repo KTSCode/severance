@@ -56,6 +56,20 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "retry_delay_ms/1" do
+    test "returns exponential backoff delays" do
+      assert Countdown.retry_delay_ms(0) == 5_000
+      assert Countdown.retry_delay_ms(1) == 10_000
+      assert Countdown.retry_delay_ms(2) == 20_000
+      assert Countdown.retry_delay_ms(3) == 40_000
+    end
+
+    test "caps at max retries" do
+      assert Countdown.retry_delay_ms(4) == :stop
+      assert Countdown.retry_delay_ms(10) == :stop
+    end
+  end
+
   describe "weekend detection" do
     test "weekend?/1 returns true for Saturday and Sunday" do
       # 2026-03-28 is a Saturday
