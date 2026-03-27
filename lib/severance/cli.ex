@@ -50,7 +50,7 @@ defmodule Severance.CLI do
     target = :"severance@#{hostname}"
     cli_name = :"severance_cli_#{:rand.uniform(100_000)}@#{hostname}"
 
-    Node.start(cli_name, :shortnames)
+    Node.start(cli_name, name_domain: :shortnames)
     Node.set_cookie(Node.self(), cookie())
 
     case Node.connect(target) do
