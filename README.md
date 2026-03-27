@@ -89,7 +89,11 @@ Default: `16:30` (4:30 PM).
 
 ## TODO
 
+- [ ] Setup chief to make the project AI-Native
 - [ ] Use [Burrito](https://github.com/burrito-elixir/burrito) to compile to a single standalone binary
+- [ ] Set up CI to automatically compile burrito binaries and release them
+- [ ] Set a severeance config file that goes in `~/.config/severance`
+- [ ] Make config file generation automatic with defaults
 
 ## Requirements
 
