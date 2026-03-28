@@ -9,7 +9,10 @@ defmodule Severance.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       releases: releases(),
-      dialyzer: [plt_file: {:no_warn, "priv/plts/project.plt"}],
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/project.plt"},
+        plt_add_apps: [:mix]
+      ],
       usage_rules: [file: "CLAUDE.md", usage_rules: []]
     ]
   end
