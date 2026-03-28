@@ -7,7 +7,7 @@
   <string>com.severance.daemon</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/kylesanclemente/bin/severance/bin/sev</string>
+    <string>/Users/kylesanclemente/bin/sev</string>
     <string>start</string>
   </array>
   <key>RunAtLoad</key>
