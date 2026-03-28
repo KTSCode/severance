@@ -326,6 +326,14 @@ defmodule Mix.Tasks.Todo do
   end
 
   @doc """
+  Returns true when `git status --porcelain` output indicates uncommitted changes.
+  """
+  @spec pending_changes?(String.t()) :: boolean()
+  def pending_changes?(status_output) do
+    String.trim(status_output) != ""
+  end
+
+  @doc """
   Extracts a GitHub PR URL from command output that may contain warnings.
 
   `gh pr create` prints the PR URL as its last line but may include
@@ -422,7 +430,29 @@ defmodule Mix.Tasks.Todo do
 
     with {:ok, _} <- cmd("git", ["checkout", "main"]),
          {:ok, _} <- cmd("git", ["pull", "--ff-only"]),
+         :ok <- sync_main(),
          {:ok, _} <- cmd("git", ["checkout", "-b", "todo/#{slug}"]) do
+      :ok
+    end
+  end
+
+  defp sync_main do
+    with {:ok, status} <- cmd("git", ["status", "--porcelain"]),
+         :ok <- commit_pending(status),
+         {:ok, _} <- cmd("git", ["push"]) do
+      :ok
+    end
+  end
+
+  defp commit_pending(status) do
+    if pending_changes?(status) do
+      stderr("Committing pending changes on main...")
+
+      with {:ok, _} <- cmd("git", ["add", "-A"]),
+           {:ok, _} <- cmd("git", ["commit", "-m", "Update TODOs"]) do
+        :ok
+      end
+    else
       :ok
     end
   end

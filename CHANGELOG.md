@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Improve the `mix todo` tasks
+
 ### Changed
 
 - Restructure project conventions into agent-agnostic AGENTS.md hub
