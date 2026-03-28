@@ -135,7 +135,7 @@ scaffold default. Currently no deps ship rules, so the sync is a no-op.
   - [x] Install https://hexdocs.pm/tidewave/claude_code.html
   - [x] Install https://hexdocs.pm/propcheck/PropCheck.html
 - [x] Use [Burrito](https://github.com/burrito-elixir/burrito) to compile to a single standalone binary
-- [ ] Set up CI to automatically compile burrito binaries and release them
+- [x] Set up CI to automatically compile burrito binaries and release them
 - [ ] Set a severeance config file that goes in `~/.config/severance`
 - [ ] Make config file generation automatic with defaults
 - [ ] Add a new init command to the binary that: 
