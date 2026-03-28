@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="priv/static/logo.png" alt="Severance" width="200">
+</p>
+
 # Severance
 
 A background application that enforces a hard daily computer shutdown with
