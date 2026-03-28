@@ -29,8 +29,12 @@ defmodule Severance.ApplicationTest do
     end
 
     test "uses compiled default when no opts, no config file, no env var" do
-      default_time = Elixir.Application.get_env(:severance, :shutdown_time, ~T[17:00:00])
-      resolved = Application.resolve_config([], suppress_warning: true)
+      default_time = Elixir.Application.get_env(:severance, :shutdown_time)
+
+      nonexistent =
+        Path.join(System.tmp_dir!(), "sev_no_config_#{System.unique_integer([:positive])}")
+
+      resolved = Application.resolve_config([], config_dir: nonexistent, suppress_warning: true)
 
       assert resolved.shutdown_time == default_time
       assert resolved.overtime_notifications == true

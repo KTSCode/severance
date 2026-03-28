@@ -1,25 +1,9 @@
-# Severance
+# Severance — Claude Code
 
-## Build & Test
-- `mix deps.get` — fetch dependencies
-- `mix compile --warnings-as-errors` — compile with strict warnings
-- `mix test` — run all tests
-- `mix test path/to/test.exs` — run a single test file
-- `mix credo --strict` — lint
-- `mix dialyzer` — typecheck (slow first run, builds PLT)
-- `mix format` — format code
+Read **AGENTS.md** for project conventions, build commands, and workflow.
 
-## Stack
-- Elixir 1.19+ / OTP 28+
-- macOS only (uses `osascript` for notifications and shutdown)
-- tmux (status bar integration and stale pane detection)
+## MCP
+- **tidewave** — live BEAM introspection, configured in `.mcp.json`
 
-## Architecture
-Background daemon that enforces daily computer shutdown with escalating warnings.
-Runs as a LaunchAgent, communicates via BEAM RPC for overtime protocol.
-
-## Conventions
-- Format with `mix format` after changes
-- Lint with `mix credo --strict`
-- Property-based tests use PropCheck
-- TDD: write failing tests first, then implement. No exceptions.
+## Hooks
+- Pre-commit checks configured in `.claude/settings.local.json`

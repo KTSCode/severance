@@ -9,8 +9,11 @@ defmodule Severance.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       releases: releases(),
-      dialyzer: [plt_file: {:no_warn, "priv/plts/project.plt"}],
-      usage_rules: [file: "CLAUDE.md", usage_rules: []]
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/project.plt"},
+        plt_add_apps: [:mix]
+      ],
+      usage_rules: [file: "AGENTS.md", usage_rules: []]
     ]
   end
 
