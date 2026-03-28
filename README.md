@@ -180,5 +180,8 @@ Small, well-understood changes go straight to code. For anything larger:
   - Update CLAUDE.md to be agnostic and point to AGENTS.md
   - Move plans out of docs/superpowers
   - Update AGENTS.md with instructions for cleaning up docs so that old and outdated plans to live in there forever
+- [ ] Improve the `mix todo` tasks 
+  - Fix: I ended up with conflicts on main because the changes on main hadn't been pushed up before the new branch was created
+  - Update: the workflow that I plan to use, is to add one or more new todo items to the README then call `mix todo | claude` this should commit (with a skill if available) any changes and push them up before branching off main 
 - [ ] figure out how to infer system timezone so it doesn't need to live in the config
 
