@@ -49,34 +49,37 @@ mode. Instead of shutting down at T-0, Severance fires a notification
 every 5 seconds for 60 seconds, then stops. It trusts your judgment after
 that.
 
+## Requirements
+
+- macOS (uses `osascript` for notifications and shutdown)
+- tmux (for status bar integration and stale pane detection)
+
 ## Installation
 
-### Build from source
+### From a GitHub release
 
-Requires Zig (`asdf install zig 0.15.2`) and `xz` on PATH.
+Download the latest binary from the [releases page][releases] and place it
+on your PATH:
 
 ```bash
-cd severance
+gh release download --pattern 'sev_macos_arm64' --dir ~/bin
+chmod +x ~/bin/sev
+```
+
+### From source
+
+Requires [asdf](https://asdf-vm.com/) (manages Erlang, Elixir, and Zig)
+and `xz` on PATH.
+
+```bash
+asdf install                        # installs toolchain from .tool-versions
 mix deps.get
 MIX_ENV=prod mix release sev
 cp burrito_out/sev_macos_arm64 ~/bin/sev
 chmod +x ~/bin/sev
 ```
 
-### Start at login
-
-```bash
-cp rel/com.severance.daemon.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.severance.daemon.plist
-```
-
-### Manual start
-
-```bash
-sev            # start the daemon
-sev otp        # activate overtime protocol
-sev stop       # stop the daemon
-```
+[releases]: https://github.com/KTSCode/severance/releases
 
 ## Setup
 
@@ -86,6 +89,21 @@ sev init
 
 Creates `~/.config/severance/config.exs`, generates the LaunchAgent plist,
 and checks tmux readiness. Safe to re-run.
+
+## Usage
+
+```bash
+sev            # start the daemon
+sev otp        # activate overtime protocol
+sev stop       # stop the daemon
+```
+
+### Start at login
+
+```bash
+cp rel/com.severance.daemon.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.severance.daemon.plist
+```
 
 ## Configuration
 
@@ -109,42 +127,44 @@ The config file is a plain Elixir term:
 Set `overtime_notifications: false` to disable the notification burst when
 overtime is active or when starting after shutdown time.
 
-## Requirements
+## Development
 
-- Elixir 1.19+ / OTP 28+
-- macOS (uses `osascript` for notifications and shutdown)
-- tmux (for status bar and stale pane detection)
+### Dependencies
 
-## AI Native
+- [asdf](https://asdf-vm.com/) — installs Erlang, Elixir, and Zig from `.tool-versions`
+- [gh](https://cli.github.com/) — GitHub CLI for releases and PRs
+- `xz` — required by the Burrito release builder
+
+### Getting started
+
+```bash
+asdf install
+mix deps.get
+mix compile --warnings-as-errors
+mix test
+```
+
+### Quality checks
+
+```bash
+mix credo --strict                  # lint
+mix dialyzer                        # typecheck (slow first run — builds PLT)
+```
+
+### AI-assisted workflow
 
 This project is set up for AI-assisted development. Each coding session
 starts fresh and relies on durable repo files rather than chat history.
 
-### Tooling
-- **usage_rules** — manages project-level `CLAUDE.md` with build commands and conventions
-- **tidewave** — MCP server for live BEAM introspection (`.mcp.json` configures it)
+- **CLAUDE.md** — build commands, conventions, and project context
+- **tidewave** — MCP server for live BEAM introspection (`.mcp.json`)
 - **dialyxir** — static type analysis via Dialyzer (PLTs cached in `priv/plts/`)
-- **PropCheck** — property-based testing via PropEr
 
-### Workflow for Larger Features
-Small, well-understood changes go straight to code. For anything too large
-or uncertain for a single pass:
+Small, well-understood changes go straight to code. For anything larger:
 
-1. **Research** — write a discovery note in `docs/research/<feature>.md`
-   capturing why the behavior matters, code paths inspected, and decisions
-   that narrowed the options.
-1. **Plan** — break the research into phased implementation slices in
-   `docs/plans/<feature>.md`. Each phase should be independently verifiable.
-1. **Execute** — work one phase at a time. Each session reads only the
-   durable files it needs, not the entire design history.
-
-Update research or plan docs before the next pass whenever the approach
-changes materially.
-
-### Dependency Guidance
-`usage_rules` syncs dependency-provided rules into `CLAUDE.md` via
-`mix usage_rules.sync`. This is opt-in, project-owned guidance — not a
-scaffold default. Currently no deps ship rules, so the sync is a no-op.
+1. **Research** — `docs/research/<feature>.md`
+1. **Plan** — `docs/plans/<feature>.md`
+1. **Execute** — one phase at a time
 
 ## Roadmap
 - Homebrew tap distribution
