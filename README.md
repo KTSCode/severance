@@ -184,4 +184,5 @@ Small, well-understood changes go straight to code. For anything larger:
   - Fix: I ended up with conflicts on main because the changes on main hadn't been pushed up before the new branch was created
   - Update: the workflow that I plan to use, is to add one or more new todo items to the README then call `mix todo | claude` this should commit (with a skill if available) any changes and push them up before branching off main 
 - [ ] figure out how to infer system timezone so it doesn't need to live in the config
+- [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 
