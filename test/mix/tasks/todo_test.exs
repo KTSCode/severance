@@ -290,10 +290,34 @@ defmodule Mix.Tasks.TodoTest do
     end
   end
 
+  describe "extract_pr_url/1" do
+    test "returns URL when output is just a URL" do
+      assert {:ok, "https://github.com/org/repo/pull/1"} =
+               Todo.extract_pr_url("https://github.com/org/repo/pull/1")
+    end
+
+    test "extracts URL from output with warnings" do
+      output = "Warning: 6 uncommitted changes\nhttps://github.com/org/repo/pull/1"
+
+      assert {:ok, "https://github.com/org/repo/pull/1"} =
+               Todo.extract_pr_url(output)
+    end
+
+    test "returns error when no URL found" do
+      assert {:error, :no_pr_url} = Todo.extract_pr_url("some random output")
+    end
+  end
+
   describe "build_done_prompt/2" do
     test "contains the PR URL" do
       result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
       assert result =~ "https://github.com/org/repo/pull/42"
+    end
+
+    test "contains git status verification step" do
+      result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
+      assert result =~ "git status"
+      assert result =~ "untracked or unstaged"
     end
 
     test "contains CHANGELOG review instructions" do
