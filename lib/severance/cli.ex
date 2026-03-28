@@ -5,6 +5,7 @@ defmodule Severance.CLI do
   ## Usage
 
       sev                        # Start the daemon
+      sev init                   # Set up config, plist, and tmux
       sev --shutdown-time HH:MM  # Start with custom shutdown time
       sev otp                    # Activate Overtime Protocol on running daemon
       sev overtime               # Activate Overtime Protocol on running daemon
@@ -30,7 +31,8 @@ defmodule Severance.CLI do
       iex> Severance.CLI.parse_args(["something-else"])
       :start
   """
-  @spec parse_args([String.t()]) :: :start | {:start, keyword()} | :overtime | :stop
+  @spec parse_args([String.t()]) :: :start | {:start, keyword()} | :overtime | :stop | :init
+  def parse_args(["init" | _rest]), do: :init
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime

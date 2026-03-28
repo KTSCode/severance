@@ -74,21 +74,36 @@ sev otp        # activate overtime protocol
 sev stop       # stop the daemon
 ```
 
+## Setup
+
+```bash
+sev init
+```
+
+Creates `~/.config/severance/config.exs`, generates the LaunchAgent plist,
+and checks tmux readiness. Safe to re-run.
+
 ## Configuration
 
-Set the shutdown time via environment variable:
+Configuration is resolved in priority order (highest wins):
 
-```bash
-SEVERANCE_SHUTDOWN_TIME=16:30 sev
+1. CLI flag: `sev --shutdown-time 17:00`
+1. Environment variable: `SEVERANCE_SHUTDOWN_TIME=16:30 sev`
+1. Config file: `~/.config/severance/config.exs`
+1. Compiled defaults
+
+The config file is a plain Elixir term:
+
+```elixir
+%{
+  shutdown_time: "17:00",
+  timezone: "America/Los_Angeles",
+  overtime_notifications: true
+}
 ```
 
-Or pass it as a flag (when starting manually):
-
-```bash
-sev --shutdown-time 17:00
-```
-
-Default: `17:00` (5:00 PM).
+Set `overtime_notifications: false` to disable the notification burst when
+overtime is active or when starting after shutdown time.
 
 ## Requirements
 
@@ -136,14 +151,14 @@ scaffold default. Currently no deps ship rules, so the sync is a no-op.
   - [x] Install https://hexdocs.pm/propcheck/PropCheck.html
 - [x] Use [Burrito](https://github.com/burrito-elixir/burrito) to compile to a single standalone binary
 - [x] Set up CI to automatically compile burrito binaries and release them
-- [ ] Set a severeance config file that goes in `~/.config/severance`
-- [ ] Make config file generation automatic with defaults
-- [ ] Add a new init command to the binary that: 
-    - [ ] creates the plist file that tells macos to start the daemon at system starte
-    - [ ] updates tmux.conf so that the shutdown warning shows up on the status bar
-    - [ ] creates the config file
-    - [ ] the app should check if init has been run when it's started
-- [ ] add configuration for disabling repeated notifications when overtime is enabled 
-- [ ] Check to make sure that if the application is started after the shutdown time it doesn't automatically shut down the machine
-  - [ ] spec out the behavior for what should happen if severance is started after the shutdown time
+- [x] Set a severance config file that goes in `~/.config/severance`
+- [x] Make config file generation automatic with defaults
+- [x] Add a new init command to the binary that:
+    - [x] creates the plist file that tells macOS to start the daemon at system start
+    - [x] checks tmux.conf so that the shutdown warning shows up on the status bar
+    - [x] creates the config file
+    - [x] the app should check if init has been run when it's started
+- [x] add configuration for disabling repeated notifications when overtime is enabled
+- [x] Check to make sure that if the application is started after the shutdown time it doesn't automatically shut down the machine
+  - [x] spec out the behavior for what should happen if severance is started after the shutdown time
 

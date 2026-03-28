@@ -14,6 +14,8 @@ defmodule Severance.Countdown do
   alias Severance.Notifier
   alias Severance.Tmux
 
+  require Logger
+
   @gentle_interval_ms 5 * 60 * 1000
   @aggressive_interval_ms 2 * 60 * 1000
   @final_interval_ms 60 * 1000
@@ -91,6 +93,15 @@ defmodule Severance.Countdown do
     Date.day_of_week(date) in [6, 7]
   end
 
+  @doc """
+  Returns true if the given shutdown time has already passed today.
+  """
+  @spec past_shutdown?(Time.t()) :: boolean()
+  def past_shutdown?(shutdown_time) do
+    now = DateTime.to_time(local_now())
+    Time.compare(now, shutdown_time) != :lt
+  end
+
   # --- GenServer Callbacks ---
 
   @impl true
@@ -116,6 +127,20 @@ defmodule Severance.Countdown do
     state = %{state | original_tmux_status: original_status, phase: :gentle}
     tick(state)
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:late_start, state) do
+    original_status = Tmux.capture_status_right()
+    state = %{state | original_tmux_status: original_status}
+
+    if Application.get_env(:severance, :overtime_notifications, true) do
+      Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
+      {:noreply, state}
+    else
+      Tmux.set_status_right(original_status)
+      {:noreply, %{state | phase: :done}}
+    end
   end
 
   @impl true
@@ -172,15 +197,26 @@ defmodule Severance.Countdown do
     {:noreply, state}
   end
 
+  @impl true
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
   # --- Private ---
 
   defp schedule_countdown_start(state) do
     ms = ms_until_countdown_start(state.shutdown_time)
 
-    if ms > 0 do
-      Process.send_after(self(), :start_countdown, ms)
-    else
-      send(self(), :start_countdown)
+    cond do
+      past_shutdown?(state.shutdown_time) ->
+        Logger.info("Started after shutdown time. Firing overtime burst.")
+        send(self(), :late_start)
+
+      ms > 0 ->
+        Process.send_after(self(), :start_countdown, ms)
+
+      true ->
+        send(self(), :start_countdown)
     end
   end
 
@@ -202,7 +238,11 @@ defmodule Severance.Countdown do
         Process.send_after(self(), {:retry_shutdown, 1}, @base_retry_ms)
 
       :overtime ->
-        Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
+        if Application.get_env(:severance, :overtime_notifications, true) do
+          Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
+        else
+          Tmux.set_status_right(state.original_tmux_status)
+        end
     end
   end
 

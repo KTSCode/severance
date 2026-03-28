@@ -70,6 +70,73 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "past_shutdown?/1" do
+    test "returns true for a time in the past" do
+      assert Countdown.past_shutdown?(~T[00:00:01]) == true
+    end
+
+    test "returns false for a time in the future" do
+      refute Countdown.past_shutdown?(~T[23:59:59])
+    end
+  end
+
+  describe "late start" do
+    test "fires overtime burst instead of shutdown when started after shutdown time" do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+
+      # Let the GenServer process :late_start and begin the burst
+      Process.sleep(100)
+
+      assert Process.alive?(pid)
+
+      # The test adapter sends :shutdown_machine to self() (the GenServer)
+      # when shutdown_machine/0 is called. If late start works correctly,
+      # shutdown_machine should never be called.
+      {:messages, messages} = Process.info(pid, :messages)
+      refute :shutdown_machine in messages
+    end
+  end
+
+  describe "overtime notification toggle" do
+    setup do
+      original = Application.get_env(:severance, :overtime_notifications)
+
+      on_exit(fn ->
+        Application.put_env(:severance, :overtime_notifications, original || true)
+      end)
+
+      :ok
+    end
+
+    test "skips overtime burst when overtime_notifications is false (late start)" do
+      Application.put_env(:severance, :overtime_notifications, false)
+
+      pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+      Process.sleep(100)
+
+      assert Process.alive?(pid)
+
+      # With notifications disabled, late_start should immediately finish
+      # and set phase to :done without scheduling any burst
+      state = :sys.get_state(pid)
+      assert state.phase == :done
+    end
+
+    test "fires overtime burst when overtime_notifications is true (late start)" do
+      Application.put_env(:severance, :overtime_notifications, true)
+
+      pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+      Process.sleep(100)
+
+      assert Process.alive?(pid)
+
+      # With notifications enabled, the burst is in progress (takes 60s to
+      # complete), so phase should NOT be :done yet
+      state = :sys.get_state(pid)
+      refute state.phase == :done
+    end
+  end
+
   describe "weekend detection" do
     test "weekend?/1 returns true for Saturday and Sunday" do
       # 2026-03-28 is a Saturday

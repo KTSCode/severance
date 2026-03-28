@@ -29,6 +29,10 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["stop"]) == :stop
     end
 
+    test "init arg returns :init" do
+      assert CLI.parse_args(["init"]) == :init
+    end
+
     test "unknown args returns :start" do
       assert CLI.parse_args(["something-else"]) == :start
     end
