@@ -28,16 +28,21 @@ defmodule Severance.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.1", only: :dev},
       {:tidewave, "~> 0.2", only: :dev},
-      {:propcheck, "~> 1.5", only: [:dev, :test]}
+      {:burrito, "~> 1.5"}
     ]
   end
 
   defp releases do
     [
-      severance: [
-        steps: [:assemble],
+      sev: [
+        steps: [:assemble, &Burrito.wrap/1],
         include_executables_for: [:unix],
-        overlays: ["rel/overlays"]
+        burrito: [
+          targets: [
+            macos_arm64: [os: :darwin, cpu: :aarch64],
+            macos_x86: [os: :darwin, cpu: :x86_64]
+          ]
+        ]
       ]
     ]
   end

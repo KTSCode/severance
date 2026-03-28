@@ -7,3 +7,4 @@ erl_crash.dump
 severance-*.tar
 /tmp/
 /priv/plts/
+/burrito_out/
