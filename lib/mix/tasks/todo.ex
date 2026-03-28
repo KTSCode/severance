@@ -201,9 +201,11 @@ defmodule Mix.Tasks.Todo do
 
     ## Remaining Steps
 
-    1. Update the PR description with a clear summary of what was implemented
+    1. Run `git status` to verify all changes were committed. If any files
+       are untracked or unstaged, commit and push them.
+    2. Update the PR description with a clear summary of what was implemented
        and why. Use `gh pr edit #{pr_url} --body "..."` to set the body.
-    2. Review CHANGELOG.md — the entry was added under "### Added" as a
+    3. Review CHANGELOG.md — the entry was added under "### Added" as a
        placeholder. Pick the correct category: Added, Changed, Fixed, or
        Removed. If you change the category, commit and push.
     """
@@ -323,6 +325,24 @@ defmodule Mix.Tasks.Todo do
     |> Enum.join("\n")
   end
 
+  @doc """
+  Extracts a GitHub PR URL from command output that may contain warnings.
+
+  `gh pr create` prints the PR URL as its last line but may include
+  warnings on preceding lines when stderr is merged into stdout.
+  """
+  @spec extract_pr_url(String.t()) :: {:ok, String.t()} | {:error, :no_pr_url}
+  def extract_pr_url(output) do
+    output
+    |> String.split("\n")
+    |> Enum.reverse()
+    |> Enum.find(&String.starts_with?(&1, "https://"))
+    |> case do
+      nil -> {:error, :no_pr_url}
+      url -> {:ok, String.trim(url)}
+    end
+  end
+
   # --- Side-effect helpers ---
 
   defp cmd(executable, args) do
@@ -410,7 +430,7 @@ defmodule Mix.Tasks.Todo do
   defp git_commit(todo_text) do
     stderr("Committing changes...")
 
-    with {:ok, _} <- cmd("git", ["add", "README.md", "CHANGELOG.md"]),
+    with {:ok, _} <- cmd("git", ["add", "-A"]),
          {:ok, _} <- cmd("git", ["commit", "-m", "Complete TODO: #{todo_text}"]) do
       :ok
     end
@@ -428,14 +448,17 @@ defmodule Mix.Tasks.Todo do
   defp create_pr(todo_text) do
     stderr("Creating pull request...")
 
-    cmd("gh", [
-      "pr",
-      "create",
-      "--title",
-      todo_text,
-      "--body",
-      "Implements: #{todo_text}\n\n_Body to be filled in by the agent._"
-    ])
+    with {:ok, output} <-
+           cmd("gh", [
+             "pr",
+             "create",
+             "--title",
+             todo_text,
+             "--body",
+             "Implements: #{todo_text}\n\n_Body to be filled in by the agent._"
+           ]) do
+      extract_pr_url(output)
+    end
   end
 
   defp handle_error({:error, :no_todo_section}) do
@@ -466,6 +489,11 @@ defmodule Mix.Tasks.Todo do
 
   defp handle_error({:error, :no_current}) do
     stderr("No .todo-current file found. Run `mix todo` first.")
+    exit({:shutdown, 1})
+  end
+
+  defp handle_error({:error, :no_pr_url}) do
+    stderr("Could not extract PR URL from gh output")
     exit({:shutdown, 1})
   end
 

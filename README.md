@@ -156,13 +156,15 @@ mix dialyzer                        # typecheck (slow first run — builds PLT)
 This project is set up for AI-assisted development. Each coding session
 starts fresh and relies on durable repo files rather than chat history.
 
-- **CLAUDE.md** — build commands, conventions, and project context
+- **AGENTS.md** — shared conventions, build commands, workflow, and documentation lifecycle
+- **CLAUDE.md** — Claude Code-specific configuration (MCP, hooks)
 - **tidewave** — MCP server for live BEAM introspection (`.mcp.json`)
 - **dialyxir** — static type analysis via Dialyzer (PLTs cached in `priv/plts/`)
 
 Small, well-understood changes go straight to code. For anything larger:
 
 1. **Research** — `docs/research/<feature>.md`
+1. **Spec** — `docs/specs/<feature>.md`
 1. **Plan** — `docs/plans/<feature>.md`
 1. **Execute** — one phase at a time
 
@@ -173,6 +175,10 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [ ] Add a claude skill that pulls the next item off this TODO list and goes through the claude plan mode to create a plan to do it
+- [x] Add a claude skill that pulls the next item off this TODO list and goes through the claude plan mode to create a plan to do it
+- [x] Make the application agent agnostic
+  - Update CLAUDE.md to be agnostic and point to AGENTS.md
+  - Move plans out of docs/superpowers
+  - Update AGENTS.md with instructions for cleaning up docs so that old and outdated plans to live in there forever
 - [ ] figure out how to infer system timezone so it doesn't need to live in the config
 

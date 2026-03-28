@@ -13,7 +13,7 @@ defmodule Severance.MixProject do
         plt_file: {:no_warn, "priv/plts/project.plt"},
         plt_add_apps: [:mix]
       ],
-      usage_rules: [file: "CLAUDE.md", usage_rules: []]
+      usage_rules: [file: "AGENTS.md", usage_rules: []]
     ]
   end
 
