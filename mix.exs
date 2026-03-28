@@ -8,7 +8,9 @@ defmodule Severance.MixProject do
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      releases: releases()
+      releases: releases(),
+      dialyzer: [plt_file: {:no_warn, "priv/plts/project.plt"}],
+      usage_rules: [file: "CLAUDE.md", usage_rules: []]
     ]
   end
 
@@ -23,7 +25,10 @@ defmodule Severance.MixProject do
     [
       {:tz, "~> 0.28"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:usage_rules, "~> 1.1", only: :dev},
+      {:tidewave, "~> 0.2", only: :dev},
+      {:propcheck, "~> 1.5", only: [:dev, :test]}
     ]
   end
 

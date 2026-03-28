@@ -6,3 +6,4 @@ erl_crash.dump
 *.ez
 severance-*.tar
 /tmp/
+/priv/plts/
