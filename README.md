@@ -56,7 +56,7 @@ that.
 Requires Zig (`asdf install zig 0.15.2`) and `xz` on PATH.
 
 ```bash
-cd ~/severance
+cd severance
 mix deps.get
 MIX_ENV=prod mix release sev
 cp burrito_out/sev_macos_arm64 ~/bin/sev
@@ -146,23 +146,13 @@ changes materially.
 `mix usage_rules.sync`. This is opt-in, project-owned guidance — not a
 scaffold default. Currently no deps ship rules, so the sync is a no-op.
 
+## Roadmap
+- Homebrew tap distribution
+- Linux support
+- Configurable escalation phases
+- Per-day shutdown schedules (e.g. earlier on Fridays)
+
 ## TODO
-- [x] Make the project AI-Native
-  - [x] use `../chief/specs/001-ai-native-workflow.md` to update this file with an AI-Native section
-  - [x] Install https://hexdocs.pm/usage_rules/readme.html
-  - [x] Install https://hexdocs.pm/dialyxir/readme.html
-  - [x] Install https://hexdocs.pm/tidewave/claude_code.html
-  - [x] Install https://hexdocs.pm/propcheck/PropCheck.html
-- [x] Use [Burrito](https://github.com/burrito-elixir/burrito) to compile to a single standalone binary
-- [x] Set up CI to automatically compile burrito binaries and release them
-- [x] Set a severance config file that goes in `~/.config/severance`
-- [x] Make config file generation automatic with defaults
-- [x] Add a new init command to the binary that:
-    - [x] creates the plist file that tells macOS to start the daemon at system start
-    - [x] checks tmux.conf so that the shutdown warning shows up on the status bar
-    - [x] creates the config file
-    - [x] the app should check if init has been run when it's started
-- [x] add configuration for disabling repeated notifications when overtime is enabled
-- [x] Check to make sure that if the application is started after the shutdown time it doesn't automatically shut down the machine
-  - [x] spec out the behavior for what should happen if severance is started after the shutdown time
+- [ ] Add a claude skill that pulls the next item off this TODO list and goes through the claude plan mode to create a plan to do it
+- [ ] figure out how to infer system timezone so it doesn't need to live in the config
 

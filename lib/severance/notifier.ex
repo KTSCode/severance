@@ -41,7 +41,7 @@ defmodule Severance.Notifier do
       {"Shutdown in 15m", "Your computer WILL shut down. Push your work."}
 
       iex> Severance.Notifier.countdown_message(15, :overtime)
-      {"Shutdown in 15m", "Start wrapping up and push your work."}
+      {"Shutdown in 15m", "Your planned end of day is coming up. Push your work and call it quits."}
 
       iex> Severance.Notifier.countdown_message(5, :severance)
       {"SHUTDOWN IN 5m", "Your computer WILL shut down. Save everything NOW."}
@@ -57,14 +57,14 @@ defmodule Severance.Notifier do
   end
 
   def countdown_message(1, :overtime) do
-    {"FINAL WARNING", "1 minute left. Push your work."}
+    {"YOU SHOULD BE STOPPING", "1 minute left to decided to be a person and stop."}
   end
 
   def countdown_message(minutes, mode) when minutes <= 5 do
     body =
       case mode do
         :severance -> "Your computer WILL shut down. Save everything NOW."
-        :overtime -> "Push your work NOW."
+        :overtime -> "You said you would stop NOW."
       end
 
     {"SHUTDOWN IN #{minutes}m", body}
@@ -74,7 +74,7 @@ defmodule Severance.Notifier do
     body =
       case mode do
         :severance -> "Your computer WILL shut down. Push your work."
-        :overtime -> "Start wrapping up and push your work."
+        :overtime -> "Your planned end of day is coming up. Push your work and call it quits."
       end
 
     {"Shutdown in #{minutes}m", body}
@@ -102,7 +102,7 @@ defmodule Severance.Notifier do
   def send_stale_pane(%{pane: pane, path: path}) do
     system().notify(
       "Stale pane: #{pane}",
-      "No activity in 15m. Leave a breadcrumb.\n#{path}",
+      "No activity in 15m. Save you work and leave a note so you can pick up where you left off.\n#{path}",
       "Tink"
     )
   end
@@ -115,7 +115,7 @@ defmodule Severance.Notifier do
   @spec send_overtime_burst() :: :ok
   def send_overtime_burst do
     system().notify(
-      "GO HOME",
+      "QUITTING TIME!",
       "You said you'd stop working. Go be a person.",
       "Basso"
     )
