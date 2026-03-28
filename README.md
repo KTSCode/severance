@@ -49,12 +49,14 @@ that.
 
 ### Build from source
 
+Requires Zig (`asdf install zig 0.15.2`) and `xz` on PATH.
+
 ```bash
 cd ~/severance
 mix deps.get
-MIX_ENV=prod mix release severance
-cp -r _build/prod/rel/severance ~/bin/severance
-ln -sf ~/bin/severance/bin/sev ~/bin/sev
+MIX_ENV=prod mix release sev
+cp burrito_out/sev_macos_arm64 ~/bin/sev
+chmod +x ~/bin/sev
 ```
 
 ### Start at login
@@ -132,8 +134,16 @@ scaffold default. Currently no deps ship rules, so the sync is a no-op.
   - [x] Install https://hexdocs.pm/dialyxir/readme.html
   - [x] Install https://hexdocs.pm/tidewave/claude_code.html
   - [x] Install https://hexdocs.pm/propcheck/PropCheck.html
-- [ ] Use [Burrito](https://github.com/burrito-elixir/burrito) to compile to a single standalone binary
+- [x] Use [Burrito](https://github.com/burrito-elixir/burrito) to compile to a single standalone binary
 - [ ] Set up CI to automatically compile burrito binaries and release them
 - [ ] Set a severeance config file that goes in `~/.config/severance`
 - [ ] Make config file generation automatic with defaults
+- [ ] Add a new init command to the binary that: 
+    - [ ] creates the plist file that tells macos to start the daemon at system starte
+    - [ ] updates tmux.conf so that the shutdown warning shows up on the status bar
+    - [ ] creates the config file
+    - [ ] the app should check if init has been run when it's started
+- [ ] add configuration for disabling repeated notifications when overtime is enabled 
+- [ ] Check to make sure that if the application is started after the shutdown time it doesn't automatically shut down the machine
+  - [ ] spec out the behavior for what should happen if severance is started after the shutdown time
 

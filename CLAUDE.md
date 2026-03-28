@@ -22,3 +22,4 @@ Runs as a LaunchAgent, communicates via BEAM RPC for overtime protocol.
 - Format with `mix format` after changes
 - Lint with `mix credo --strict`
 - Property-based tests use PropCheck
+- TDD: write failing tests first, then implement. No exceptions.
