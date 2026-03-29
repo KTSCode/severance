@@ -98,7 +98,7 @@ defmodule Severance.Countdown do
   """
   @spec past_shutdown?(Time.t()) :: boolean()
   def past_shutdown?(shutdown_time) do
-    now = DateTime.to_time(local_now())
+    now = NaiveDateTime.to_time(local_now())
     Time.compare(now, shutdown_time) != :lt
   end
 
@@ -247,7 +247,7 @@ defmodule Severance.Countdown do
   end
 
   defp effective_mode(state) do
-    if weekend?(DateTime.to_date(local_now())) do
+    if weekend?(NaiveDateTime.to_date(local_now())) do
       :overtime
     else
       state.mode
@@ -255,26 +255,18 @@ defmodule Severance.Countdown do
   end
 
   defp minutes_remaining(shutdown_time) do
-    now = DateTime.to_time(local_now())
+    now = NaiveDateTime.to_time(local_now())
     Time.diff(shutdown_time, now, :minute)
   end
 
   defp ms_until_countdown_start(shutdown_time) do
     countdown_start = Time.add(shutdown_time, -30, :minute)
-    now = DateTime.to_time(local_now())
+    now = NaiveDateTime.to_time(local_now())
     Time.diff(countdown_start, now, :millisecond)
   end
 
   defp local_now do
-    tz = Application.get_env(:severance, :timezone) || infer_timezone()
-    DateTime.now!(tz)
-  end
-
-  defp infer_timezone do
-    case Severance.Timezone.infer() do
-      {:ok, tz} -> tz
-      {:error, _} -> "Etc/UTC"
-    end
+    NaiveDateTime.local_now()
   end
 
   defp send_stale_pane_warnings do

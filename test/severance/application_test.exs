@@ -19,17 +19,10 @@ defmodule Severance.ApplicationTest do
 
   describe "resolve_config/1" do
     setup do
-      original_otn = Elixir.Application.get_env(:severance, :overtime_notifications)
-      original_tz = Elixir.Application.get_env(:severance, :timezone)
+      original = Elixir.Application.get_env(:severance, :overtime_notifications)
 
       on_exit(fn ->
-        Elixir.Application.put_env(:severance, :overtime_notifications, original_otn || true)
-
-        if original_tz do
-          Elixir.Application.put_env(:severance, :timezone, original_tz)
-        else
-          Elixir.Application.delete_env(:severance, :timezone)
-        end
+        Elixir.Application.put_env(:severance, :overtime_notifications, original || true)
       end)
 
       :ok
@@ -54,7 +47,7 @@ defmodule Severance.ApplicationTest do
       File.mkdir_p!(dir)
 
       config_content =
-        ~s(%{shutdown_time: "18:00", timezone: "America/New_York", overtime_notifications: false})
+        ~s(%{shutdown_time: "18:00", overtime_notifications: false})
 
       File.write!(Path.join(dir, "config.exs"), config_content)
 
@@ -71,7 +64,7 @@ defmodule Severance.ApplicationTest do
       File.mkdir_p!(dir)
 
       config_content =
-        ~s(%{shutdown_time: "18:00", timezone: "America/New_York", overtime_notifications: true})
+        ~s(%{shutdown_time: "18:00", overtime_notifications: true})
 
       File.write!(Path.join(dir, "config.exs"), config_content)
 
@@ -99,47 +92,13 @@ defmodule Severance.ApplicationTest do
       File.mkdir_p!(dir)
 
       config_content =
-        ~s(%{shutdown_time: "17:00", timezone: "America/Los_Angeles", overtime_notifications: false})
+        ~s(%{shutdown_time: "17:00", overtime_notifications: false})
 
       File.write!(Path.join(dir, "config.exs"), config_content)
 
       Application.resolve_config([], config_dir: dir)
 
       assert Elixir.Application.get_env(:severance, :overtime_notifications) == false
-    end
-
-    test "stores timezone from config file in Application env" do
-      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
-      on_exit(fn -> File.rm_rf!(dir) end)
-
-      File.mkdir_p!(dir)
-
-      config_content =
-        ~s(%{shutdown_time: "17:00", timezone: "Europe/Berlin", overtime_notifications: true})
-
-      File.write!(Path.join(dir, "config.exs"), config_content)
-
-      Application.resolve_config([], config_dir: dir)
-
-      assert Elixir.Application.get_env(:severance, :timezone) == "Europe/Berlin"
-    end
-
-    test "does not set timezone in Application env when config file omits it" do
-      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
-      on_exit(fn -> File.rm_rf!(dir) end)
-
-      Elixir.Application.delete_env(:severance, :timezone)
-
-      File.mkdir_p!(dir)
-
-      config_content =
-        ~s(%{shutdown_time: "17:00", overtime_notifications: true})
-
-      File.write!(Path.join(dir, "config.exs"), config_content)
-
-      Application.resolve_config([], config_dir: dir)
-
-      assert Elixir.Application.get_env(:severance, :timezone) == nil
     end
   end
 end

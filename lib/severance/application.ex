@@ -83,20 +83,18 @@ defmodule Severance.Application do
         Config.read()
       end
 
-    {shutdown_time, overtime_notifications, file_timezone} =
+    {shutdown_time, overtime_notifications} =
       case file_result do
         {:ok, file_config} ->
           time = parse_time_string(file_config.shutdown_time, compiled_time)
-
-          {time, Map.get(file_config, :overtime_notifications, overtime_notifications),
-           Map.get(file_config, :timezone)}
+          {time, Map.get(file_config, :overtime_notifications, overtime_notifications)}
 
         {:error, :not_found} ->
           unless resolve_opts[:suppress_warning] do
             Logger.info("No config file found. Run `sev init` to create one.")
           end
 
-          {compiled_time, overtime_notifications, nil}
+          {compiled_time, overtime_notifications}
       end
 
     # Layer 3: env var
@@ -109,12 +107,8 @@ defmodule Severance.Application do
     # Layer 4: CLI opts
     shutdown_time = Keyword.get(opts, :shutdown_time, shutdown_time)
 
-    # Side effect: store settings for Countdown to read
+    # Side effect: store overtime_notifications for Countdown to read
     Application.put_env(:severance, :overtime_notifications, overtime_notifications)
-
-    if file_timezone do
-      Application.put_env(:severance, :timezone, file_timezone)
-    end
 
     %{shutdown_time: shutdown_time, overtime_notifications: overtime_notifications}
   end
