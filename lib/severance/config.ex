@@ -59,16 +59,12 @@ defmodule Severance.Config do
   """
   @spec generate_contents(map()) :: String.t()
   def generate_contents(config) do
-    pairs =
-      [
-        {:shutdown_time, config.shutdown_time},
-        if(Map.has_key?(config, :timezone), do: {:timezone, config.timezone}),
-        {:overtime_notifications, config.overtime_notifications}
-      ]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.map_join(",\n", fn {k, v} -> "  #{k}: #{inspect(v)}" end)
-
-    "%{\n#{pairs}\n}\n"
+    """
+    %{
+      shutdown_time: #{inspect(config.shutdown_time)},
+      overtime_notifications: #{inspect(config.overtime_notifications)}
+    }
+    """
   end
 
   @doc """
