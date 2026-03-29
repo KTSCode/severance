@@ -308,6 +308,24 @@ defmodule Mix.Tasks.TodoTest do
     end
   end
 
+  describe "pending_changes?/1" do
+    test "returns true for modified files" do
+      assert Todo.pending_changes?(" M README.md")
+    end
+
+    test "returns true for untracked files" do
+      assert Todo.pending_changes?("?? new_file.txt")
+    end
+
+    test "returns false for empty output" do
+      refute Todo.pending_changes?("")
+    end
+
+    test "returns false for whitespace-only output" do
+      refute Todo.pending_changes?("   \n  ")
+    end
+  end
+
   describe "build_done_prompt/2" do
     test "contains the PR URL" do
       result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
