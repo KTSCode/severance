@@ -230,11 +230,23 @@ defmodule Mix.Tasks.Todo do
          :ok <- check_gh_installed(),
          {:ok, readme} <- read_readme(root),
          {:ok, items} <- parse_todo_section(readme),
-         {:ok, item} <- first_unchecked(items),
-         slug = slugify(item.text),
-         :ok <- create_branch(slug),
-         :ok <- write_current(root, item.text) do
+         {:ok, item} <- first_unchecked(items) do
+      slug = slugify(item.text)
+
+      # Write state and prompt before slow git operations so piped
+      # consumers (e.g. `mix todo | claude`) receive stdout immediately
+      # instead of timing out waiting for branch creation.
+      :ok = write_current(root, item.text)
       IO.write(build_prompt(item.text, readme))
+
+      case create_branch(slug) do
+        :ok ->
+          :ok
+
+        error ->
+          delete_current(root)
+          handle_error(error)
+      end
     else
       error -> handle_error(error)
     end
