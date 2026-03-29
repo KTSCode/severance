@@ -266,8 +266,15 @@ defmodule Severance.Countdown do
   end
 
   defp local_now do
-    tz = Application.get_env(:severance, :timezone, "America/Los_Angeles")
+    tz = Application.get_env(:severance, :timezone) || infer_timezone()
     DateTime.now!(tz)
+  end
+
+  defp infer_timezone do
+    case Severance.Timezone.infer() do
+      {:ok, tz} -> tz
+      {:error, _} -> "Etc/UTC"
+    end
   end
 
   defp send_stale_pane_warnings do

@@ -119,7 +119,17 @@ The config file is a plain Elixir term:
 ```elixir
 %{
   shutdown_time: "17:00",
-  timezone: "America/Los_Angeles",
+  overtime_notifications: true
+}
+```
+
+The timezone is inferred from the system (`/etc/localtime`). To override
+it, add a `timezone` key to your config file:
+
+```elixir
+%{
+  shutdown_time: "17:00",
+  timezone: "America/New_York",
   overtime_notifications: true
 }
 ```

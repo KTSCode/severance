@@ -9,7 +9,6 @@ defmodule Severance.Config do
 
   @default_config %{
     shutdown_time: "17:00",
-    timezone: "America/Los_Angeles",
     overtime_notifications: true
   }
 
@@ -60,13 +59,16 @@ defmodule Severance.Config do
   """
   @spec generate_contents(map()) :: String.t()
   def generate_contents(config) do
-    """
-    %{
-      shutdown_time: #{inspect(config.shutdown_time)},
-      timezone: #{inspect(config.timezone)},
-      overtime_notifications: #{inspect(config.overtime_notifications)}
-    }
-    """
+    pairs =
+      [
+        {:shutdown_time, config.shutdown_time},
+        if(Map.has_key?(config, :timezone), do: {:timezone, config.timezone}),
+        {:overtime_notifications, config.overtime_notifications}
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map_join(",\n", fn {k, v} -> "  #{k}: #{inspect(v)}" end)
+
+    "%{\n#{pairs}\n}\n"
   end
 
   @doc """

@@ -4,14 +4,15 @@ defmodule Severance.ConfigTest do
   alias Severance.Config
 
   describe "defaults/0" do
-    test "returns map with shutdown_time, timezone, and overtime_notifications" do
+    test "returns map with shutdown_time and overtime_notifications but not timezone" do
       defaults = Config.defaults()
 
       assert %{
                shutdown_time: "17:00",
-               timezone: "America/Los_Angeles",
                overtime_notifications: true
              } = defaults
+
+      refute Map.has_key?(defaults, :timezone)
     end
   end
 
@@ -24,7 +25,19 @@ defmodule Severance.ConfigTest do
   end
 
   describe "generate_contents/1" do
-    test "generates valid Elixir term that round-trips back to the input map" do
+    test "generates valid Elixir term without timezone" do
+      config = %{
+        shutdown_time: "16:30",
+        overtime_notifications: false
+      }
+
+      contents = Config.generate_contents(config)
+      {result, _bindings} = Code.eval_string(contents)
+
+      assert result == config
+    end
+
+    test "includes timezone when present in the config map" do
       config = %{
         shutdown_time: "16:30",
         timezone: "America/New_York",
@@ -50,6 +63,36 @@ defmodule Severance.ConfigTest do
       dir = Path.join(System.tmp_dir!(), "severance_test_#{System.unique_integer([:positive])}")
 
       assert {:error, :not_found} = Config.read(dir)
+    end
+
+    test "preserves timezone from config file when present" do
+      dir = Path.join(System.tmp_dir!(), "severance_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      File.write!(
+        Path.join(dir, "config.exs"),
+        ~s(%{shutdown_time: "18:00", timezone: "Europe/London", overtime_notifications: true})
+      )
+
+      assert {:ok, config} = Config.read(dir)
+      assert config.timezone == "Europe/London"
+    end
+
+    test "does not inject default timezone when config file omits it" do
+      dir = Path.join(System.tmp_dir!(), "severance_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      File.write!(
+        Path.join(dir, "config.exs"),
+        ~s(%{shutdown_time: "18:00", overtime_notifications: true})
+      )
+
+      assert {:ok, config} = Config.read(dir)
+      refute Map.has_key?(config, :timezone)
     end
   end
 

@@ -5,7 +5,6 @@ config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 config :severance,
   shutdown_time: ~T[16:30:00],
   system_adapter: Severance.System.Real,
-  timezone: "America/Los_Angeles",
   overtime_notifications: true
 
 import_config "#{config_env()}.exs"
