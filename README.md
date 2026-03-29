@@ -185,8 +185,6 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Add a claude skill that pulls the next item off this TODO list and goes through the claude plan mode to create a plan to do it
-- [x] Make the application agent agnostic
   - Update CLAUDE.md to be agnostic and point to AGENTS.md
   - Move plans out of docs/superpowers
   - Update AGENTS.md with instructions for cleaning up docs so that old and outdated plans to live in there forever
@@ -194,6 +192,6 @@ Small, well-understood changes go straight to code. For anything larger:
   - Fix: I ended up with conflicts on main because the changes on main hadn't been pushed up before the new branch was created
   - Update: the workflow that I plan to use, is to add one or more new todo items to the README then call `mix todo | claude` this should commit (with a skill if available) any changes and push them up before branching off main 
 - [x] Figure out why the PR I merged commit 763f6ba9844619788e67cf0080e57d1d6f6826fe didn't check off the TODO item above this one
-- [ ] figure out how to infer system timezone so it doesn't need to live in the config
+- [x] figure out how to infer system timezone so it doesn't need to live in the config
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 
