@@ -75,20 +75,24 @@ defmodule Mix.Tasks.Todo do
   @doc """
   Replaces the first `- [ ]` line matching `text` with `- [x]` in the README.
   """
-  @spec check_todo_in_readme(String.t(), String.t()) :: {:ok, String.t()}
+  @spec check_todo_in_readme(String.t(), String.t()) :: {:ok, String.t()} | {:error, :not_found}
   def check_todo_in_readme(readme, text) do
-    {result, _replaced} =
+    {result, replaced} =
       readme
       |> String.split("\n")
       |> Enum.reduce({[], false}, fn line, {acc, replaced} ->
-        if not replaced and line == "- [ ] #{text}" do
+        if not replaced and String.trim(line) == "- [ ] #{text}" do
           {["- [x] #{text}" | acc], true}
         else
           {[line | acc], replaced}
         end
       end)
 
-    {:ok, result |> Enum.reverse() |> Enum.join("\n")}
+    if replaced do
+      {:ok, result |> Enum.reverse() |> Enum.join("\n")}
+    else
+      {:error, :not_found}
+    end
   end
 
   @doc """
@@ -498,6 +502,11 @@ defmodule Mix.Tasks.Todo do
 
   defp handle_error({:error, :all_done}) do
     stderr("All TODO items are checked. Nothing to do!")
+    exit({:shutdown, 1})
+  end
+
+  defp handle_error({:error, :not_found}) do
+    stderr("TODO item not found in README.md — may have trailing whitespace or been modified")
     exit({:shutdown, 1})
   end
 

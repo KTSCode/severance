@@ -143,6 +143,28 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "- [ ] Second item"
     end
 
+    test "matches lines with trailing whitespace" do
+      readme = """
+      ## TODO
+      - [ ] Item with trailing space \
+
+      - [ ] Clean item
+      """
+
+      assert {:ok, result} = Todo.check_todo_in_readme(readme, "Item with trailing space")
+      assert result =~ "- [x] Item with trailing space"
+      assert result =~ "- [ ] Clean item"
+    end
+
+    test "returns error when no matching item found" do
+      readme = """
+      ## TODO
+      - [ ] Some other item
+      """
+
+      assert {:error, :not_found} = Todo.check_todo_in_readme(readme, "Nonexistent item")
+    end
+
     test "skips already-checked items with same text" do
       readme = """
       ## TODO
