@@ -227,6 +227,110 @@ defmodule Severance.UpdaterTest do
     end
   end
 
+  describe "run/1 daemon restart" do
+    test "prompts and restarts when daemon is running and user confirms" do
+      {tmp_dir, binary_path, http_get} = update_fixture()
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      stop_called = self()
+      restart_called = self()
+
+      output =
+        capture_io(fn ->
+          assert Updater.run(
+                   http_get: http_get,
+                   binary_path: binary_path,
+                   arch: "aarch64-apple-darwin24.3.0",
+                   daemon_running?: fn -> true end,
+                   prompt_restart: fn -> true end,
+                   stop_daemon: fn ->
+                     send(stop_called, :stop_called)
+                     :ok
+                   end,
+                   restart_daemon: fn _path ->
+                     send(restart_called, :restart_called)
+                     :ok
+                   end
+                 ) == :ok
+        end)
+
+      assert output =~ "Updated to v99.0.0 and restarted"
+      assert_received :stop_called
+      assert_received :restart_called
+    end
+
+    test "skips restart when daemon is running but user declines" do
+      {tmp_dir, binary_path, http_get} = update_fixture()
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      output =
+        capture_io(fn ->
+          assert Updater.run(
+                   http_get: http_get,
+                   binary_path: binary_path,
+                   arch: "aarch64-apple-darwin24.3.0",
+                   daemon_running?: fn -> true end,
+                   prompt_restart: fn -> false end,
+                   stop_daemon: fn -> flunk("stop_daemon should not be called") end,
+                   restart_daemon: fn _path -> flunk("restart_daemon should not be called") end
+                 ) == :ok
+        end)
+
+      assert output =~ "Updated to v99.0.0"
+      assert output =~ "Restart the daemon to use the new version"
+    end
+
+    test "does not prompt when no daemon is running" do
+      {tmp_dir, binary_path, http_get} = update_fixture()
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      output =
+        capture_io(fn ->
+          assert Updater.run(
+                   http_get: http_get,
+                   binary_path: binary_path,
+                   arch: "aarch64-apple-darwin24.3.0",
+                   daemon_running?: fn -> false end,
+                   prompt_restart: fn -> flunk("prompt_restart should not be called") end
+                 ) == :ok
+        end)
+
+      assert output =~ "Updated to v99.0.0"
+      refute output =~ "restarted"
+      refute output =~ "Restart the daemon"
+    end
+  end
+
+  defp update_fixture do
+    tmp_dir =
+      Path.join(System.tmp_dir!(), "sev_update_test_#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(tmp_dir)
+    binary_path = Path.join(tmp_dir, "sev")
+    File.write!(binary_path, "old-binary")
+
+    http_get = fn url ->
+      if String.contains?(url, "api.github.com") do
+        body =
+          :json.encode(%{
+            "tag_name" => "v99.0.0",
+            "assets" => [
+              %{
+                "name" => "sev_macos_arm64",
+                "browser_download_url" => "https://example.com/sev"
+              }
+            ]
+          })
+
+        {:ok, IO.iodata_to_binary(body)}
+      else
+        {:ok, "new-binary-content"}
+      end
+    end
+
+    {tmp_dir, binary_path, http_get}
+  end
+
   defp bump_patch(version) do
     [major, minor, patch] = String.split(version, ".")
     "#{major}.#{minor}.#{String.to_integer(patch) + 1}"

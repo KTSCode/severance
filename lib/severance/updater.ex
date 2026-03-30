@@ -111,10 +111,21 @@ defmodule Severance.Updater do
 
   @doc """
   Checks GitHub for the latest release and updates the binary if a newer
-  version is available.
+  version is available. When a daemon is running, prompts the user to
+  restart it so the new binary takes effect.
 
   Returns `:ok` on success (whether updated or already current), or
   `{:error, reason}` on failure.
+
+  ## Options
+
+  In addition to `:http_get`, `:binary_path`, and `:arch`, accepts
+  injectable callbacks for testability:
+
+  - `:daemon_running?` — `(() -> boolean())`, defaults to `&CLI.daemon_running?/0`
+  - `:prompt_restart` — `(() -> boolean())`, defaults to reading from stdio
+  - `:stop_daemon` — `(() -> :ok | {:error, term()})`, defaults to `&CLI.run_stop/0`
+  - `:restart_daemon` — `((String.t()) -> :ok)`, defaults to launchctl/sh logic
   """
   @spec run(keyword()) :: :ok | {:error, term()}
   def run(opts \\ []) do
@@ -127,10 +138,10 @@ defmodule Severance.Updater do
          {:ok, latest} <- extract_version(release),
          :update_available <- check_version(current_version(), latest),
          {:ok, asset_url} <- find_asset(release, target_name(arch)),
-         {:ok, _} <- require_binary_path(binary_path),
+         {:ok, bin_path} <- require_binary_path(binary_path),
          {:ok, data} <- http_get.(asset_url),
-         :ok <- write_binary(binary_path, data) do
-      IO.puts("Updated to v#{latest}")
+         :ok <- write_binary(bin_path, data) do
+      maybe_restart_daemon(latest, bin_path, opts)
       :ok
     else
       :up_to_date ->
@@ -141,6 +152,61 @@ defmodule Severance.Updater do
         IO.puts("Update failed: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  @spec maybe_restart_daemon(String.t(), String.t(), keyword()) :: :ok
+  defp maybe_restart_daemon(version, binary_path, opts) do
+    daemon_running? = Keyword.get(opts, :daemon_running?, &Severance.CLI.daemon_running?/0)
+    prompt_restart = Keyword.get(opts, :prompt_restart, &default_prompt_restart/0)
+    stop_daemon = Keyword.get(opts, :stop_daemon, &Severance.CLI.run_stop/0)
+    restart_daemon = Keyword.get(opts, :restart_daemon, &default_restart_daemon/1)
+
+    if daemon_running?.() do
+      IO.puts("""
+      A severance daemon is currently running. Restarting will lose the
+      current countdown state (phase, overtime mode, etc.).\
+      """)
+
+      if prompt_restart.() do
+        stop_daemon.()
+        restart_daemon.(binary_path)
+        IO.puts("Updated to v#{version} and restarted")
+      else
+        IO.puts("Updated to v#{version}. Restart the daemon to use the new version.")
+      end
+    else
+      IO.puts("Updated to v#{version}")
+    end
+  end
+
+  @spec default_prompt_restart() :: boolean()
+  defp default_prompt_restart do
+    IO.write("Restart now? [y/N] ")
+
+    case IO.read(:stdio, :line) do
+      line when is_binary(line) -> String.trim(line) in ["y", "Y"]
+      _ -> false
+    end
+  end
+
+  @spec default_restart_daemon(String.t()) :: :ok
+  defp default_restart_daemon(binary_path) do
+    plist_path = plist_path()
+
+    if File.exists?(plist_path) do
+      {uid, 0} = System.cmd("id", ["-u"])
+      uid = String.trim(uid)
+      System.cmd("launchctl", ["kickstart", "gui/#{uid}/com.severance.daemon"])
+    else
+      System.cmd("sh", ["-c", "#{binary_path} start &"])
+    end
+
+    :ok
+  end
+
+  @spec plist_path() :: String.t()
+  defp plist_path do
+    Path.expand("~/Library/LaunchAgents/com.severance.daemon.plist")
   end
 
   @spec api_url() :: String.t()

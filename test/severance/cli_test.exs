@@ -54,6 +54,12 @@ defmodule Severance.CLITest do
     end
   end
 
+  describe "daemon_running?/0" do
+    test "returns false when no daemon is running" do
+      refute CLI.daemon_running?()
+    end
+  end
+
   describe "run_stop/0" do
     test "returns error when daemon is not running" do
       assert {:error, _reason} = CLI.run_stop()
