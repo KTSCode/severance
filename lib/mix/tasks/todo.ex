@@ -445,7 +445,6 @@ defmodule Mix.Tasks.Todo do
     stderr("Creating branch todo/#{slug}...")
 
     with {:ok, _} <- cmd("git", ["checkout", "main"]),
-         {:ok, _} <- cmd("git", ["pull", "--ff-only"]),
          :ok <- sync_main(),
          {:ok, _} <- cmd("git", ["checkout", "-b", "todo/#{slug}"]) do
       :ok
@@ -453,23 +452,24 @@ defmodule Mix.Tasks.Todo do
   end
 
   defp sync_main do
-    with {:ok, status} <- cmd("git", ["status", "--porcelain"]),
-         :ok <- commit_pending(status),
-         {:ok, _} <- cmd("git", ["push"]) do
-      :ok
+    with {:ok, status} <- cmd("git", ["status", "--porcelain"]) do
+      sync_main(pending_changes?(status))
     end
   end
 
-  defp commit_pending(status) do
-    if pending_changes?(status) do
-      stderr("Committing pending changes on main...")
+  defp sync_main(true) do
+    stderr("Synchronizing pending changes on main...")
 
-      with {:ok, _} <- cmd("git", ["add", "-A"]),
-           {:ok, _} <- cmd("git", ["commit", "-m", "Update TODOs"]) do
-        :ok
-      end
-    else
-      :ok
+    case cmd("git", ["synchronize"]) do
+      {:ok, _} -> :ok
+      error -> error
+    end
+  end
+
+  defp sync_main(false) do
+    case cmd("git", ["pull", "--ff-only"]) do
+      {:ok, _} -> :ok
+      error -> error
     end
   end
 
