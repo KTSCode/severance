@@ -188,14 +188,17 @@ defmodule Severance.Updater do
   defp default_http_get(url) do
     headers = [
       {~c"user-agent", ~c"severance-updater"},
-      {~c"accept", ~c"application/octet-stream"}
+      {~c"accept", ~c"application/vnd.github+json"}
     ]
 
     http_opts = [
       ssl: [
         verify: :verify_peer,
         cacerts: :public_key.cacerts_get(),
-        depth: 3
+        depth: 3,
+        customize_hostname_check: [
+          match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+        ]
       ],
       autoredirect: true
     ]
