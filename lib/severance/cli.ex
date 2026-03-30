@@ -6,6 +6,7 @@ defmodule Severance.CLI do
 
       sev                        # Start the daemon
       sev init                   # Set up config, plist, and tmux
+      sev update                 # Update to latest release
       sev --shutdown-time HH:MM  # Start with custom shutdown time
       sev otp                    # Activate Overtime Protocol on running daemon
       sev overtime               # Activate Overtime Protocol on running daemon
@@ -18,7 +19,8 @@ defmodule Severance.CLI do
 
   Returns `:start` for no args or unrecognized args, `{:start, opts}` when
   options are provided, `:overtime` when the `otp` subcommand is given,
-  or `:stop` when the `stop` subcommand is given.
+  `:stop` when the `stop` subcommand is given, or `:update` when the
+  `update` subcommand is given.
 
   ## Examples
 
@@ -31,8 +33,11 @@ defmodule Severance.CLI do
       iex> Severance.CLI.parse_args(["something-else"])
       :start
   """
-  @spec parse_args([String.t()]) :: :start | {:start, keyword()} | :overtime | :stop | :init
+  @type parse_args_result :: :start | {:start, keyword()} | :overtime | :stop | :init | :update
+
+  @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(["init" | _rest]), do: :init
+  def parse_args(["update" | _rest]), do: :update
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime

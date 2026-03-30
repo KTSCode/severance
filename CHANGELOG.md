@@ -21,3 +21,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `mix todo` task for AI-driven TODO workflow
 - CI and release GitHub Actions workflows
 - Agent-agnostic AGENTS.md project conventions
+- `sev update` follow best practices to allow severance to update it self if a new version has been released
