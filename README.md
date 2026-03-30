@@ -183,5 +183,10 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] figure out how to infer system timezone so it doesn't need to live in the config
 - [x] `mix todo` commits pending changes on main before branching — should stash or branch first so work ends up on the PR branch, not main
 - [ ] `sev update` follow best practices to allow severance to update it self if a new version has been released
+- [ ] `sev status` the user needs to be able to check:
+  - if severance is running
+  - if over time protocol has been enabled
+  - how long until the next shutdown
+  - the current severance version
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 
