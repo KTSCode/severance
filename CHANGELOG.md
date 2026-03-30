@@ -6,15 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-03-29
+
 ### Added
-
-- figure out how to infer system timezone so it doesn't need to live in the config
-
-### Changed
-
-- Improve the `mix todo` tasks
-
-- Restructure project conventions into agent-agnostic AGENTS.md hub
-- Rewrite CLAUDE.md as thin pointer to AGENTS.md
-- Move docs from docs/superpowers/ to docs/plans/ and docs/specs/
-- `mix todo` commits pending changes on main before branching — should stash or branch first so work ends up on the PR branch, not main
+- Countdown GenServer with phase state machine and escalating shutdown warnings
+- macOS notifications via `osascript` with overtime protocol
+- Tmux status bar integration and stale pane detection
+- CLI with arg parsing and OTP RPC (`start`, `stop`, `overtime`, `init`)
+- Burrito-wrapped standalone binary for macOS (ARM64 and x86_64)
+- LaunchAgent plist for login startup
+- Config file support with automatic system timezone inference
+- Late start handling with overtime burst
+- Exponential backoff on shutdown retries
+- `mix todo` task for AI-driven TODO workflow
+- CI and release GitHub Actions workflows
+- Agent-agnostic AGENTS.md project conventions
