@@ -50,17 +50,17 @@ defmodule Severance.TmuxTest do
   describe "countdown_status/3" do
     test "returns yellow prefix for gentle phase" do
       result = Tmux.countdown_status(25, :gentle, "original")
-      assert result == "#[fg=colour226,bold] STOP:25m #[default]original"
+      assert result == "#[fg=colour226,bold] SHUTDOWN:25m #[default]original"
     end
 
     test "returns red blinking prefix for aggressive phase" do
       result = Tmux.countdown_status(10, :aggressive, "original")
-      assert result == "#[fg=colour196,bold,blink] STOP:10m #[default]original"
+      assert result == "#[fg=colour196,bold,blink] SHUTDOWN:10m #[default]original"
     end
 
     test "returns red blinking prefix for final phase" do
       result = Tmux.countdown_status(3, :final, "original")
-      assert result == "#[fg=colour196,bold,blink] STOP:3m #[default]original"
+      assert result == "#[fg=colour196,bold,blink] SHUTDOWN:3m #[default]original"
     end
   end
 end

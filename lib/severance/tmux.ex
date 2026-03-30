@@ -36,7 +36,7 @@ defmodule Severance.Tmux do
         :final -> {"colour196", ",blink"}
       end
 
-    "#[fg=#{color},bold#{extra}] STOP:#{minutes_left}m #[default]#{original_status}"
+    "#[fg=#{color},bold#{extra}] SHUTDOWN:#{minutes_left}m #[default]#{original_status}"
   end
 
   @doc """
