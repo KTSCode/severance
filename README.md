@@ -24,9 +24,9 @@ countdown:
 
 | Phase | Window | Interval | Tmux Status |
 |---|---|---|---|
-| Gentle | T-30 to T-15 | Every 5 min | Yellow `STOP:Xm` |
-| Aggressive | T-15 to T-5 | Every 2 min | Red blinking `STOP:Xm` |
-| Final | T-5 to T-0 | Every 1 min | Red blinking `STOP:Xm` |
+| Gentle | T-30 to T-15 | Every 5 min | Yellow `SHUTDOWN:Xm` |
+| Aggressive | T-15 to T-5 | Every 2 min | Red blinking `SHUTDOWN:Xm` |
+| Final | T-5 to T-0 | Every 1 min | Red blinking `SHUTDOWN:Xm` |
 | Shutdown | T-0 | Machine powers off | — |
 
 At T-15, Severance checks all tmux panes for activity. Any pane idle for
