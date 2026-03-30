@@ -7,6 +7,8 @@ defmodule Severance.CLI do
       sev                        # Start the daemon
       sev init                   # Set up config, plist, and tmux
       sev update                 # Update to latest release
+      sev version                # Print current version
+      sev -v                     # Print current version
       sev --shutdown-time HH:MM  # Start with custom shutdown time
       sev otp                    # Activate Overtime Protocol on running daemon
       sev overtime               # Activate Overtime Protocol on running daemon
@@ -33,11 +35,15 @@ defmodule Severance.CLI do
       iex> Severance.CLI.parse_args(["something-else"])
       :start
   """
-  @type parse_args_result :: :start | {:start, keyword()} | :overtime | :stop | :init | :update
+  @type parse_args_result ::
+          :start | {:start, keyword()} | :overtime | :stop | :init | :update | :version
 
   @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(["init" | _rest]), do: :init
   def parse_args(["update" | _rest]), do: :update
+  def parse_args(["version" | _rest]), do: :version
+  def parse_args(["-v" | _rest]), do: :version
+  def parse_args(["--version" | _rest]), do: :version
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime

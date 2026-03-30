@@ -81,6 +81,16 @@ chmod +x ~/bin/sev
 
 [releases]: https://github.com/KTSCode/severance/releases
 
+## Updating
+
+```bash
+sev update
+```
+
+Checks GitHub releases for a newer version and replaces the binary
+in-place. Uses only OTP stdlib for HTTPS — no external dependencies
+required.
+
 ## Setup
 
 ```bash
@@ -96,6 +106,8 @@ and checks tmux readiness. Safe to re-run.
 sev            # start the daemon
 sev otp        # activate overtime protocol
 sev stop       # stop the daemon
+sev update     # update to latest release
+sev version    # print current version
 ```
 
 ### Start at login

@@ -30,6 +30,11 @@ defmodule Severance.Application do
     System.halt(if result == :ok, do: 0, else: 1)
   end
 
+  defp dispatch(:version) do
+    IO.puts(Severance.Updater.current_version())
+    System.halt(0)
+  end
+
   defp dispatch(:overtime) do
     result = CLI.run_overtime()
     System.halt(if result == :ok, do: 0, else: 1)
