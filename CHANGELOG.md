@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `sev update` self-update command via GitHub Releases API
 
+### Fixed
+- Escape AppleScript string interpolation to prevent injection via tmux pane names
+- Handle invalid `--shutdown-time` input gracefully instead of crashing
+- Remove duplicate `SEVERANCE_SHUTDOWN_TIME` parsing from `runtime.exs` that crashed on `HH:MM` format
+- Fix typos in notification messages ("decided" → "decide", "Save you work" → "Save your work")
+- Remove unused `pending_changes?/1` function
+
 ## [0.1.0] — 2026-03-29
 
 ### Added
@@ -24,4 +31,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `mix todo` task for AI-driven TODO workflow
 - CI and release GitHub Actions workflows
 - Agent-agnostic AGENTS.md project conventions
-- Fix issues from code audit (`docs/research/2026-03-30-code-audit.md`): osascript injection, crash on bad `--shutdown-time`, typos, dead code, duplicate env var parsing
