@@ -56,23 +56,6 @@ defmodule Mix.Tasks.Todo do
   end
 
   @doc """
-  Converts a TODO item text into a URL-safe branch slug.
-
-  Downcases, replaces non-alphanumeric characters with hyphens,
-  collapses consecutive hyphens, trims edges, and truncates to
-  60 characters.
-  """
-  @spec slugify(String.t()) :: String.t()
-  def slugify(text) do
-    text
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/, "-")
-    |> String.trim("-")
-    |> String.slice(0, 60)
-    |> String.trim_trailing("-")
-  end
-
-  @doc """
   Replaces the first `- [ ]` line matching `text` with `- [x]` in the README.
   """
   @spec check_todo_in_readme(String.t(), String.t()) :: {:ok, String.t()} | {:error, :not_found}
@@ -182,12 +165,14 @@ defmodule Mix.Tasks.Todo do
 
     ## Instructions
 
-    1. Read the codebase to understand the architecture and existing patterns.
-    2. Follow TDD: write a failing test first, then implement until it passes.
-    3. Run `mix format` after changes.
-    4. Run `mix credo --strict` and fix any issues.
-    5. Run `mix test` to verify everything passes.
-    6. When implementation is complete and all tests pass, run:
+    1. Create a feature branch from `main` with the `todo/` prefix.
+       Choose a concise, descriptive branch name (e.g., `todo/add-user-auth`).
+    2. Read the codebase to understand the architecture and existing patterns.
+    3. Follow TDD: write a failing test first, then implement until it passes.
+    4. Run `mix format` after changes.
+    5. Run `mix credo --strict` and fix any issues.
+    6. Run `mix test` to verify everything passes.
+    7. When implementation is complete and all tests pass, run:
        mix todo --done
     """
   end
@@ -231,22 +216,8 @@ defmodule Mix.Tasks.Todo do
          {:ok, readme} <- read_readme(root),
          {:ok, items} <- parse_todo_section(readme),
          {:ok, item} <- first_unchecked(items) do
-      slug = slugify(item.text)
-
-      # Write state and prompt before slow git operations so piped
-      # consumers (e.g. `mix todo | claude`) receive stdout immediately
-      # instead of timing out waiting for branch creation.
       :ok = write_current(root, item.text)
       IO.write(build_prompt(item.text, readme))
-
-      case create_branch(slug) do
-        :ok ->
-          :ok
-
-        error ->
-          delete_current(root)
-          handle_error(error)
-      end
     else
       error -> handle_error(error)
     end
@@ -439,38 +410,6 @@ defmodule Mix.Tasks.Todo do
 
     File.write!(path, content)
     :ok
-  end
-
-  defp create_branch(slug) do
-    stderr("Creating branch todo/#{slug}...")
-
-    with {:ok, _} <- cmd("git", ["checkout", "main"]),
-         :ok <- sync_main(),
-         {:ok, _} <- cmd("git", ["checkout", "-b", "todo/#{slug}"]) do
-      :ok
-    end
-  end
-
-  defp sync_main do
-    with {:ok, status} <- cmd("git", ["status", "--porcelain"]) do
-      sync_main(pending_changes?(status))
-    end
-  end
-
-  defp sync_main(true) do
-    stderr("Synchronizing pending changes on main...")
-
-    case cmd("git", ["synchronize"]) do
-      {:ok, _} -> :ok
-      error -> error
-    end
-  end
-
-  defp sync_main(false) do
-    case cmd("git", ["pull", "--ff-only"]) do
-      {:ok, _} -> :ok
-      error -> error
-    end
   end
 
   defp git_commit(todo_text) do

@@ -106,30 +106,6 @@ defmodule Mix.Tasks.TodoTest do
     end
   end
 
-  describe "slugify/1" do
-    test "converts spaces to hyphens and downcases" do
-      assert "add-user-authentication" = Todo.slugify("Add User Authentication")
-    end
-
-    test "strips special characters" do
-      assert "fix-bug-in-config" = Todo.slugify("Fix bug (in config!)")
-    end
-
-    test "truncates to 60 characters" do
-      long = String.duplicate("word ", 20)
-      slug = Todo.slugify(long)
-      assert String.length(slug) <= 60
-    end
-
-    test "trims leading and trailing hyphens" do
-      assert "clean-slug" = Todo.slugify("--clean slug--")
-    end
-
-    test "collapses consecutive hyphens" do
-      assert "a-b-c" = Todo.slugify("a   b   c")
-    end
-  end
-
   describe "check_todo_in_readme/2" do
     test "checks the matching unchecked item" do
       readme = """
@@ -309,6 +285,12 @@ defmodule Mix.Tasks.TodoTest do
     test "contains mix todo --done callout" do
       result = Todo.build_prompt("Fix bug", "# Readme")
       assert result =~ "mix todo --done"
+    end
+
+    test "contains branch creation instructions" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "Create a feature branch from `main`"
+      assert result =~ "todo/"
     end
   end
 
