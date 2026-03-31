@@ -199,6 +199,7 @@ Small, well-understood changes go straight to code. For anything larger:
   - if over time protocol has been enabled
   - how long until the next shutdown
   - the current severance version
+  - if the need to update (this should fail gracefully if the call to get the latest version doesn't work)
 - [ ] Update `mix release` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
   - It should ask for approval on the change log
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
