@@ -24,9 +24,9 @@ countdown:
 
 | Phase | Window | Interval | Tmux Status |
 |---|---|---|---|
-| Gentle | T-30 to T-15 | Every 5 min | Yellow `STOP:Xm` |
-| Aggressive | T-15 to T-5 | Every 2 min | Red blinking `STOP:Xm` |
-| Final | T-5 to T-0 | Every 1 min | Red blinking `STOP:Xm` |
+| Gentle | T-30 to T-15 | Every 5 min | Yellow `SHUTDOWN:Xm` |
+| Aggressive | T-15 to T-5 | Every 2 min | Red blinking `SHUTDOWN:Xm` |
+| Final | T-5 to T-0 | Every 1 min | Red blinking `SHUTDOWN:Xm` |
 | Shutdown | T-0 | Machine powers off | — |
 
 At T-15, Severance checks all tmux panes for activity. Any pane idle for
@@ -194,5 +194,12 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] figure out how to infer system timezone so it doesn't need to live in the config
 - [x] `mix todo` commits pending changes on main before branching — should stash or branch first so work ends up on the PR branch, not main
 - [x] `sev update` follow best practices to allow severance to update it self if a new version has been released
+- [ ] `sev status` the user needs to be able to check:
+  - if severance is running
+  - if over time protocol has been enabled
+  - how long until the next shutdown
+  - the current severance version
+- [ ] Update `mix release` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
+  - It should ask for approval on the change log
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 
