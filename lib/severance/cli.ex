@@ -36,7 +36,14 @@ defmodule Severance.CLI do
       :start
   """
   @type parse_args_result ::
-          :start | {:start, keyword()} | :overtime | :stop | :init | :update | :version
+          :start
+          | {:start, keyword()}
+          | :overtime
+          | :stop
+          | :init
+          | :update
+          | :version
+          | {:error, String.t()}
 
   @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(["init" | _rest]), do: :init
@@ -50,8 +57,15 @@ defmodule Severance.CLI do
   def parse_args(["stop" | _rest]), do: :stop
 
   def parse_args(["--shutdown-time", time_str | _rest]) do
-    {:ok, time} = Time.from_iso8601(time_str <> ":00")
-    {:start, shutdown_time: time}
+    padded = if String.length(time_str) == 5, do: time_str <> ":00", else: time_str
+
+    case Time.from_iso8601(padded) do
+      {:ok, time} ->
+        {:start, shutdown_time: time}
+
+      {:error, _reason} ->
+        {:error, "Invalid shutdown time: #{time_str}. Expected HH:MM format (e.g. 17:00)."}
+    end
   end
 
   def parse_args(_args), do: :start

@@ -43,5 +43,19 @@ defmodule Severance.NotifierTest do
       assert title == "FINAL WARNING"
       assert body =~ "1 minute"
     end
+
+    test "overtime 1-minute message uses correct grammar" do
+      {_title, body} = Notifier.countdown_message(1, :overtime)
+      assert body =~ "to decide to be"
+      refute body =~ "decided"
+    end
+  end
+
+  describe "send_stale_pane/1" do
+    test "stale pane message uses correct grammar" do
+      source = File.read!("lib/severance/notifier.ex")
+      assert source =~ "Save your work"
+      refute source =~ "Save you work"
+    end
   end
 end

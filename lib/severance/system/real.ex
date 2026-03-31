@@ -12,11 +12,27 @@ defmodule Severance.System.Real do
   """
   @spec notify(String.t(), String.t(), String.t()) :: :ok
   def notify(title, message, sound) do
+    safe_title = escape_applescript(title)
+    safe_message = escape_applescript(message)
+    safe_sound = escape_applescript(sound)
+
     script =
-      ~s(display notification "#{message}" with title "#{title}" sound name "#{sound}")
+      ~s(display notification "#{safe_message}" with title "#{safe_title}" sound name "#{safe_sound}")
 
     System.cmd("osascript", ["-e", script])
     :ok
+  end
+
+  @doc """
+  Escapes a string for safe interpolation inside AppleScript double-quoted strings.
+
+  Backslashes are escaped first, then double quotes.
+  """
+  @spec escape_applescript(String.t()) :: String.t()
+  def escape_applescript(value) do
+    value
+    |> String.replace("\\", "\\\\")
+    |> String.replace(~s("), ~s(\\"))
   end
 
   @impl true

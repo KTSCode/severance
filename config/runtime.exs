@@ -1,5 +1,6 @@
 import Config
 
-if shutdown_time = System.get_env("SEVERANCE_SHUTDOWN_TIME") do
-  config :severance, shutdown_time: Time.from_iso8601!(shutdown_time)
-end
+# SEVERANCE_SHUTDOWN_TIME is parsed in Severance.Application.resolve_config/2
+# (Layer 3) which handles both HH:MM and HH:MM:SS formats gracefully.
+# Do not duplicate that parsing here.
+_ = Config

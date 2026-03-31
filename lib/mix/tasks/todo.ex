@@ -313,14 +313,6 @@ defmodule Mix.Tasks.Todo do
   end
 
   @doc """
-  Returns true when `git status --porcelain` output indicates uncommitted changes.
-  """
-  @spec pending_changes?(String.t()) :: boolean()
-  def pending_changes?(status_output) do
-    String.trim(status_output) != ""
-  end
-
-  @doc """
   Extracts a GitHub PR URL from command output that may contain warnings.
 
   `gh pr create` prints the PR URL as its last line but may include

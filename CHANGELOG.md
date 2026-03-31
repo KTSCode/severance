@@ -24,3 +24,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `mix todo` task for AI-driven TODO workflow
 - CI and release GitHub Actions workflows
 - Agent-agnostic AGENTS.md project conventions
+- Fix issues from code audit (`docs/research/2026-03-30-code-audit.md`): osascript injection, crash on bad `--shutdown-time`, typos, dead code, duplicate env var parsing
