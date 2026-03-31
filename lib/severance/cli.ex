@@ -6,6 +6,9 @@ defmodule Severance.CLI do
 
       sev                        # Start the daemon
       sev init                   # Set up config, plist, and tmux
+      sev update                 # Update to latest release
+      sev version                # Print current version
+      sev -v                     # Print current version
       sev --shutdown-time HH:MM  # Start with custom shutdown time
       sev otp                    # Activate Overtime Protocol on running daemon
       sev overtime               # Activate Overtime Protocol on running daemon
@@ -18,7 +21,8 @@ defmodule Severance.CLI do
 
   Returns `:start` for no args or unrecognized args, `{:start, opts}` when
   options are provided, `:overtime` when the `otp` subcommand is given,
-  or `:stop` when the `stop` subcommand is given.
+  `:stop` when the `stop` subcommand is given, or `:update` when the
+  `update` subcommand is given.
 
   ## Examples
 
@@ -31,8 +35,15 @@ defmodule Severance.CLI do
       iex> Severance.CLI.parse_args(["something-else"])
       :start
   """
-  @spec parse_args([String.t()]) :: :start | {:start, keyword()} | :overtime | :stop | :init
+  @type parse_args_result ::
+          :start | {:start, keyword()} | :overtime | :stop | :init | :update | :version
+
+  @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(["init" | _rest]), do: :init
+  def parse_args(["update" | _rest]), do: :update
+  def parse_args(["version" | _rest]), do: :version
+  def parse_args(["-v" | _rest]), do: :version
+  def parse_args(["--version" | _rest]), do: :version
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime
@@ -46,6 +57,20 @@ defmodule Severance.CLI do
   def parse_args(_args), do: :start
 
   @doc """
+  Checks whether the severance daemon is currently running.
+
+  Attempts to connect to the daemon node via distributed Erlang.
+  Returns `true` if the connection succeeds, `false` otherwise.
+  """
+  @spec daemon_running?() :: boolean()
+  def daemon_running? do
+    case with_daemon_rpc(fn _target -> :ok end) do
+      :ok -> true
+      {:error, _} -> false
+    end
+  end
+
+  @doc """
   Connects to the running severance node and activates the Overtime Protocol.
 
   Starts a temporary named node, connects to the daemon, makes an RPC call
@@ -55,29 +80,11 @@ defmodule Severance.CLI do
   """
   @spec run_overtime() :: :ok | {:error, String.t()}
   def run_overtime do
-    hostname = node_hostname()
-    target = :"severance@#{hostname}"
-    cli_name = :"severance_cli_#{:rand.uniform(100_000)}@#{hostname}"
-
-    case Node.start(cli_name, name_domain: :shortnames) do
-      {:ok, _pid} ->
-        Node.set_cookie(Node.self(), cookie())
-
-        case Node.connect(target) do
-          true ->
-            :rpc.call(target, Severance.Countdown, :overtime, [])
-            IO.puts("Overtime Protocol activated. No shutdown today — but you'll hear about it.")
-            :ok
-
-          false ->
-            IO.puts("Could not connect to severance daemon. Is it running?")
-            {:error, "connection failed"}
-        end
-
-      {:error, reason} ->
-        IO.puts("Could not start distribution: #{inspect(reason)}")
-        {:error, "distribution failed"}
-    end
+    with_daemon_rpc(fn target ->
+      :rpc.call(target, Severance.Countdown, :overtime, [])
+      IO.puts("Overtime Protocol activated. No shutdown today — but you'll hear about it.")
+      :ok
+    end)
   end
 
   @doc """
@@ -90,6 +97,15 @@ defmodule Severance.CLI do
   """
   @spec run_stop() :: :ok | {:error, String.t()}
   def run_stop do
+    with_daemon_rpc(fn target ->
+      :rpc.call(target, System, :stop, [0])
+      IO.puts("Severance daemon stopped.")
+      :ok
+    end)
+  end
+
+  @spec with_daemon_rpc((atom() -> term())) :: term() | {:error, String.t()}
+  defp with_daemon_rpc(callback) do
     hostname = node_hostname()
     target = :"severance@#{hostname}"
     cli_name = :"severance_cli_#{:rand.uniform(100_000)}@#{hostname}"
@@ -100,9 +116,7 @@ defmodule Severance.CLI do
 
         case Node.connect(target) do
           true ->
-            :rpc.call(target, System, :stop, [0])
-            IO.puts("Severance daemon stopped.")
-            :ok
+            callback.(target)
 
           false ->
             IO.puts("Could not connect to severance daemon. Is it running?")

@@ -81,6 +81,16 @@ chmod +x ~/bin/sev
 
 [releases]: https://github.com/KTSCode/severance/releases
 
+## Updating
+
+```bash
+sev update
+```
+
+Checks GitHub releases for a newer version and replaces the binary
+in-place. Uses only OTP stdlib for HTTPS — no external dependencies
+required.
+
 ## Setup
 
 ```bash
@@ -96,6 +106,8 @@ and checks tmux readiness. Safe to re-run.
 sev            # start the daemon
 sev otp        # activate overtime protocol
 sev stop       # stop the daemon
+sev update     # update to latest release
+sev version    # print current version
 ```
 
 ### Start at login
@@ -179,10 +191,9 @@ Small, well-understood changes go straight to code. For anything larger:
   - Update AGENTS.md with instructions for cleaning up docs so that old and outdated plans to live in there forever
   - Fix: I ended up with conflicts on main because the changes on main hadn't been pushed up before the new branch was created
   - Update: the workflow that I plan to use, is to add one or more new todo items to the README then call `mix todo | claude` this should commit (with a skill if available) any changes and push them up before branching off main 
-- [x] Figure out why the PR I merged commit 763f6ba9844619788e67cf0080e57d1d6f6826fe didn't check off the TODO item above this one
 - [x] figure out how to infer system timezone so it doesn't need to live in the config
 - [x] `mix todo` commits pending changes on main before branching — should stash or branch first so work ends up on the PR branch, not main
-- [ ] `sev update` follow best practices to allow severance to update it self if a new version has been released
+- [x] `sev update` follow best practices to allow severance to update it self if a new version has been released
 - [ ] `sev status` the user needs to be able to check:
   - if severance is running
   - if over time protocol has been enabled

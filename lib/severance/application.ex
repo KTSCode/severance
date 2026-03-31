@@ -16,28 +16,37 @@ defmodule Severance.Application do
 
   @impl true
   def start(_type, _args) do
-    args = cli_argv()
-
-    case CLI.parse_args(args) do
-      :init ->
-        Severance.Init.run()
-        System.halt(0)
-
-      :overtime ->
-        result = CLI.run_overtime()
-        System.halt(if result == :ok, do: 0, else: 1)
-
-      :stop ->
-        result = CLI.run_stop()
-        System.halt(if result == :ok, do: 0, else: 1)
-
-      :start ->
-        start_daemon()
-
-      {:start, opts} ->
-        start_daemon(opts)
-    end
+    cli_argv() |> CLI.parse_args() |> dispatch()
   end
+
+  @spec dispatch(CLI.parse_args_result()) :: {:ok, pid()}
+  defp dispatch(:init) do
+    Severance.Init.run()
+    System.halt(0)
+  end
+
+  defp dispatch(:update) do
+    result = Severance.Updater.run()
+    System.halt(if result == :ok, do: 0, else: 1)
+  end
+
+  defp dispatch(:version) do
+    IO.puts(Severance.Updater.current_version())
+    System.halt(0)
+  end
+
+  defp dispatch(:overtime) do
+    result = CLI.run_overtime()
+    System.halt(if result == :ok, do: 0, else: 1)
+  end
+
+  defp dispatch(:stop) do
+    result = CLI.run_stop()
+    System.halt(if result == :ok, do: 0, else: 1)
+  end
+
+  defp dispatch(:start), do: start_daemon()
+  defp dispatch({:start, opts}), do: start_daemon(opts)
 
   @doc """
   Returns CLI arguments from Burrito when available, otherwise `System.argv/0`.

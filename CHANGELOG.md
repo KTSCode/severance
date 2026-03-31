@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- `sev update` self-update command via GitHub Releases API
+
 ## [0.1.0] — 2026-03-29
 
 ### Added
