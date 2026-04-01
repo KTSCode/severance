@@ -10,9 +10,9 @@ defmodule Severance.TmuxTest do
       recent = now - 5 * 60
 
       raw_output =
-        "dev:editor.0 /Users/kyle/project1 #{old}\n" <>
-          "dev:server.1 /Users/kyle/project1 #{recent}\n" <>
-          "notes:main.0 /Users/kyle/notes #{old}\n"
+        "dev:editor.0\t/Users/kyle/project1\t#{old}\n" <>
+          "dev:server.1\t/Users/kyle/project1\t#{recent}\n" <>
+          "notes:main.0\t/Users/kyle/notes\t#{old}\n"
 
       stale = Tmux.parse_stale_panes(raw_output, now - 15 * 60)
 
@@ -25,7 +25,7 @@ defmodule Severance.TmuxTest do
       now = System.os_time(:second)
       recent = now - 5 * 60
 
-      raw_output = "dev:editor.0 /Users/kyle/project1 #{recent}\n"
+      raw_output = "dev:editor.0\t/Users/kyle/project1\t#{recent}\n"
 
       assert Tmux.parse_stale_panes(raw_output, now - 15 * 60) == []
     end
@@ -39,11 +39,21 @@ defmodule Severance.TmuxTest do
       now = System.os_time(:second)
       old = now - 20 * 60
 
-      raw_output = "bad line\ndev:editor.0 /Users/kyle/project1 #{old}\n"
+      raw_output = "bad line\ndev:editor.0\t/Users/kyle/project1\t#{old}\n"
 
       stale = Tmux.parse_stale_panes(raw_output, now - 15 * 60)
       assert length(stale) == 1
       assert %{pane: "dev:editor.0", path: "/Users/kyle/project1"} in stale
+    end
+
+    test "handles paths with spaces" do
+      now = System.os_time(:second)
+      old = now - 20 * 60
+
+      raw_output = "dev:editor.0\t/Users/kyle/my project\t#{old}\n"
+
+      stale = Tmux.parse_stale_panes(raw_output, now - 15 * 60)
+      assert [%{pane: "dev:editor.0", path: "/Users/kyle/my project"}] = stale
     end
   end
 

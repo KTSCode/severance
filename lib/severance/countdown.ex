@@ -125,7 +125,7 @@ defmodule Severance.Countdown do
   def handle_info(:start_countdown, state) do
     original_status = Tmux.capture_status_right()
     state = %{state | original_tmux_status: original_status, phase: :gentle}
-    tick(state)
+    tick()
     {:noreply, state}
   end
 
@@ -224,9 +224,9 @@ defmodule Severance.Countdown do
     Process.send_after(self(), :tick, tick_interval_ms(phase))
   end
 
-  defp tick(state) do
+  defp tick do
     send(self(), :tick)
-    state
+    :ok
   end
 
   defp handle_shutdown(state) do
@@ -272,6 +272,6 @@ defmodule Severance.Countdown do
   defp send_stale_pane_warnings do
     @stale_threshold_minutes
     |> Tmux.stale_panes()
-    |> Enum.each(&Notifier.send_stale_pane/1)
+    |> Enum.each(&Notifier.send_stale_pane(&1, @stale_threshold_minutes))
   end
 end

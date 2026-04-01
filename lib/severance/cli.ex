@@ -95,9 +95,15 @@ defmodule Severance.CLI do
   @spec run_overtime() :: :ok | {:error, String.t()}
   def run_overtime do
     with_daemon_rpc(fn target ->
-      :rpc.call(target, Severance.Countdown, :overtime, [])
-      IO.puts("Overtime Protocol activated. No shutdown today — but you'll hear about it.")
-      :ok
+      case :rpc.call(target, Severance.Countdown, :overtime, []) do
+        {:badrpc, reason} ->
+          IO.puts("RPC failed: #{inspect(reason)}")
+          {:error, "rpc failed"}
+
+        _result ->
+          IO.puts("Overtime Protocol activated. No shutdown today — but you'll hear about it.")
+          :ok
+      end
     end)
   end
 
@@ -108,13 +114,25 @@ defmodule Severance.CLI do
   to `System.stop/1`, then returns the result.
 
   Returns `:ok` on success, `{:error, reason}` on failure.
+  Treats `{:badrpc, :nodedown}` as success since the remote node shut
+  down before responding.
   """
   @spec run_stop() :: :ok | {:error, String.t()}
   def run_stop do
     with_daemon_rpc(fn target ->
-      :rpc.call(target, System, :stop, [0])
-      IO.puts("Severance daemon stopped.")
-      :ok
+      case :rpc.call(target, System, :stop, [0]) do
+        {:badrpc, :nodedown} ->
+          IO.puts("Severance daemon stopped.")
+          :ok
+
+        {:badrpc, reason} ->
+          IO.puts("RPC failed: #{inspect(reason)}")
+          {:error, "rpc failed"}
+
+        _result ->
+          IO.puts("Severance daemon stopped.")
+          :ok
+      end
     end)
   end
 

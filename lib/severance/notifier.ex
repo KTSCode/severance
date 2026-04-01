@@ -98,11 +98,11 @@ defmodule Severance.Notifier do
 
   Delegates to the configured system adapter.
   """
-  @spec send_stale_pane(%{pane: String.t(), path: String.t()}) :: :ok
-  def send_stale_pane(%{pane: pane, path: path}) do
+  @spec send_stale_pane(%{pane: String.t(), path: String.t()}, non_neg_integer()) :: :ok
+  def send_stale_pane(%{pane: pane, path: path}, threshold_minutes) do
     system().notify(
       "Stale pane: #{pane}",
-      "No activity in 15m. Save your work and leave a note so you can pick up where you left off.\n#{path}",
+      "No activity in #{threshold_minutes}m. Save your work and leave a note so you can pick up where you left off.\n#{path}",
       "Tink"
     )
   end

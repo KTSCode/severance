@@ -15,6 +15,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Remove duplicate `SEVERANCE_SHUTDOWN_TIME` parsing from `runtime.exs` that crashed on `HH:MM` format
 - Fix typos in notification messages ("decided" → "decide", "Save you work" → "Save your work")
 - Remove unused `pending_changes?/1` function
+- Align default shutdown time in `config.exs` with `config.ex` and README (16:30 → 17:00)
+- Scope `git add` in `mix todo --done` to README.md and CHANGELOG.md instead of entire repo
+- Scope `check_todo_in_readme` and `prune_checked_todos` to `## TODO` section only
+- Prevent `insert_under_added` from crossing changelog subsection boundaries
+- Use tab delimiter in tmux pane queries to handle paths with spaces
+- Add fallback clause to `target_name/1` for unsupported architectures
+- Handle `{:badrpc, reason}` in CLI RPC helpers (`run_overtime`, `run_stop`)
+- Replace bare `rescue` in `check_status_right_length` with `Integer.parse/1`
+- Pass stale threshold to notification message instead of hardcoding "15m"
+- Simplify `tick/1` to `tick/0` (return value was unused)
+- Document config file code execution in `Severance.Config` moduledoc
 
 ## [0.1.0] — 2026-03-29
 

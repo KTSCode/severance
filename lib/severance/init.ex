@@ -121,20 +121,22 @@ defmodule Severance.Init do
 
   defp check_status_right_length do
     case System.cmd("tmux", ["show-option", "-gv", "status-right-length"], stderr_to_stdout: true) do
-      {output, 0} ->
-        length = output |> String.trim() |> String.to_integer()
+      {output, 0} -> report_status_right_length(output)
+      _ -> IO.puts("        Could not read status-right-length. Is a tmux server running?")
+    end
+  end
 
-        if length < 80 do
-          IO.puts("        status-right-length is #{length}. Recommend >= 80.")
-          IO.puts("        Add to tmux.conf: set -g status-right-length 80")
-        else
-          IO.puts("        status-right-length is #{length}. Good.")
-        end
+  defp report_status_right_length(output) do
+    case output |> String.trim() |> Integer.parse() do
+      {length, ""} when length < 80 ->
+        IO.puts("        status-right-length is #{length}. Recommend >= 80.")
+        IO.puts("        Add to tmux.conf: set -g status-right-length 80")
+
+      {length, ""} ->
+        IO.puts("        status-right-length is #{length}. Good.")
 
       _ ->
-        IO.puts("        Could not read status-right-length. Is a tmux server running?")
+        IO.puts("        Could not parse status-right-length.")
     end
-  rescue
-    _ -> IO.puts("        Could not check status-right-length.")
   end
 end

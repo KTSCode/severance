@@ -51,11 +51,16 @@ defmodule Severance.NotifierTest do
     end
   end
 
-  describe "send_stale_pane/1" do
+  describe "send_stale_pane/2" do
     test "stale pane message uses correct grammar" do
       source = File.read!("lib/severance/notifier.ex")
       assert source =~ "Save your work"
       refute source =~ "Save you work"
+    end
+
+    test "interpolates threshold minutes in message" do
+      source = File.read!("lib/severance/notifier.ex")
+      assert source =~ "No activity in \#{threshold_minutes}m"
     end
   end
 end
