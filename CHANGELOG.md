@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - `sev update` self-update command via GitHub Releases API
+- add `mix tag` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
 
 ### Fixed
 - Escape AppleScript string interpolation to prevent injection via tmux pane names
