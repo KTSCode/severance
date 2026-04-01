@@ -36,7 +36,14 @@ defmodule Severance.CLI do
       :start
   """
   @type parse_args_result ::
-          :start | {:start, keyword()} | :overtime | :stop | :init | :update | :version
+          :start
+          | {:start, keyword()}
+          | :overtime
+          | :stop
+          | :init
+          | :update
+          | :version
+          | {:error, String.t()}
 
   @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(["init" | _rest]), do: :init
@@ -50,8 +57,15 @@ defmodule Severance.CLI do
   def parse_args(["stop" | _rest]), do: :stop
 
   def parse_args(["--shutdown-time", time_str | _rest]) do
-    {:ok, time} = Time.from_iso8601(time_str <> ":00")
-    {:start, shutdown_time: time}
+    padded = if String.length(time_str) == 5, do: time_str <> ":00", else: time_str
+
+    case Time.from_iso8601(padded) do
+      {:ok, time} ->
+        {:start, shutdown_time: time}
+
+      {:error, _reason} ->
+        {:error, "Invalid shutdown time: #{time_str}. Expected HH:MM format (e.g. 17:00)."}
+    end
   end
 
   def parse_args(_args), do: :start
@@ -81,9 +95,15 @@ defmodule Severance.CLI do
   @spec run_overtime() :: :ok | {:error, String.t()}
   def run_overtime do
     with_daemon_rpc(fn target ->
-      :rpc.call(target, Severance.Countdown, :overtime, [])
-      IO.puts("Overtime Protocol activated. No shutdown today — but you'll hear about it.")
-      :ok
+      case :rpc.call(target, Severance.Countdown, :overtime, []) do
+        {:badrpc, reason} ->
+          IO.puts("RPC failed: #{inspect(reason)}")
+          {:error, "rpc failed"}
+
+        _result ->
+          IO.puts("Overtime Protocol activated. No shutdown today — but you'll hear about it.")
+          :ok
+      end
     end)
   end
 
@@ -94,13 +114,25 @@ defmodule Severance.CLI do
   to `System.stop/1`, then returns the result.
 
   Returns `:ok` on success, `{:error, reason}` on failure.
+  Treats `{:badrpc, :nodedown}` as success since the remote node shut
+  down before responding.
   """
   @spec run_stop() :: :ok | {:error, String.t()}
   def run_stop do
     with_daemon_rpc(fn target ->
-      :rpc.call(target, System, :stop, [0])
-      IO.puts("Severance daemon stopped.")
-      :ok
+      case :rpc.call(target, System, :stop, [0]) do
+        {:badrpc, :nodedown} ->
+          IO.puts("Severance daemon stopped.")
+          :ok
+
+        {:badrpc, reason} ->
+          IO.puts("RPC failed: #{inspect(reason)}")
+          {:error, "rpc failed"}
+
+        _result ->
+          IO.puts("Severance daemon stopped.")
+          :ok
+      end
     end)
   end
 

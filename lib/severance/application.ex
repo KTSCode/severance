@@ -45,6 +45,11 @@ defmodule Severance.Application do
     System.halt(if result == :ok, do: 0, else: 1)
   end
 
+  defp dispatch({:error, message}) do
+    IO.puts(:stderr, message)
+    System.halt(1)
+  end
+
   defp dispatch(:start), do: start_daemon()
   defp dispatch({:start, opts}), do: start_daemon(opts)
 

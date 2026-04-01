@@ -79,16 +79,20 @@ defmodule Severance.Updater do
   ## Examples
 
       iex> Severance.Updater.target_name("aarch64-apple-darwin24.3.0")
-      "sev_macos_arm64"
+      {:ok, "sev_macos_arm64"}
 
       iex> Severance.Updater.target_name("x86_64-apple-darwin24.3.0")
-      "sev_macos_x86"
+      {:ok, "sev_macos_x86"}
+
+      iex> Severance.Updater.target_name("riscv64-unknown-linux-gnu")
+      {:error, {:unsupported_arch, "riscv64-unknown-linux-gnu"}}
   """
-  @spec target_name(String.t()) :: String.t()
+  @spec target_name(String.t()) :: {:ok, String.t()} | {:error, {:unsupported_arch, String.t()}}
   def target_name(arch \\ default_arch()) do
     cond do
-      String.starts_with?(arch, "aarch64") -> "sev_macos_arm64"
-      String.starts_with?(arch, "x86_64") -> "sev_macos_x86"
+      String.starts_with?(arch, "aarch64") -> {:ok, "sev_macos_arm64"}
+      String.starts_with?(arch, "x86_64") -> {:ok, "sev_macos_x86"}
+      true -> {:error, {:unsupported_arch, arch}}
     end
   end
 
@@ -137,7 +141,8 @@ defmodule Severance.Updater do
          {:ok, release} <- decode_json(body),
          {:ok, latest} <- extract_version(release),
          :update_available <- check_version(current_version(), latest),
-         {:ok, asset_url} <- find_asset(release, target_name(arch)),
+         {:ok, target} <- target_name(arch),
+         {:ok, asset_url} <- find_asset(release, target),
          {:ok, bin_path} <- require_binary_path(binary_path),
          {:ok, data} <- http_get.(asset_url),
          :ok <- write_binary(bin_path, data) do

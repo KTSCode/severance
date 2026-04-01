@@ -57,54 +57,56 @@ defmodule Mix.Tasks.Todo do
 
   @doc """
   Replaces the first `- [ ]` line matching `text` with `- [x]` in the README.
+
+  Only matches lines within the `## TODO` section.
   """
   @spec check_todo_in_readme(String.t(), String.t()) :: {:ok, String.t()} | {:error, :not_found}
   def check_todo_in_readme(readme, text) do
-    {result, replaced} =
-      readme
-      |> String.split("\n")
-      |> Enum.reduce({[], false}, fn line, {acc, replaced} ->
-        if not replaced and String.trim(line) == "- [ ] #{text}" do
-          {["- [x] #{text}" | acc], true}
-        else
-          {[line | acc], replaced}
-        end
-      end)
+    lines = String.split(readme, "\n")
 
-    if replaced do
-      {:ok, result |> Enum.reverse() |> Enum.join("\n")}
-    else
-      {:error, :not_found}
+    case todo_section_range(lines) do
+      nil -> {:error, :not_found}
+      range -> replace_first_unchecked(lines, text, range)
     end
   end
 
   @doc """
   Removes the topmost checked TODO items when more than 3 exist.
+
+  Only considers checked items within the `## TODO` section.
   """
   @spec prune_checked_todos(String.t()) :: {:ok, String.t()}
   def prune_checked_todos(readme) do
     lines = String.split(readme, "\n")
 
-    checked_indices =
-      lines
-      |> Enum.with_index()
-      |> Enum.filter(fn {line, _idx} -> String.starts_with?(line, "- [x] ") end)
-      |> Enum.map(fn {_line, idx} -> idx end)
+    case todo_section_range(lines) do
+      nil ->
+        {:ok, readme}
 
-    to_remove =
-      if length(checked_indices) > 3 do
-        Enum.take(checked_indices, length(checked_indices) - 3)
-      else
-        []
-      end
+      {start_idx, end_idx} ->
+        checked_indices =
+          lines
+          |> Enum.with_index()
+          |> Enum.filter(fn {line, idx} ->
+            idx >= start_idx and idx <= end_idx and String.starts_with?(line, "- [x] ")
+          end)
+          |> Enum.map(fn {_line, idx} -> idx end)
 
-    result =
-      lines
-      |> Enum.with_index()
-      |> Enum.reject(fn {_line, idx} -> idx in to_remove end)
-      |> Enum.map_join("\n", fn {line, _idx} -> line end)
+        to_remove =
+          if length(checked_indices) > 3 do
+            Enum.take(checked_indices, length(checked_indices) - 3)
+          else
+            []
+          end
 
-    {:ok, result}
+        result =
+          lines
+          |> Enum.with_index()
+          |> Enum.reject(fn {_line, idx} -> idx in to_remove end)
+          |> Enum.map_join("\n", fn {line, _idx} -> line end)
+
+        {:ok, result}
+    end
   end
 
   @doc """
@@ -246,6 +248,43 @@ defmodule Mix.Tasks.Todo do
   defp next_heading?("# " <> _), do: true
   defp next_heading?(_), do: false
 
+  defp todo_section_range(lines) do
+    case Enum.find_index(lines, &(&1 == "## TODO")) do
+      nil -> nil
+      start_idx -> {start_idx, find_section_end(lines, start_idx)}
+    end
+  end
+
+  defp find_section_end(lines, start_idx) do
+    lines
+    |> Enum.drop(start_idx + 1)
+    |> Enum.with_index(start_idx + 1)
+    |> Enum.find_value(length(lines) - 1, fn {line, idx} ->
+      if next_heading?(line), do: idx - 1
+    end)
+  end
+
+  defp replace_first_unchecked(lines, text, {start_idx, end_idx}) do
+    {result, replaced} =
+      lines
+      |> Enum.with_index()
+      |> Enum.reduce({[], false}, fn {line, idx}, {acc, replaced} ->
+        in_section = idx >= start_idx and idx <= end_idx
+
+        if not replaced and in_section and String.trim(line) == "- [ ] #{text}" do
+          {["- [x] #{text}" | acc], true}
+        else
+          {[line | acc], replaced}
+        end
+      end)
+
+    if replaced do
+      {:ok, result |> Enum.reverse() |> Enum.join("\n")}
+    else
+      {:error, :not_found}
+    end
+  end
+
   defp parse_todo_line("- [x] " <> text, line_number) do
     [%{checked: true, text: String.trim(text), line_number: line_number}]
   end
@@ -269,14 +308,16 @@ defmodule Mix.Tasks.Todo do
 
     added_idx = Enum.find_index(lines, &(&1 == "### Added"))
 
-    # Find the last entry line under ### Added (skip blank lines after heading)
+    # Find the last entry line under ### Added, halting at the next heading
     insert_idx =
       lines
       |> Enum.drop(added_idx + 1)
       |> Enum.with_index(added_idx + 1)
-      |> Enum.reduce(added_idx, fn
-        {"- " <> _, idx}, _last -> idx
-        _, last -> last
+      |> Enum.reduce_while(added_idx, fn
+        {"### " <> _, _idx}, last -> {:halt, last}
+        {"## " <> _, _idx}, last -> {:halt, last}
+        {"- " <> _, idx}, _last -> {:cont, idx}
+        _, last -> {:cont, last}
       end)
 
     lines
@@ -310,14 +351,6 @@ defmodule Mix.Tasks.Todo do
 
     (before ++ unreleased_block ++ rest)
     |> Enum.join("\n")
-  end
-
-  @doc """
-  Returns true when `git status --porcelain` output indicates uncommitted changes.
-  """
-  @spec pending_changes?(String.t()) :: boolean()
-  def pending_changes?(status_output) do
-    String.trim(status_output) != ""
   end
 
   @doc """
@@ -415,7 +448,7 @@ defmodule Mix.Tasks.Todo do
   defp git_commit(todo_text) do
     stderr("Committing changes...")
 
-    with {:ok, _} <- cmd("git", ["add", "-A"]),
+    with {:ok, _} <- cmd("git", ["add", "README.md", "CHANGELOG.md"]),
          {:ok, _} <- cmd("git", ["commit", "-m", "Complete TODO: #{todo_text}"]) do
       :ok
     end

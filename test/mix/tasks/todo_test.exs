@@ -153,6 +153,15 @@ defmodule Mix.Tasks.TodoTest do
       assert Enum.at(lines, 1) == "- [x] First item"
       assert Enum.at(lines, 2) == "- [x] First item"
     end
+
+    test "does not check items outside ## TODO section" do
+      readme = "- [ ] Outside item\n\n## TODO\n- [ ] Inside item\n\n## Other\n- [ ] Also outside"
+
+      assert {:ok, result} = Todo.check_todo_in_readme(readme, "Inside item")
+      assert result =~ "- [x] Inside item"
+      assert result =~ "- [ ] Outside item"
+      assert result =~ "- [ ] Also outside"
+    end
   end
 
   describe "prune_checked_todos/1" do
@@ -202,6 +211,22 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "- [ ] Pending one"
       assert result =~ "- [ ] Pending two"
     end
+
+    test "does not prune checked items outside ## TODO section" do
+      readme =
+        "- [x] Outside one\n- [x] Outside two\n\n## TODO\n- [x] Alpha\n- [x] Bravo\n- [x] Charlie\n- [x] Delta\n- [ ] Pending\n\n## Other\n- [x] Also outside"
+
+      assert {:ok, result} = Todo.prune_checked_todos(readme)
+      # All outside checked items must survive
+      assert result =~ "- [x] Outside one"
+      assert result =~ "- [x] Outside two"
+      assert result =~ "- [x] Also outside"
+      # Inside: 4 checked, prune to 3 → remove oldest (Alpha)
+      refute result =~ "- [x] Alpha"
+      assert result =~ "- [x] Bravo"
+      assert result =~ "- [x] Delta"
+      assert result =~ "- [ ] Pending"
+    end
   end
 
   describe "new_changelog/1" do
@@ -245,6 +270,20 @@ defmodule Mix.Tasks.TodoTest do
       result = Todo.add_changelog_entry(changelog, "New feature")
       assert result =~ "### Added\n\n- New feature"
       assert result =~ "### Fixed"
+    end
+
+    test "does not cross subsection boundary when inserting under Added" do
+      changelog =
+        "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Existing\n\n### Fixed\n\n- Some fix\n"
+
+      result = Todo.add_changelog_entry(changelog, "New feature")
+      lines = String.split(result, "\n")
+      added_idx = Enum.find_index(lines, &(&1 == "### Added"))
+      fixed_idx = Enum.find_index(lines, &(&1 == "### Fixed"))
+      new_idx = Enum.find_index(lines, &(&1 == "- New feature"))
+
+      assert new_idx > added_idx
+      assert new_idx < fixed_idx
     end
 
     test "creates unreleased section when missing" do
@@ -309,24 +348,6 @@ defmodule Mix.Tasks.TodoTest do
 
     test "returns error when no URL found" do
       assert {:error, :no_pr_url} = Todo.extract_pr_url("some random output")
-    end
-  end
-
-  describe "pending_changes?/1" do
-    test "returns true for modified files" do
-      assert Todo.pending_changes?(" M README.md")
-    end
-
-    test "returns true for untracked files" do
-      assert Todo.pending_changes?("?? new_file.txt")
-    end
-
-    test "returns false for empty output" do
-      refute Todo.pending_changes?("")
-    end
-
-    test "returns false for whitespace-only output" do
-      refute Todo.pending_changes?("   \n  ")
     end
   end
 

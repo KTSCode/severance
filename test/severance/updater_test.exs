@@ -41,11 +41,16 @@ defmodule Severance.UpdaterTest do
 
   describe "target_name/1" do
     test "returns arm64 binary name for aarch64 architecture" do
-      assert Updater.target_name("aarch64-apple-darwin24.3.0") == "sev_macos_arm64"
+      assert Updater.target_name("aarch64-apple-darwin24.3.0") == {:ok, "sev_macos_arm64"}
     end
 
     test "returns x86 binary name for x86_64 architecture" do
-      assert Updater.target_name("x86_64-apple-darwin24.3.0") == "sev_macos_x86"
+      assert Updater.target_name("x86_64-apple-darwin24.3.0") == {:ok, "sev_macos_x86"}
+    end
+
+    test "returns error for unsupported architecture" do
+      assert Updater.target_name("riscv64-unknown-linux-gnu") ==
+               {:error, {:unsupported_arch, "riscv64-unknown-linux-gnu"}}
     end
   end
 

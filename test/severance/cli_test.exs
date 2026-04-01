@@ -52,6 +52,14 @@ defmodule Severance.CLITest do
     test "unknown args returns :start" do
       assert CLI.parse_args(["something-else"]) == :start
     end
+
+    test "invalid --shutdown-time returns error tuple" do
+      assert {:error, _msg} = CLI.parse_args(["--shutdown-time", "lol"])
+    end
+
+    test "invalid --shutdown-time with out-of-range hours returns error tuple" do
+      assert {:error, _msg} = CLI.parse_args(["--shutdown-time", "25:00"])
+    end
   end
 
   describe "daemon_running?/0" do

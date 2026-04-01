@@ -3,8 +3,9 @@ defmodule Severance.Config do
   Reads and writes the Severance user config file at
   `~/.config/severance/config.exs`.
 
-  The config is a plain Elixir term file (a map) that gets
-  `Code.eval_file/1`'d at startup and merged over compiled defaults.
+  The config file is executed as Elixir code via `Code.eval_file/1`
+  with full process privileges — it is not parsed as inert data.
+  Only place this file in a directory you control.
   """
 
   @default_config %{

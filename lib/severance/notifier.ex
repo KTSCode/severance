@@ -57,7 +57,7 @@ defmodule Severance.Notifier do
   end
 
   def countdown_message(1, :overtime) do
-    {"YOU SHOULD BE STOPPING", "1 minute left to decided to be a person and stop."}
+    {"YOU SHOULD BE STOPPING", "1 minute left to decide to be a person and stop."}
   end
 
   def countdown_message(minutes, mode) when minutes <= 5 do
@@ -98,11 +98,11 @@ defmodule Severance.Notifier do
 
   Delegates to the configured system adapter.
   """
-  @spec send_stale_pane(%{pane: String.t(), path: String.t()}) :: :ok
-  def send_stale_pane(%{pane: pane, path: path}) do
+  @spec send_stale_pane(%{pane: String.t(), path: String.t()}, non_neg_integer()) :: :ok
+  def send_stale_pane(%{pane: pane, path: path}, threshold_minutes) do
     system().notify(
       "Stale pane: #{pane}",
-      "No activity in 15m. Save you work and leave a note so you can pick up where you left off.\n#{path}",
+      "No activity in #{threshold_minutes}m. Save your work and leave a note so you can pick up where you left off.\n#{path}",
       "Tink"
     )
   end

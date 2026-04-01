@@ -50,7 +50,7 @@ defmodule Severance.Tmux do
         "list-panes",
         "-a",
         "-F",
-        "\#{session_name}:\#{window_name}.\#{pane_index} \#{pane_current_path} \#{pane_activity}"
+        "\#{session_name}:\#{window_name}.\#{pane_index}\t\#{pane_current_path}\t\#{pane_activity}"
       ])
 
     cutoff = System.os_time(:second) - stale_threshold_minutes * 60
@@ -70,7 +70,7 @@ defmodule Severance.Tmux do
   end
 
   defp parse_pane_line(line, cutoff) do
-    case String.split(line, " ") do
+    case String.split(line, "\t") do
       [pane, path, activity_str] -> stale_entry(pane, path, activity_str, cutoff)
       _ -> []
     end
