@@ -142,7 +142,7 @@ defmodule Mix.Tasks.Tag do
   def run([arg]) do
     with {:ok, component} <- parse_component(arg),
          :ok <- check_main_branch(),
-         :ok <- check_clean_index(),
+         :ok <- check_clean_worktree(),
          {:ok, current} <- read_version(),
          {:ok, new_version} <- bump_version(current, component),
          {:ok, changelog} <- read_changelog(),
@@ -192,10 +192,12 @@ defmodule Mix.Tasks.Tag do
     end
   end
 
-  defp check_clean_index do
-    case cmd("git", ["diff", "--cached", "--quiet"]) do
-      {:ok, _} -> :ok
-      {:error, _} -> {:error, :dirty_index}
+  defp check_clean_worktree do
+    with {:ok, _} <- cmd("git", ["diff", "--cached", "--quiet"]),
+         {:ok, _} <- cmd("git", ["diff", "--quiet"]) do
+      :ok
+    else
+      {:error, _} -> {:error, :dirty_worktree}
     end
   end
 
@@ -266,11 +268,7 @@ defmodule Mix.Tasks.Tag do
 
   defp git_push(version) do
     stderr("Pushing...")
-
-    with {:ok, _} <- cmd("git", ["push"]),
-         {:ok, _} <- cmd("git", ["push", "origin", "v#{version}"]) do
-      :ok
-    end
+    cmd("git", ["push", "origin", "HEAD", "v#{version}"]) |> normalize()
   end
 
   defp normalize({:ok, _}), do: :ok
@@ -284,8 +282,8 @@ defmodule Mix.Tasks.Tag do
   defp error_message({:not_main, branch}),
     do: "Must be on main branch to tag a release (currently on #{branch})"
 
-  defp error_message(:dirty_index),
-    do: "Staged changes detected. Commit or unstage them before tagging."
+  defp error_message(:dirty_worktree),
+    do: "Uncommitted changes detected. Commit or stash them before tagging."
 
   defp error_message(:invalid_component), do: "Usage: mix tag <maj|min|pat>"
   defp error_message(:invalid_version), do: "Could not parse current version from mix.exs"
