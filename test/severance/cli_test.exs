@@ -101,10 +101,17 @@ defmodule Severance.CLITest do
     end
   end
 
-  describe "start_background/1" do
+  describe "start_background/2" do
     test "returns error when binary is not found" do
       assert {:error, msg} = CLI.start_background([], binary: "/nonexistent/sev")
       assert msg =~ "not found"
+    end
+  end
+
+  describe "await_daemon_ready/1" do
+    test "returns error after exhausting attempts when no daemon is running" do
+      assert {:error, msg} = CLI.await_daemon_ready(1)
+      assert msg =~ "daemon did not start"
     end
   end
 

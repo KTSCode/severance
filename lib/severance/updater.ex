@@ -208,7 +208,7 @@ defmodule Severance.Updater do
       System.cmd("launchctl", ["bootout", target, plist], stderr_to_stdout: true)
       System.cmd("launchctl", ["bootstrap", target, plist])
     else
-      System.cmd("sh", ["-c", "#{binary_path} start &"])
+      System.cmd("sh", ["-c", "#{binary_path} --daemon &"])
     end
 
     :ok

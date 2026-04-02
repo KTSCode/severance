@@ -106,15 +106,34 @@ defmodule Severance.CLI do
     if File.exists?(binary) do
       cmd = build_daemon_cmd(binary, opts)
       System.cmd("/bin/sh", ["-c", cmd], stderr_to_stdout: true)
-      Process.sleep(2_000)
-
-      if daemon_running?() do
-        :ok
-      else
-        {:error, "daemon did not start — check /tmp/severance.err for details"}
-      end
+      await_daemon_ready()
     else
       {:error, "binary not found at #{binary}"}
+    end
+  end
+
+  @readiness_interval_ms 500
+  @readiness_max_attempts 20
+
+  @doc """
+  Polls `daemon_running?/0` until the daemon is reachable or attempts
+  are exhausted. Cold Burrito starts need time to unpack, so a single
+  check is unreliable.
+  """
+  @spec await_daemon_ready(non_neg_integer()) :: :ok | {:error, String.t()}
+  def await_daemon_ready(attempts_left \\ @readiness_max_attempts)
+
+  def await_daemon_ready(0) do
+    {:error, "daemon did not start — check /tmp/severance.err for details"}
+  end
+
+  def await_daemon_ready(attempts_left) do
+    Process.sleep(@readiness_interval_ms)
+
+    if daemon_running?() do
+      :ok
+    else
+      await_daemon_ready(attempts_left - 1)
     end
   end
 
