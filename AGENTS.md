@@ -36,6 +36,12 @@ For anything larger:
 1. **Plan** — `docs/plans/<feature>.md`
 1. **Execute** — one phase at a time
 
+## Changelog
+- Update `CHANGELOG.md` under `## [Unreleased]` when a branch introduces user-facing changes
+- Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format
+- Use subsections: `### Added`, `### Changed`, `### Fixed`, `### Removed`
+- Write entries from the user's perspective, not the developer's
+
 ## Documentation Lifecycle
 - Completed plans move to `docs/archive/`
 - Superseded specs move to `docs/archive/`

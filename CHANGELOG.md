@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- `sev` and `sev start` now spawn the daemon in the background and return immediately
+- If the daemon is already running, `sev start` exits 0 with a status message
+- Added `--daemon` flag for foreground mode (used by LaunchAgent and updater)
+- Updater fallback restart uses `--daemon` instead of `start` to avoid preflight race
+- Restrict `start` subcommand to start-specific options only
+
+### Fixed
+- Readiness polling uses retry loop (20 attempts at 500ms) for cold Burrito starts
+- Stop distribution before spawning daemon to prevent node name conflicts
+- Guard against self-connection when distribution is already running as daemon node
+- Shell escaping in daemon spawn command to handle metacharacters in binary path
+
 ## [0.2.2] -- 2026-04-02
 - Suppress noisy Erlang distribution errors during `sev update` daemon check
 
@@ -17,8 +30,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `sev update` self-update command via GitHub Releases API
 - `mix tag` task for version bumping, changelog finalization, and release tagging
-- `sev start` and `sev` should start the daemon in the backgroung and return (if the daemon is already running it should note that and then exit 0)
-
 ### Fixed
 - Escape AppleScript string interpolation to prevent injection via tmux pane names
 - Handle invalid `--shutdown-time` input gracefully instead of crashing
