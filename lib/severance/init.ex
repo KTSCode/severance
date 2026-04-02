@@ -6,6 +6,7 @@ defmodule Severance.Init do
   Run via `sev init`.
   """
 
+  alias Burrito.Util.Args, as: BurritoArgs
   alias Severance.Config
 
   @plist_name "com.severance.daemon.plist"
@@ -108,11 +109,18 @@ defmodule Severance.Init do
   end
 
   @doc """
-  Detects the path to the `sev` binary. Falls back to the mix project path.
+  Detects the path to the `sev` binary.
+
+  Prefers the Burrito wrapper path when running inside a Burrito-wrapped
+  binary. Falls back to `System.find_executable/1` or the mix project
+  build output path.
   """
   @spec detect_binary_path() :: String.t()
   def detect_binary_path do
-    System.find_executable("sev") || "#{File.cwd!()}/burrito_out/sev"
+    case BurritoArgs.get_bin_path() do
+      path when is_binary(path) -> path
+      :not_in_burrito -> System.find_executable("sev") || "#{File.cwd!()}/burrito_out/sev"
+    end
   end
 
   defp plist_path do

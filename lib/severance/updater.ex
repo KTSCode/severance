@@ -14,10 +14,12 @@ defmodule Severance.Updater do
   - `:http_get` — `(String.t() -> {:ok, binary()} | {:error, term()})`,
     defaults to HTTPS via `:httpc`
   - `:binary_path` — path to the binary to replace, defaults to
-    `System.find_executable("sev")`
+    `Init.detect_binary_path/0`
   - `:arch` — system architecture string, defaults to
     `:erlang.system_info(:system_architecture)`
   """
+
+  alias Burrito.Util.Args, as: BurritoArgs
 
   @version Mix.Project.config()[:version]
   @repo "KTSCode/severance"
@@ -136,6 +138,7 @@ defmodule Severance.Updater do
     http_get = Keyword.get(opts, :http_get, &default_http_get/1)
     binary_path = Keyword.get_lazy(opts, :binary_path, &find_binary_path/0)
     arch = Keyword.get(opts, :arch, default_arch())
+    plist_path = Keyword.get(opts, :plist_path)
 
     with {:ok, body} <- http_get.(api_url()),
          {:ok, release} <- decode_json(body),
@@ -146,6 +149,7 @@ defmodule Severance.Updater do
          {:ok, bin_path} <- require_binary_path(binary_path),
          {:ok, data} <- http_get.(asset_url),
          :ok <- write_binary(bin_path, data) do
+      rewrite_plist(bin_path, plist_path)
       maybe_restart_daemon(latest, bin_path, opts)
       :ok
     else
@@ -196,17 +200,48 @@ defmodule Severance.Updater do
 
   @spec default_restart_daemon(String.t()) :: :ok
   defp default_restart_daemon(binary_path) do
-    plist_path = plist_path()
+    plist = plist_path()
 
-    if File.exists?(plist_path) do
+    if File.exists?(plist) and agent_loaded?() do
       {uid, 0} = System.cmd("id", ["-u"])
-      uid = String.trim(uid)
-      System.cmd("launchctl", ["kickstart", "gui/#{uid}/com.severance.daemon"])
+      target = "gui/#{String.trim(uid)}"
+      System.cmd("launchctl", ["bootout", target, plist], stderr_to_stdout: true)
+      System.cmd("launchctl", ["bootstrap", target, plist])
     else
       System.cmd("sh", ["-c", "#{binary_path} start &"])
     end
 
     :ok
+  end
+
+  @spec agent_loaded?() :: boolean()
+  defp agent_loaded? do
+    {uid, 0} = System.cmd("id", ["-u"])
+    target = "gui/#{String.trim(uid)}/com.severance.daemon"
+
+    case System.cmd("launchctl", ["print", target], stderr_to_stdout: true) do
+      {_, 0} -> true
+      _ -> false
+    end
+  end
+
+  @spec rewrite_plist(String.t(), String.t() | nil) :: :ok | {:error, term()}
+  defp rewrite_plist(binary_path, override_path) do
+    path = override_path || plist_path()
+
+    if override_path || File.exists?(path) do
+      with :ok <- File.mkdir_p(Path.dirname(path)),
+           :ok <- File.write(path, Severance.Init.plist_contents(binary_path)) do
+        IO.puts("[plist] Updated #{path}")
+        :ok
+      else
+        {:error, reason} ->
+          IO.puts("[plist] Failed to update #{path}: #{inspect(reason)}")
+          {:error, {:plist_write, reason}}
+      end
+    else
+      :ok
+    end
   end
 
   @spec plist_path() :: String.t()
@@ -226,7 +261,10 @@ defmodule Severance.Updater do
 
   @spec find_binary_path() :: String.t() | nil
   defp find_binary_path do
-    System.find_executable("sev")
+    case BurritoArgs.get_bin_path() do
+      path when is_binary(path) -> path
+      :not_in_burrito -> System.find_executable("sev")
+    end
   end
 
   @spec require_binary_path(String.t() | nil) :: {:ok, String.t()} | {:error, :binary_not_found}
