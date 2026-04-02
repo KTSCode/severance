@@ -60,11 +60,16 @@ that.
 
 Download the latest binary from the [releases page][releases] and place it
 on your PATH:
-
 ```bash
-gh release download --pattern 'sev_macos_arm64' --dir ~/bin
+# For Apple ARM processors
+gh release download --repo 'KTSCode/severance' --pattern 'sev_macos_arm64' --output ~/bin/sev
+# For Apple Intel processors
+gh release download --repo 'KTSCode/severance' --pattern 'sev_macos_x86' --output ~/bin/sev
+
 chmod +x ~/bin/sev
 ```
+*replace `~/bin` in the above commands with a directory in your PATH if you don't have `~/bin`*
+
 
 ### From source
 
@@ -194,6 +199,7 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] `sev update` follow best practices to allow severance to update it self if a new version has been released
 - [x] Fix issues from code audit (`docs/research/2026-03-30-code-audit.md`): osascript injection, crash on bad `--shutdown-time`, typos, dead code, duplicate env var parsing
 - [x] add `mix tag` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
+- [ ] `sev start` and `sev` should start the daemon in the backgroung and return (if the daemon is already running it should note that and then exit 0)
 - [ ] `sev status` the user needs to be able to check:
   - if severance is running
   - if over time protocol has been enabled
