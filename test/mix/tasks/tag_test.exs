@@ -100,6 +100,13 @@ defmodule Mix.Tasks.TagTest do
       assert {:error, :empty_unreleased} = Tag.unreleased_entries(changelog)
     end
 
+    test "returns error when unreleased section has only headings" do
+      changelog =
+        "# Changelog\n\n## [Unreleased]\n\n### Added\n\n### Fixed\n\n## [0.1.0] -- 2026-03-29\n"
+
+      assert {:error, :empty_unreleased} = Tag.unreleased_entries(changelog)
+    end
+
     test "returns error when no unreleased section exists" do
       changelog = """
       # Changelog

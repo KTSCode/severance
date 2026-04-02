@@ -82,10 +82,13 @@ defmodule Mix.Tasks.Tag do
           |> Enum.join("\n")
           |> String.trim()
 
-        if entries == "" do
-          {:error, :empty_unreleased}
-        else
+        has_list_items =
+          entries |> String.split("\n") |> Enum.any?(&String.starts_with?(&1, "- "))
+
+        if has_list_items do
           {:ok, entries}
+        else
+          {:error, :empty_unreleased}
         end
     end
   end
@@ -139,6 +142,7 @@ defmodule Mix.Tasks.Tag do
   def run([arg]) do
     with {:ok, component} <- parse_component(arg),
          :ok <- check_main_branch(),
+         :ok <- check_clean_index(),
          {:ok, current} <- read_version(),
          {:ok, new_version} <- bump_version(current, component),
          {:ok, changelog} <- read_changelog(),
@@ -151,7 +155,7 @@ defmodule Mix.Tasks.Tag do
          :ok <- write_changelog(finalized),
          :ok <- git_commit(new_version),
          :ok <- git_tag(new_version),
-         :ok <- git_push() do
+         :ok <- git_push(new_version) do
       stderr("Tagged v#{new_version} and pushed. CI will handle the release.")
     else
       {:error, :aborted} ->
@@ -185,6 +189,13 @@ defmodule Mix.Tasks.Tag do
       {:ok, "main"} -> :ok
       {:ok, branch} -> {:error, {:not_main, branch}}
       error -> error
+    end
+  end
+
+  defp check_clean_index do
+    case cmd("git", ["diff", "--cached", "--quiet"]) do
+      {:ok, _} -> :ok
+      {:error, _} -> {:error, :dirty_index}
     end
   end
 
@@ -253,11 +264,11 @@ defmodule Mix.Tasks.Tag do
     cmd("git", ["tag", "v#{version}"]) |> normalize()
   end
 
-  defp git_push do
+  defp git_push(version) do
     stderr("Pushing...")
 
     with {:ok, _} <- cmd("git", ["push"]),
-         {:ok, _} <- cmd("git", ["push", "--tags"]) do
+         {:ok, _} <- cmd("git", ["push", "origin", "v#{version}"]) do
       :ok
     end
   end
@@ -272,6 +283,9 @@ defmodule Mix.Tasks.Tag do
 
   defp error_message({:not_main, branch}),
     do: "Must be on main branch to tag a release (currently on #{branch})"
+
+  defp error_message(:dirty_index),
+    do: "Staged changes detected. Commit or unstage them before tagging."
 
   defp error_message(:invalid_component), do: "Usage: mix tag <maj|min|pat>"
   defp error_message(:invalid_version), do: "Could not parse current version from mix.exs"
