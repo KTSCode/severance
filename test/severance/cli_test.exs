@@ -58,6 +58,12 @@ defmodule Severance.CLITest do
                {:start, shutdown_time: ~T[16:00:00]}
     end
 
+    test "start with trailing subcommand ignores it" do
+      assert CLI.parse_args(["start", "stop"]) == :start
+      assert CLI.parse_args(["start", "otp"]) == :start
+      assert CLI.parse_args(["start", "update"]) == :start
+    end
+
     test "--daemon returns :daemon" do
       assert CLI.parse_args(["--daemon"]) == :daemon
     end

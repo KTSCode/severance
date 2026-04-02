@@ -66,7 +66,9 @@ defmodule Severance.CLI do
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime
   def parse_args(["stop" | _rest]), do: :stop
-  def parse_args(["start" | rest]), do: parse_args(rest)
+  def parse_args(["start"]), do: :start
+  def parse_args(["start", "--shutdown-time" | _] = args), do: parse_args(tl(args))
+  def parse_args(["start" | _rest]), do: :start
 
   def parse_args(["--daemon" | rest]) do
     case parse_args(rest) do
