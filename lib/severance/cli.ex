@@ -156,8 +156,9 @@ defmodule Severance.CLI do
           args
       end
 
+    escaped_path = shell_escape(binary_path)
     arg_str = Enum.join(args, " ")
-    ~s("#{binary_path}" #{arg_str} </dev/null >>/tmp/severance.log 2>>/tmp/severance.err &)
+    "#{escaped_path} #{arg_str} </dev/null >>/tmp/severance.log 2>>/tmp/severance.err &"
   end
 
   @doc """
@@ -250,6 +251,9 @@ defmodule Severance.CLI do
         Node.set_cookie(Node.self(), cookie())
         connect_to_daemon(target, callback, quiet)
 
+      {:error, {:already_started, _pid}} ->
+        connect_to_daemon(target, callback, quiet)
+
       {:error, reason} ->
         unless quiet, do: IO.puts("Could not start distribution: #{inspect(reason)}")
         {:error, "distribution failed"}
@@ -278,5 +282,11 @@ defmodule Severance.CLI do
   @spec cookie() :: atom()
   defp cookie do
     Node.get_cookie()
+  end
+
+  @spec shell_escape(String.t()) :: String.t()
+  defp shell_escape(path) do
+    escaped = String.replace(path, "'", "'\\''")
+    "'#{escaped}'"
   end
 end

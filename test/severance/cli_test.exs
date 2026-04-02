@@ -95,9 +95,14 @@ defmodule Severance.CLITest do
       assert cmd =~ "16:00"
     end
 
-    test "quotes the binary path" do
+    test "shell-escapes the binary path with single quotes" do
       cmd = CLI.build_daemon_cmd("/path with spaces/sev", [])
-      assert cmd =~ ~s("/path with spaces/sev")
+      assert cmd =~ "'/path with spaces/sev'"
+    end
+
+    test "escapes single quotes in binary path" do
+      cmd = CLI.build_daemon_cmd("/path'with'quotes/sev", [])
+      assert cmd =~ "'/path'\\''with'\\''quotes/sev'"
     end
   end
 
