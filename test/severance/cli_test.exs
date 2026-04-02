@@ -49,6 +49,24 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["--version"]) == :version
     end
 
+    test "start arg returns :start" do
+      assert CLI.parse_args(["start"]) == :start
+    end
+
+    test "start with --shutdown-time returns start with opts" do
+      assert CLI.parse_args(["start", "--shutdown-time", "16:00"]) ==
+               {:start, shutdown_time: ~T[16:00:00]}
+    end
+
+    test "--daemon returns :daemon" do
+      assert CLI.parse_args(["--daemon"]) == :daemon
+    end
+
+    test "--daemon with --shutdown-time returns daemon with opts" do
+      assert CLI.parse_args(["--daemon", "--shutdown-time", "16:00"]) ==
+               {:daemon, shutdown_time: ~T[16:00:00]}
+    end
+
     test "unknown args returns :start" do
       assert CLI.parse_args(["something-else"]) == :start
     end
@@ -59,6 +77,34 @@ defmodule Severance.CLITest do
 
     test "invalid --shutdown-time with out-of-range hours returns error tuple" do
       assert {:error, _msg} = CLI.parse_args(["--shutdown-time", "25:00"])
+    end
+  end
+
+  describe "build_daemon_cmd/1" do
+    test "builds command with no opts" do
+      cmd = CLI.build_daemon_cmd("/usr/local/bin/sev", [])
+      assert cmd =~ "/usr/local/bin/sev"
+      assert cmd =~ "--daemon"
+      assert cmd =~ "</dev/null"
+    end
+
+    test "includes --shutdown-time when provided" do
+      cmd = CLI.build_daemon_cmd("/usr/local/bin/sev", shutdown_time: ~T[16:00:00])
+      assert cmd =~ "--daemon"
+      assert cmd =~ "--shutdown-time"
+      assert cmd =~ "16:00"
+    end
+
+    test "quotes the binary path" do
+      cmd = CLI.build_daemon_cmd("/path with spaces/sev", [])
+      assert cmd =~ ~s("/path with spaces/sev")
+    end
+  end
+
+  describe "start_background/1" do
+    test "returns error when binary is not found" do
+      assert {:error, msg} = CLI.start_background([], binary: "/nonexistent/sev")
+      assert msg =~ "not found"
     end
   end
 

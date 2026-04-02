@@ -93,7 +93,7 @@ defmodule Severance.Init do
       <key>ProgramArguments</key>
       <array>
         <string>#{binary_path}</string>
-        <string>start</string>
+        <string>--daemon</string>
       </array>
       <key>RunAtLoad</key>
       <true/>
