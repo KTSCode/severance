@@ -63,6 +63,11 @@ defmodule Severance.Application do
 
   @spec start_or_notify(keyword()) :: no_return()
   defp start_or_notify(opts) do
+    # The release boots as severance@hostname. Stop distribution so
+    # the background daemon can claim that node name, and so the
+    # readiness check doesn't self-connect.
+    Node.stop()
+
     if CLI.daemon_running?() do
       IO.puts("Severance daemon is already running.")
       System.halt(0)

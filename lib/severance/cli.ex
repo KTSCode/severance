@@ -252,11 +252,22 @@ defmodule Severance.CLI do
         connect_to_daemon(target, callback, quiet)
 
       {:error, {:already_started, _pid}} ->
-        connect_to_daemon(target, callback, quiet)
+        handle_already_started(target, callback, quiet)
 
       {:error, reason} ->
         unless quiet, do: IO.puts("Could not start distribution: #{inspect(reason)}")
         {:error, "distribution failed"}
+    end
+  end
+
+  @spec handle_already_started(atom(), (atom() -> term()), boolean()) ::
+          term() | {:error, String.t()}
+  defp handle_already_started(target, callback, quiet) do
+    if Node.self() == target do
+      unless quiet, do: IO.puts("Cannot check daemon: this node is the daemon node.")
+      {:error, "self-connection"}
+    else
+      connect_to_daemon(target, callback, quiet)
     end
   end
 
