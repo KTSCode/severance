@@ -4,7 +4,9 @@ defmodule Severance.CLI do
 
   ## Usage
 
-      sev                        # Start the daemon
+      sev                        # Start the daemon in the background
+      sev start                  # Start the daemon in the background
+      sev --daemon               # Run the daemon in the foreground (internal)
       sev init                   # Set up config, plist, and tmux
       sev update                 # Update to latest release
       sev version                # Print current version
@@ -19,15 +21,22 @@ defmodule Severance.CLI do
   @doc """
   Parses command-line arguments into an action atom.
 
-  Returns `:start` for no args or unrecognized args, `{:start, opts}` when
-  options are provided, `:overtime` when the `otp` subcommand is given,
-  `:stop` when the `stop` subcommand is given, or `:update` when the
-  `update` subcommand is given.
+  Returns `:start` for no args, `start` subcommand, or unrecognized args.
+  Returns `{:start, opts}` when options like `--shutdown-time` are provided.
+  Returns `:daemon` or `{:daemon, opts}` for the internal `--daemon` flag.
+  Returns `:overtime`, `:stop`, `:init`, `:update`, or `:version` for
+  their respective subcommands.
 
   ## Examples
 
       iex> Severance.CLI.parse_args([])
       :start
+
+      iex> Severance.CLI.parse_args(["start"])
+      :start
+
+      iex> Severance.CLI.parse_args(["--daemon"])
+      :daemon
 
       iex> Severance.CLI.parse_args(["otp"])
       :overtime
@@ -38,6 +47,8 @@ defmodule Severance.CLI do
   @type parse_args_result ::
           :start
           | {:start, keyword()}
+          | :daemon
+          | {:daemon, keyword()}
           | :overtime
           | :stop
           | :init
@@ -55,6 +66,17 @@ defmodule Severance.CLI do
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime
   def parse_args(["stop" | _rest]), do: :stop
+  def parse_args(["start"]), do: :start
+  def parse_args(["start", "--shutdown-time" | _] = args), do: parse_args(tl(args))
+  def parse_args(["start" | _rest]), do: :start
+
+  def parse_args(["--daemon" | rest]) do
+    case parse_args(rest) do
+      :start -> :daemon
+      {:start, opts} -> {:daemon, opts}
+      other -> other
+    end
+  end
 
   def parse_args(["--shutdown-time", time_str | _rest]) do
     padded = if String.length(time_str) == 5, do: time_str <> ":00", else: time_str
@@ -69,6 +91,77 @@ defmodule Severance.CLI do
   end
 
   def parse_args(_args), do: :start
+
+  @doc """
+  Starts the daemon as a detached background process.
+
+  Detects the binary path, spawns it with `--daemon`, and verifies
+  the daemon is reachable. Accepts `binary:` option to override
+  path detection (used in tests).
+
+  Returns `:ok` on success, `{:error, reason}` on failure.
+  """
+  @spec start_background(keyword(), keyword()) :: :ok | {:error, String.t()}
+  def start_background(opts \\ [], spawn_opts \\ []) do
+    binary = Keyword.get_lazy(spawn_opts, :binary, &Severance.Init.detect_binary_path/0)
+
+    if File.exists?(binary) do
+      cmd = build_daemon_cmd(binary, opts)
+      System.cmd("/bin/sh", ["-c", cmd], stderr_to_stdout: true)
+      await_daemon_ready()
+    else
+      {:error, "binary not found at #{binary}"}
+    end
+  end
+
+  @readiness_interval_ms 500
+  @readiness_max_attempts 20
+
+  @doc """
+  Polls `daemon_running?/0` until the daemon is reachable or attempts
+  are exhausted. Cold Burrito starts need time to unpack, so a single
+  check is unreliable.
+  """
+  @spec await_daemon_ready(non_neg_integer()) :: :ok | {:error, String.t()}
+  def await_daemon_ready(attempts_left \\ @readiness_max_attempts)
+
+  def await_daemon_ready(0) do
+    {:error, "daemon did not start — check /tmp/severance.err for details"}
+  end
+
+  def await_daemon_ready(attempts_left) do
+    Process.sleep(@readiness_interval_ms)
+
+    if daemon_running?() do
+      :ok
+    else
+      await_daemon_ready(attempts_left - 1)
+    end
+  end
+
+  @doc """
+  Builds the shell command to launch the daemon in the background.
+
+  Quotes the binary path for safety. Redirects stdin/stdout/stderr
+  and backgrounds the process with `&`.
+  """
+  @spec build_daemon_cmd(String.t(), keyword()) :: String.t()
+  def build_daemon_cmd(binary_path, opts) do
+    args = ["--daemon"]
+
+    args =
+      case Keyword.get(opts, :shutdown_time) do
+        %Time{} = time ->
+          args ++ ["--shutdown-time", Calendar.strftime(time, "%H:%M")]
+
+        _ ->
+          args
+      end
+
+    escaped_path = shell_escape(binary_path)
+    arg_str = Enum.join(args, " ")
+    "#{escaped_path} #{arg_str} </dev/null >>/tmp/severance.log 2>>/tmp/severance.err &"
+  end
 
   @doc """
   Checks whether the severance daemon is currently running.
@@ -160,9 +253,23 @@ defmodule Severance.CLI do
         Node.set_cookie(Node.self(), cookie())
         connect_to_daemon(target, callback, quiet)
 
+      {:error, {:already_started, _pid}} ->
+        handle_already_started(target, callback, quiet)
+
       {:error, reason} ->
         unless quiet, do: IO.puts("Could not start distribution: #{inspect(reason)}")
         {:error, "distribution failed"}
+    end
+  end
+
+  @spec handle_already_started(atom(), (atom() -> term()), boolean()) ::
+          term() | {:error, String.t()}
+  defp handle_already_started(target, callback, quiet) do
+    if Node.self() == target do
+      unless quiet, do: IO.puts("Cannot check daemon: this node is the daemon node.")
+      {:error, "self-connection"}
+    else
+      connect_to_daemon(target, callback, quiet)
     end
   end
 
@@ -188,5 +295,11 @@ defmodule Severance.CLI do
   @spec cookie() :: atom()
   defp cookie do
     Node.get_cookie()
+  end
+
+  @spec shell_escape(String.t()) :: String.t()
+  defp shell_escape(path) do
+    escaped = String.replace(path, "'", "'\\''")
+    "'#{escaped}'"
   end
 end

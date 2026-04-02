@@ -50,8 +50,39 @@ defmodule Severance.Application do
     System.halt(1)
   end
 
-  defp dispatch(:start), do: start_daemon()
-  defp dispatch({:start, opts}), do: start_daemon(opts)
+  defp dispatch(:start) do
+    if burrito?(), do: start_or_notify([]), else: start_daemon()
+  end
+
+  defp dispatch({:start, opts}) do
+    if burrito?(), do: start_or_notify(opts), else: start_daemon(opts)
+  end
+
+  defp dispatch(:daemon), do: start_daemon()
+  defp dispatch({:daemon, opts}), do: start_daemon(opts)
+
+  @spec start_or_notify(keyword()) :: no_return()
+  defp start_or_notify(opts) do
+    # The release boots as severance@hostname. Stop distribution so
+    # the background daemon can claim that node name, and so the
+    # readiness check doesn't self-connect.
+    Node.stop()
+
+    if CLI.daemon_running?() do
+      IO.puts("Severance daemon is already running.")
+      System.halt(0)
+    else
+      case CLI.start_background(opts) do
+        :ok ->
+          IO.puts("Severance daemon started.")
+          System.halt(0)
+
+        {:error, reason} ->
+          IO.puts(:stderr, "Failed to start daemon: #{reason}")
+          System.halt(1)
+      end
+    end
+  end
 
   @doc """
   Returns CLI arguments from Burrito when available, otherwise `System.argv/0`.
@@ -144,6 +175,12 @@ defmodule Severance.Application do
 
     sup_opts = [strategy: :one_for_one, name: Severance.Supervisor]
     Supervisor.start_link(children, sup_opts)
+  end
+
+  @spec burrito?() :: boolean()
+  defp burrito? do
+    Code.ensure_loaded?(@burrito_args) and
+      @burrito_args.get_bin_path() != :not_in_burrito
   end
 
   defp parse_time_string(time_str, fallback) do

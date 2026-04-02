@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `sev update` self-update command via GitHub Releases API
 - `mix tag` task for version bumping, changelog finalization, and release tagging
+- `sev start` and `sev` should start the daemon in the backgroung and return (if the daemon is already running it should note that and then exit 0)
 
 ### Fixed
 - Escape AppleScript string interpolation to prevent injection via tmux pane names

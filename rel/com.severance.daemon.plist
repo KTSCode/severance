@@ -8,7 +8,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/Users/kylesanclemente/bin/sev</string>
-    <string>start</string>
+    <string>--daemon</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
