@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] -- 2026-04-02
+
 ### Changed
 - `sev` and `sev start` now spawn the daemon in the background and return immediately
 - If the daemon is already running, `sev start` exits 0 with a status message
