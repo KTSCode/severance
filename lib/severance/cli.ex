@@ -50,6 +50,7 @@ defmodule Severance.CLI do
           | :daemon
           | {:daemon, keyword()}
           | :overtime
+          | :status
           | :stop
           | :init
           | :update
@@ -62,6 +63,7 @@ defmodule Severance.CLI do
   def parse_args(["version" | _rest]), do: :version
   def parse_args(["-v" | _rest]), do: :version
   def parse_args(["--version" | _rest]), do: :version
+  def parse_args(["status" | _rest]), do: :status
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime

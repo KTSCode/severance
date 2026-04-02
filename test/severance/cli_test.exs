@@ -41,6 +41,10 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["version"]) == :version
     end
 
+    test "status arg returns :status" do
+      assert CLI.parse_args(["status"]) == :status
+    end
+
     test "-v flag returns :version" do
       assert CLI.parse_args(["-v"]) == :version
     end
