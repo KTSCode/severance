@@ -1,5 +1,5 @@
 defmodule Severance.UpdaterTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
 
@@ -188,6 +188,140 @@ defmodule Severance.UpdaterTest do
                    arch: "aarch64-apple-darwin24.3.0"
                  )
       end)
+    end
+
+    test "writes to the Burrito wrapper path when __BURRITO_BIN_PATH is set" do
+      tmp_dir =
+        Path.join(System.tmp_dir!(), "sev_update_test_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(tmp_dir)
+      wrapper_path = Path.join(tmp_dir, "sev")
+      File.write!(wrapper_path, "old-wrapper")
+
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      original = System.get_env("__BURRITO_BIN_PATH")
+
+      try do
+        System.put_env("__BURRITO_BIN_PATH", wrapper_path)
+
+        http_get = fn url ->
+          if String.contains?(url, "api.github.com") do
+            body =
+              :json.encode(%{
+                "tag_name" => "v99.0.0",
+                "assets" => [
+                  %{
+                    "name" => "sev_macos_arm64",
+                    "browser_download_url" => "https://example.com/sev"
+                  }
+                ]
+              })
+
+            {:ok, IO.iodata_to_binary(body)}
+          else
+            {:ok, "new-binary-content"}
+          end
+        end
+
+        capture_io(fn ->
+          assert Updater.run(
+                   http_get: http_get,
+                   arch: "aarch64-apple-darwin24.3.0"
+                 ) == :ok
+        end)
+
+        assert File.read!(wrapper_path) == "new-binary-content"
+      after
+        if original,
+          do: System.put_env("__BURRITO_BIN_PATH", original),
+          else: System.delete_env("__BURRITO_BIN_PATH")
+      end
+    end
+
+    test "rewrites plist after successful update" do
+      tmp_dir =
+        Path.join(System.tmp_dir!(), "sev_update_test_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(tmp_dir)
+      binary_path = Path.join(tmp_dir, "sev")
+      plist_path = Path.join(tmp_dir, "com.severance.daemon.plist")
+      File.write!(binary_path, "old-binary")
+
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      http_get = fn url ->
+        if String.contains?(url, "api.github.com") do
+          body =
+            :json.encode(%{
+              "tag_name" => "v99.0.0",
+              "assets" => [
+                %{
+                  "name" => "sev_macos_arm64",
+                  "browser_download_url" => "https://example.com/sev"
+                }
+              ]
+            })
+
+          {:ok, IO.iodata_to_binary(body)}
+        else
+          {:ok, "new-binary-content"}
+        end
+      end
+
+      capture_io(fn ->
+        assert Updater.run(
+                 http_get: http_get,
+                 binary_path: binary_path,
+                 arch: "aarch64-apple-darwin24.3.0",
+                 plist_path: plist_path
+               ) == :ok
+      end)
+
+      plist_content = File.read!(plist_path)
+      assert plist_content =~ binary_path
+      assert plist_content =~ "com.severance.daemon"
+    end
+
+    test "skips plist rewrite when no plist exists" do
+      tmp_dir =
+        Path.join(System.tmp_dir!(), "sev_update_test_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(tmp_dir)
+      binary_path = Path.join(tmp_dir, "sev")
+      plist_path = Path.join(tmp_dir, "com.severance.daemon.plist")
+      File.write!(binary_path, "old-binary")
+
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      http_get = fn url ->
+        if String.contains?(url, "api.github.com") do
+          body =
+            :json.encode(%{
+              "tag_name" => "v99.0.0",
+              "assets" => [
+                %{
+                  "name" => "sev_macos_arm64",
+                  "browser_download_url" => "https://example.com/sev"
+                }
+              ]
+            })
+
+          {:ok, IO.iodata_to_binary(body)}
+        else
+          {:ok, "new-binary-content"}
+        end
+      end
+
+      capture_io(fn ->
+        assert Updater.run(
+                 http_get: http_get,
+                 binary_path: binary_path,
+                 arch: "aarch64-apple-darwin24.3.0"
+               ) == :ok
+      end)
+
+      refute File.exists?(plist_path)
     end
 
     test "sets executable permission on updated binary" do
