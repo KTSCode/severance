@@ -201,7 +201,10 @@ Small, well-understood changes go straight to code. For anything larger:
   - the current severance version
   - if the need to update (this should fail gracefully if the call to get the latest version doesn't work)
 - [ ] Remove `sev stop` and all related documentation, it goes against the nature of the application, if the user really wants to stop the daemon they can kill -9 it
-- [ ] Update `mix release` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
-  - It should ask for approval on the change log
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
+- [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
+  - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
+  - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings 
+- [ ] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol 
+  - the log file location needs to be configurable in the config file
 
