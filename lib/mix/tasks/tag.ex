@@ -193,11 +193,10 @@ defmodule Mix.Tasks.Tag do
   end
 
   defp check_clean_worktree do
-    with {:ok, _} <- cmd("git", ["diff", "--cached", "--quiet"]),
-         {:ok, _} <- cmd("git", ["diff", "--quiet"]) do
-      :ok
-    else
-      {:error, _} -> {:error, :dirty_worktree}
+    case cmd("git", ["status", "--porcelain"]) do
+      {:ok, ""} -> :ok
+      {:ok, _} -> {:error, :dirty_worktree}
+      error -> error
     end
   end
 
@@ -268,7 +267,7 @@ defmodule Mix.Tasks.Tag do
 
   defp git_push(version) do
     stderr("Pushing...")
-    cmd("git", ["push", "origin", "HEAD", "v#{version}"]) |> normalize()
+    cmd("git", ["push", "--atomic", "origin", "HEAD", "v#{version}"]) |> normalize()
   end
 
   defp normalize({:ok, _}), do: :ok
