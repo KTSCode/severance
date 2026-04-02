@@ -265,55 +265,29 @@ defmodule Mix.Tasks.Tag do
   defp normalize({:ok, _}), do: :ok
   defp normalize(error), do: error
 
-  defp handle_error({:not_main, branch}) do
-    stderr("Must be on main branch to tag a release (currently on #{branch})")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error(:invalid_component) do
-    stderr("Usage: mix tag <maj|min|pat>")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error(:invalid_version) do
-    stderr("Could not parse current version from mix.exs")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error(:empty_unreleased) do
-    stderr("No entries in [Unreleased] section. Nothing to release.")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error(:no_unreleased) do
-    stderr("No [Unreleased] section found in CHANGELOG.md")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error(:no_changelog) do
-    stderr("CHANGELOG.md not found")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error(:no_mix_exs) do
-    stderr("mix.exs not found")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error(:version_not_found) do
-    stderr("Could not find version field in mix.exs")
-    exit({:shutdown, 1})
-  end
-
-  defp handle_error({output, code}) when is_binary(output) do
-    stderr("Command failed (exit #{code}):\n#{output}")
-    exit({:shutdown, 1})
-  end
-
   defp handle_error(reason) do
-    stderr("Unexpected error: #{inspect(reason)}")
+    stderr(error_message(reason))
     exit({:shutdown, 1})
   end
+
+  defp error_message({:not_main, branch}),
+    do: "Must be on main branch to tag a release (currently on #{branch})"
+
+  defp error_message(:invalid_component), do: "Usage: mix tag <maj|min|pat>"
+  defp error_message(:invalid_version), do: "Could not parse current version from mix.exs"
+
+  defp error_message(:empty_unreleased),
+    do: "No entries in [Unreleased] section. Nothing to release."
+
+  defp error_message(:no_unreleased), do: "No [Unreleased] section found in CHANGELOG.md"
+  defp error_message(:no_changelog), do: "CHANGELOG.md not found"
+  defp error_message(:no_mix_exs), do: "mix.exs not found"
+  defp error_message(:version_not_found), do: "Could not find version field in mix.exs"
+
+  defp error_message({output, code}) when is_binary(output),
+    do: "Command failed (exit #{code}):\n#{output}"
+
+  defp error_message(reason), do: "Unexpected error: #{inspect(reason)}"
 
   defp stderr(msg), do: IO.puts(:stderr, msg)
 end
