@@ -63,8 +63,16 @@ defmodule Severance.CLITest do
   end
 
   describe "daemon_running?/0" do
-    test "returns false when no daemon is running" do
-      refute CLI.daemon_running?()
+    test "returns false with no output when no daemon is running" do
+      {io_output, log_output} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            refute CLI.daemon_running?()
+          end)
+        end)
+
+      assert io_output == ""
+      assert log_output == ""
     end
   end
 

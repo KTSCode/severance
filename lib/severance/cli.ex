@@ -78,7 +78,7 @@ defmodule Severance.CLI do
   """
   @spec daemon_running?() :: boolean()
   def daemon_running? do
-    case with_daemon_rpc(fn _target -> :ok end) do
+    case with_daemon_rpc(fn _target -> :ok end, quiet: true) do
       :ok -> true
       {:error, _} -> false
     end
@@ -136,28 +136,46 @@ defmodule Severance.CLI do
     end)
   end
 
-  @spec with_daemon_rpc((atom() -> term())) :: term() | {:error, String.t()}
-  defp with_daemon_rpc(callback) do
+  @spec with_daemon_rpc((atom() -> term()), keyword()) :: term() | {:error, String.t()}
+  defp with_daemon_rpc(callback, opts \\ []) do
+    quiet = Keyword.get(opts, :quiet, false)
     hostname = node_hostname()
     target = :"severance@#{hostname}"
     cli_name = :"severance_cli_#{:rand.uniform(100_000)}@#{hostname}"
 
+    prev_level = :logger.get_primary_config() |> Map.get(:level, :all)
+    if quiet, do: :logger.set_primary_config(:level, :error)
+
+    result = start_and_connect(cli_name, target, callback, quiet)
+
+    if quiet, do: :logger.set_primary_config(:level, prev_level)
+    result
+  end
+
+  @spec start_and_connect(atom(), atom(), (atom() -> term()), boolean()) ::
+          term() | {:error, String.t()}
+  defp start_and_connect(cli_name, target, callback, quiet) do
     case Node.start(cli_name, name_domain: :shortnames) do
       {:ok, _pid} ->
         Node.set_cookie(Node.self(), cookie())
-
-        case Node.connect(target) do
-          true ->
-            callback.(target)
-
-          false ->
-            IO.puts("Could not connect to severance daemon. Is it running?")
-            {:error, "connection failed"}
-        end
+        connect_to_daemon(target, callback, quiet)
 
       {:error, reason} ->
-        IO.puts("Could not start distribution: #{inspect(reason)}")
+        unless quiet, do: IO.puts("Could not start distribution: #{inspect(reason)}")
         {:error, "distribution failed"}
+    end
+  end
+
+  @spec connect_to_daemon(atom(), (atom() -> term()), boolean()) ::
+          term() | {:error, String.t()}
+  defp connect_to_daemon(target, callback, quiet) do
+    case Node.connect(target) do
+      true ->
+        callback.(target)
+
+      false ->
+        unless quiet, do: IO.puts("Could not connect to severance daemon. Is it running?")
+        {:error, "connection failed"}
     end
   end
 

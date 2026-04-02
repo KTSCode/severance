@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+- Suppress noisy Erlang distribution errors during `sev update` daemon check
 
 ## [0.2.1] -- 2026-04-02
 - Fix sev update to replace correct binary and keep plist current
