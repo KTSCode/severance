@@ -51,7 +51,7 @@ defmodule Severance.Application do
   end
 
   defp dispatch(:start) do
-    if burrito?(), do: start_or_notify(), else: start_daemon()
+    if burrito?(), do: start_or_notify([]), else: start_daemon()
   end
 
   defp dispatch({:start, opts}) do
@@ -62,7 +62,7 @@ defmodule Severance.Application do
   defp dispatch({:daemon, opts}), do: start_daemon(opts)
 
   @spec start_or_notify(keyword()) :: no_return()
-  defp start_or_notify(opts \\ []) do
+  defp start_or_notify(opts) do
     if CLI.daemon_running?() do
       IO.puts("Severance daemon is already running.")
       System.halt(0)
