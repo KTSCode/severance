@@ -3,6 +3,8 @@ defmodule Mix.Tasks.TagTest do
 
   alias Mix.Tasks.Tag
 
+  doctest Tag
+
   describe "bump_version/2" do
     test "bumps major version" do
       assert {:ok, "1.0.0"} = Tag.bump_version("0.1.0", :maj)
