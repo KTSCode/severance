@@ -12,13 +12,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.ex|*.exs) cd /Users/x/severance && mix format \"$f\" ;; esac; } 2>/dev/null || true",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.ex|*.exs) cd $HOME/severance && mix format \"$f\" ;; esac; } 2>/dev/null || true",
             "timeout": 10,
             "statusMessage": "Formatting..."
           },
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.ex|*.exs) cd /Users/x/severance && mix credo --strict \"$f\" ;; esac; } 2>/dev/null || true",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.ex|*.exs) cd $HOME/severance && mix credo --strict \"$f\" ;; esac; } 2>/dev/null || true",
             "timeout": 15,
             "statusMessage": "Linting..."
           }
@@ -32,7 +32,7 @@
           {
             "type": "command",
             "if": "Bash(git commit:*)",
-            "command": "output=$(cd /Users/x/severance && mix format --check-formatted 2>&1 && mix compile --warnings-as-errors 2>&1 && mix credo --strict 2>&1 && mix test 2>&1); rc=$?; if [ $rc -ne 0 ]; then echo \"$output\" | tail -30 | jq -Rs '{continue: false, stopReason: \"Pre-commit checks failed\", hookSpecificOutput: {hookEventName: \"PreToolUse\", additionalContext: .}}'; fi",
+            "command": "output=$(cd $HOME/severance && mix format --check-formatted 2>&1 && mix compile --warnings-as-errors 2>&1 && mix credo --strict 2>&1 && mix test 2>&1); rc=$?; if [ $rc -ne 0 ]; then echo \"$output\" | tail -30 | jq -Rs '{continue: false, stopReason: \"Pre-commit checks failed\", hookSpecificOutput: {hookEventName: \"PreToolUse\", additionalContext: .}}'; fi",
             "timeout": 120,
             "statusMessage": "Running pre-commit checks..."
           }
