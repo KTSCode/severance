@@ -143,6 +143,7 @@ defmodule Mix.Tasks.Tag do
     with {:ok, component} <- parse_component(arg),
          :ok <- check_main_branch(),
          :ok <- check_clean_worktree(),
+         :ok <- check_up_to_date(),
          {:ok, current} <- read_version(),
          {:ok, new_version} <- bump_version(current, component),
          {:ok, changelog} <- read_changelog(),
@@ -200,6 +201,14 @@ defmodule Mix.Tasks.Tag do
     end
   end
 
+  defp check_up_to_date do
+    with {:ok, _} <- cmd("git", ["fetch", "origin", "main"]),
+         {:ok, local} <- cmd("git", ["rev-parse", "HEAD"]),
+         {:ok, remote} <- cmd("git", ["rev-parse", "origin/main"]) do
+      if local == remote, do: :ok, else: {:error, :not_up_to_date}
+    end
+  end
+
   defp read_version do
     {:ok, Mix.Project.config()[:version]}
   end
@@ -229,7 +238,8 @@ defmodule Mix.Tasks.Tag do
   end
 
   defp today do
-    Date.utc_today() |> Date.to_iso8601()
+    {{year, month, day}, _time} = :calendar.local_time()
+    Date.new!(year, month, day) |> Date.to_iso8601()
   end
 
   defp confirm_release(changelog, current, new_version) do
@@ -283,6 +293,9 @@ defmodule Mix.Tasks.Tag do
 
   defp error_message(:dirty_worktree),
     do: "Uncommitted changes detected. Commit or stash them before tagging."
+
+  defp error_message(:not_up_to_date),
+    do: "Local main is behind or ahead of origin/main. Pull or push first."
 
   defp error_message(:invalid_component), do: "Usage: mix tag <maj|min|pat>"
   defp error_message(:invalid_version), do: "Could not parse current version from mix.exs"

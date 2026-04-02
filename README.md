@@ -194,7 +194,6 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] `sev update` follow best practices to allow severance to update it self if a new version has been released
 - [x] Fix issues from code audit (`docs/research/2026-03-30-code-audit.md`): osascript injection, crash on bad `--shutdown-time`, typos, dead code, duplicate env var parsing
 - [x] add `mix tag` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
-  - [ ] implement `docs/plans/2026-04-01-mix-tag-plan.md`
 - [ ] `sev status` the user needs to be able to check:
   - if severance is running
   - if over time protocol has been enabled
