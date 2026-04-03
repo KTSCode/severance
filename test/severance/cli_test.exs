@@ -147,6 +147,7 @@ defmodule Severance.CLITest do
   describe "format_status/2" do
     test "formats running daemon with no update" do
       daemon = %{
+        version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
         shutdown_time: ~T[17:00:00],
@@ -166,6 +167,7 @@ defmodule Severance.CLITest do
 
     test "formats running daemon with overtime active" do
       daemon = %{
+        version: Severance.Updater.current_version(),
         mode: :overtime,
         phase: :aggressive,
         shutdown_time: ~T[17:00:00],
@@ -181,6 +183,7 @@ defmodule Severance.CLITest do
 
     test "formats running daemon with update available" do
       daemon = %{
+        version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
         shutdown_time: ~T[17:00:00],
@@ -194,8 +197,26 @@ defmodule Severance.CLITest do
       assert output =~ "Update:     v99.0.0 available (run `sev update`)"
     end
 
+    test "shows daemon version, not CLI version, when they differ" do
+      daemon = %{
+        version: "0.1.0",
+        mode: :severance,
+        phase: :waiting,
+        shutdown_time: ~T[17:00:00],
+        minutes_remaining: 42
+      }
+
+      update = {:ok, Severance.Updater.current_version()}
+
+      output = CLI.format_status({:ok, daemon}, update)
+
+      assert output =~ "Severance v0.1.0"
+      refute output =~ "Severance v#{Severance.Updater.current_version()}"
+    end
+
     test "formats passed shutdown time" do
       daemon = %{
+        version: Severance.Updater.current_version(),
         mode: :overtime,
         phase: :done,
         shutdown_time: ~T[17:00:00],
@@ -209,18 +230,37 @@ defmodule Severance.CLITest do
       assert output =~ "Shutdown:   17:00 (passed)"
     end
 
-    test "formats daemon not running" do
-      output = CLI.format_status({:error, "connection failed"}, {:error, :skip})
+    test "formats daemon not running with failed update check" do
+      output = CLI.format_status({:error, "connection failed"}, {:error, :nxdomain})
 
       assert output =~ "Severance v#{Severance.Updater.current_version()}"
       assert output =~ "Status:     not running"
       refute output =~ "Overtime:"
       refute output =~ "Shutdown:"
-      refute output =~ "Update:"
+      assert output =~ "Update:     unknown (check failed)"
+    end
+
+    test "formats daemon not running with update available" do
+      output = CLI.format_status({:error, "connection failed"}, {:ok, "99.0.0"})
+
+      assert output =~ "Status:     not running"
+      assert output =~ "Update:     v99.0.0 available (run `sev update`)"
+    end
+
+    test "formats daemon not running and up to date" do
+      output =
+        CLI.format_status(
+          {:error, "connection failed"},
+          {:ok, Severance.Updater.current_version()}
+        )
+
+      assert output =~ "Status:     not running"
+      assert output =~ "Update:     up to date"
     end
 
     test "formats update check failure" do
       daemon = %{
+        version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
         shutdown_time: ~T[17:00:00],
@@ -236,13 +276,14 @@ defmodule Severance.CLITest do
   end
 
   describe "run_status/0" do
-    test "returns :ok with not-running output when daemon is not running" do
+    test "returns :ok with not-running output and update line when daemon is not running" do
       output =
         ExUnit.CaptureIO.capture_io(fn ->
           assert :ok = CLI.run_status()
         end)
 
       assert output =~ "not running"
+      assert output =~ "Update:"
     end
   end
 

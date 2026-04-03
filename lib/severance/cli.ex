@@ -247,7 +247,7 @@ defmodule Severance.CLI do
     update_result =
       case daemon_result do
         {:ok, _} -> fetch_update_status()
-        {:error, _} -> {:error, :skip}
+        {:error, _} -> fetch_local_update_status()
       end
 
     IO.puts(format_status(daemon_result, update_result))
@@ -265,14 +265,28 @@ defmodule Severance.CLI do
   @spec rpc_countdown_status(atom()) :: {:ok, map()} | {:error, String.t()}
   defp rpc_countdown_status(target) do
     case :rpc.call(target, Severance.Countdown, :status, []) do
-      {:badrpc, reason} -> {:error, inspect(reason)}
-      status -> {:ok, status}
+      {:badrpc, reason} ->
+        {:error, inspect(reason)}
+
+      status ->
+        version =
+          case :rpc.call(target, Severance.Updater, :current_version, []) do
+            {:badrpc, _} -> Severance.Updater.current_version()
+            v -> v
+          end
+
+        {:ok, Map.put(status, :version, version)}
     end
   end
 
   @spec fetch_update_status() :: {:ok, String.t()} | {:error, term()}
   defp fetch_update_status do
     with_daemon_rpc(&rpc_fetch_latest_version/1, quiet: true)
+  end
+
+  @spec fetch_local_update_status() :: {:ok, String.t()} | {:error, term()}
+  defp fetch_local_update_status do
+    Severance.Updater.fetch_latest_version()
   end
 
   @spec rpc_fetch_latest_version(atom()) :: {:ok, String.t()} | {:error, term()}
@@ -294,11 +308,10 @@ defmodule Severance.CLI do
           {:ok, String.t()} | {:error, term()}
         ) :: String.t()
   def format_status(daemon_result, update_result) do
-    version = Severance.Updater.current_version()
-    header = "Severance v#{version}"
-
     case daemon_result do
       {:ok, daemon} ->
+        version = daemon.version
+        header = "Severance v#{version}"
         overtime = if daemon.mode == :overtime, do: "active", else: "inactive"
 
         shutdown =
@@ -319,9 +332,14 @@ defmodule Severance.CLI do
         """
 
       {:error, _reason} ->
+        version = Severance.Updater.current_version()
+        header = "Severance v#{version}"
+        update = format_update(update_result, version)
+
         """
         #{header}
-        Status:     not running\
+        Status:     not running
+        Update:     #{update}\
         """
     end
   end

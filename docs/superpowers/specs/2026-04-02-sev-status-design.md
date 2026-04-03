@@ -76,14 +76,17 @@ Shutdown:   17:00 (passed)
 Update:     up to date
 ```
 
-Not running:
+Not running, up to date:
 ```
 Severance v0.3.0
 Status:     not running
+Update:     up to date
 ```
 
-Update check failed:
+Not running, update check failed:
 ```
+Severance v0.3.0
+Status:     not running
 Update:     unknown (check failed)
 ```
 
@@ -91,13 +94,14 @@ Update:     unknown (check failed)
 
 1. `sev status` dispatches to `CLI.run_status/0`
 2. CLI connects via RPC to the daemon node
-3. On success: calls `Countdown.status/0` and `Updater.fetch_latest_version/0`
+3. On success: calls `Countdown.status/0` and `Updater.current_version/0`
    on the remote node, passes both results to `format_status/2`
-4. On failure: prints version header + "not running", exits 0
+4. On failure: calls `Updater.fetch_latest_version/0` locally, prints
+   version header + "not running" + update status, exits 0
 
 ## Error Handling
 
-- RPC failure: print "not running", skip daemon-dependent fields, exit 0
+- RPC failure: print "not running", check for updates locally, exit 0
 - GitHub API failure with fresh cache: return cached version
 - GitHub API failure with no cache: show "unknown (check failed)"
 
