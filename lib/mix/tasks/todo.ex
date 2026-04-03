@@ -194,8 +194,10 @@ defmodule Mix.Tasks.Todo do
 
     1. Run `git status` to verify all changes were committed. If any files
        are untracked or unstaged, commit and push them.
-    2. Update the PR description with a clear summary of what was implemented
-       and why. Use `gh pr edit #{pr_url} --body "..."` to set the body.
+    2. Update the PR description using `gh pr edit #{pr_url} --body "..."`.
+       Follow the convention in AGENTS.md: summary and test plan above the
+       fold. If this work was based on an implementation plan, include the
+       full plan in a collapsed `<details>` block.
     3. Review CHANGELOG.md — the entry was added under "### Added" as a
        placeholder. Pick the correct category: Added, Changed, Fixed, or
        Removed. If you change the category, commit and push.
