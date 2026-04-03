@@ -11,6 +11,7 @@ defmodule Severance.CLI do
       sev update                 # Update to latest release
       sev version                # Print current version
       sev -v                     # Print current version
+      sev status                 # Show daemon status and version info
       sev --shutdown-time HH:MM  # Start with custom shutdown time
       sev otp                    # Activate Overtime Protocol on running daemon
       sev overtime               # Activate Overtime Protocol on running daemon
@@ -24,8 +25,8 @@ defmodule Severance.CLI do
   Returns `:start` for no args, `start` subcommand, or unrecognized args.
   Returns `{:start, opts}` when options like `--shutdown-time` are provided.
   Returns `:daemon` or `{:daemon, opts}` for the internal `--daemon` flag.
-  Returns `:overtime`, `:stop`, `:init`, `:update`, or `:version` for
-  their respective subcommands.
+  Returns `:overtime`, `:status`, `:stop`, `:init`, `:update`, or
+  `:version` for their respective subcommands.
 
   ## Examples
 

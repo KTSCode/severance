@@ -109,6 +109,7 @@ and checks tmux readiness. Safe to re-run.
 
 ```bash
 sev            # start the daemon
+sev status     # show daemon status and version info
 sev otp        # activate overtime protocol
 sev stop       # stop the daemon
 sev update     # update to latest release
@@ -213,4 +214,5 @@ Small, well-understood changes go straight to code. For anything larger:
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings 
 - [ ] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol 
   - the log file location needs to be configurable in the config file
+- [ ] Fix: I had a bunch of sev processes running last time I did the update, there should only be one ever
 
