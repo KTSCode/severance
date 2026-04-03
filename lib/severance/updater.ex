@@ -23,6 +23,8 @@ defmodule Severance.Updater do
 
   @version Mix.Project.config()[:version]
   @repo "KTSCode/severance"
+  @cache_table :severance_version_cache
+  @cache_ttl_seconds 24 * 60 * 60
 
   @doc """
   Returns the application version compiled into this binary.
@@ -34,6 +36,54 @@ defmodule Severance.Updater do
   """
   @spec current_version() :: String.t()
   def current_version, do: @version
+
+  @doc """
+  Creates the ETS table for caching the latest version.
+
+  Called once at daemon startup. Safe to call multiple times — returns
+  `:already_exists` if the table exists.
+  """
+  @spec create_cache_table() :: :ok | :already_exists
+  def create_cache_table do
+    if :ets.whereis(@cache_table) != :undefined do
+      :already_exists
+    else
+      :ets.new(@cache_table, [:named_table, :set, :public, read_concurrency: true])
+      :ok
+    end
+  end
+
+  @doc """
+  Returns the latest available version, using a 24-hour ETS cache.
+
+  Checks the cache first. If the cache is missing or older than 24 hours,
+  fetches from the GitHub Releases API. On fetch failure with a stale
+  cache, returns the stale value. On fetch failure with no cache, returns
+  the error.
+
+  Accepts `http_get:` option for testability.
+  """
+  @spec fetch_latest_version(keyword()) :: {:ok, String.t()} | {:error, term()}
+  def fetch_latest_version(opts \\ []) do
+    now = System.system_time(:second)
+
+    case read_cache(now) do
+      {:ok, version} ->
+        {:ok, version}
+
+      :miss ->
+        http_get = Keyword.get(opts, :http_get, &default_http_get/1)
+        fetch_and_cache(http_get, now)
+
+      {:stale, version} ->
+        http_get = Keyword.get(opts, :http_get, &default_http_get/1)
+
+        case fetch_and_cache(http_get, now) do
+          {:ok, new_version} -> {:ok, new_version}
+          {:error, _reason} -> {:ok, version}
+        end
+    end
+  end
 
   @doc """
   Extracts a semver string from a GitHub release map.
@@ -160,6 +210,38 @@ defmodule Severance.Updater do
       {:error, reason} ->
         IO.puts("Update failed: #{inspect(reason)}")
         {:error, reason}
+    end
+  end
+
+  @spec read_cache(integer()) :: {:ok, String.t()} | {:stale, String.t()} | :miss
+  defp read_cache(now) do
+    if :ets.whereis(@cache_table) == :undefined do
+      :miss
+    else
+      case :ets.lookup(@cache_table, :latest_version) do
+        [{:latest_version, version, ts}] when now - ts < @cache_ttl_seconds ->
+          {:ok, version}
+
+        [{:latest_version, version, _ts}] ->
+          {:stale, version}
+
+        [] ->
+          :miss
+      end
+    end
+  end
+
+  @spec fetch_and_cache((String.t() -> {:ok, binary()} | {:error, term()}), integer()) ::
+          {:ok, String.t()} | {:error, term()}
+  defp fetch_and_cache(http_get, now) do
+    with {:ok, body} <- http_get.(api_url()),
+         {:ok, release} <- decode_json(body),
+         {:ok, version} <- extract_version(release) do
+      if :ets.whereis(@cache_table) != :undefined do
+        :ets.insert(@cache_table, {:latest_version, version, now})
+      end
+
+      {:ok, version}
     end
   end
 

@@ -165,6 +165,7 @@ defmodule Severance.Application do
   def start_daemon(opts \\ []) do
     config = resolve_config(opts)
     start_children = Application.get_env(:severance, :start_children, true)
+    Severance.Updater.create_cache_table()
 
     children =
       if start_children do
