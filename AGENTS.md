@@ -36,6 +36,25 @@ For anything larger:
 1. **Plan** — `docs/plans/<feature>.md`
 1. **Execute** — one phase at a time
 
+## Pull Requests
+- When a PR was built from an implementation plan, include the plan in the PR description inside a collapsed `<details>` block
+- The summary and test plan go above the fold; the plan goes below
+- Format:
+  ```markdown
+  ## Summary
+  - bullet points
+
+  ## Test plan
+  - [x] what was tested
+
+  <details>
+  <summary>Implementation Plan</summary>
+
+  (full plan content here)
+
+  </details>
+  ```
+
 ## Changelog
 - Update `CHANGELOG.md` under `## [Unreleased]` when a branch introduces user-facing changes
 - Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format
