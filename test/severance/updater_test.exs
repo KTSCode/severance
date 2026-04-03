@@ -145,7 +145,8 @@ defmodule Severance.UpdaterTest do
           assert Updater.run(
                    http_get: http_get,
                    binary_path: binary_path,
-                   arch: "aarch64-apple-darwin24.3.0"
+                   arch: "aarch64-apple-darwin24.3.0",
+                   plist_path: Path.join(tmp_dir, "test.plist")
                  ) == :ok
         end)
 
@@ -227,7 +228,8 @@ defmodule Severance.UpdaterTest do
         capture_io(fn ->
           assert Updater.run(
                    http_get: http_get,
-                   arch: "aarch64-apple-darwin24.3.0"
+                   arch: "aarch64-apple-darwin24.3.0",
+                   plist_path: Path.join(tmp_dir, "test.plist")
                  ) == :ok
         end)
 
@@ -357,7 +359,8 @@ defmodule Severance.UpdaterTest do
         Updater.run(
           http_get: http_get,
           binary_path: binary_path,
-          arch: "aarch64-apple-darwin24.3.0"
+          arch: "aarch64-apple-darwin24.3.0",
+          plist_path: Path.join(tmp_dir, "test.plist")
         )
       end)
 
@@ -380,6 +383,7 @@ defmodule Severance.UpdaterTest do
                    http_get: http_get,
                    binary_path: binary_path,
                    arch: "aarch64-apple-darwin24.3.0",
+                   plist_path: Path.join(tmp_dir, "test.plist"),
                    daemon_running?: fn -> true end,
                    prompt_restart: fn -> true end,
                    stop_daemon: fn ->
@@ -408,6 +412,7 @@ defmodule Severance.UpdaterTest do
                    http_get: http_get,
                    binary_path: binary_path,
                    arch: "aarch64-apple-darwin24.3.0",
+                   plist_path: Path.join(tmp_dir, "test.plist"),
                    daemon_running?: fn -> true end,
                    prompt_restart: fn -> false end,
                    stop_daemon: fn -> flunk("stop_daemon should not be called") end,
@@ -429,6 +434,7 @@ defmodule Severance.UpdaterTest do
                    http_get: http_get,
                    binary_path: binary_path,
                    arch: "aarch64-apple-darwin24.3.0",
+                   plist_path: Path.join(tmp_dir, "test.plist"),
                    daemon_running?: fn -> false end,
                    prompt_restart: fn -> flunk("prompt_restart should not be called") end
                  ) == :ok
