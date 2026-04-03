@@ -231,6 +231,117 @@ defmodule Severance.CLI do
     end)
   end
 
+  @doc """
+  Connects to the running daemon and prints status information.
+
+  Queries the daemon for countdown status and version cache. If the daemon
+  is not running, prints a minimal status with the local version.
+
+  Returns `:ok` always — status is informational.
+  """
+  @spec run_status() :: :ok
+  def run_status do
+    daemon_result = fetch_daemon_status()
+
+    update_result =
+      case daemon_result do
+        {:ok, _} -> fetch_update_status()
+        {:error, _} -> {:error, :skip}
+      end
+
+    IO.puts(format_status(daemon_result, update_result))
+    :ok
+  end
+
+  @spec fetch_daemon_status() :: {:ok, map()} | {:error, term()}
+  defp fetch_daemon_status do
+    case with_daemon_rpc(&rpc_countdown_status/1, quiet: true) do
+      {:ok, _} = ok -> ok
+      {:error, _} = err -> err
+    end
+  end
+
+  @spec rpc_countdown_status(atom()) :: {:ok, map()} | {:error, String.t()}
+  defp rpc_countdown_status(target) do
+    case :rpc.call(target, Severance.Countdown, :status, []) do
+      {:badrpc, reason} -> {:error, inspect(reason)}
+      status -> {:ok, status}
+    end
+  end
+
+  @spec fetch_update_status() :: {:ok, String.t()} | {:error, term()}
+  defp fetch_update_status do
+    with_daemon_rpc(&rpc_fetch_latest_version/1, quiet: true)
+  end
+
+  @spec rpc_fetch_latest_version(atom()) :: {:ok, String.t()} | {:error, term()}
+  defp rpc_fetch_latest_version(target) do
+    case :rpc.call(target, Severance.Updater, :fetch_latest_version, []) do
+      {:badrpc, reason} -> {:error, inspect(reason)}
+      result -> result
+    end
+  end
+
+  @doc """
+  Formats status information into a human-readable string.
+
+  Takes a daemon result (`{:ok, status_map}` or `{:error, reason}`) and
+  an update result (`{:ok, latest_version}` or `{:error, reason}`).
+  """
+  @spec format_status(
+          {:ok, map()} | {:error, term()},
+          {:ok, String.t()} | {:error, term()}
+        ) :: String.t()
+  def format_status(daemon_result, update_result) do
+    version = Severance.Updater.current_version()
+    header = "Severance v#{version}"
+
+    case daemon_result do
+      {:ok, daemon} ->
+        overtime = if daemon.mode == :overtime, do: "active", else: "inactive"
+
+        shutdown =
+          if daemon.minutes_remaining <= 0 do
+            "#{format_time(daemon.shutdown_time)} (passed)"
+          else
+            "#{format_time(daemon.shutdown_time)} (#{daemon.minutes_remaining}m remaining)"
+          end
+
+        update = format_update(update_result, version)
+
+        """
+        #{header}
+        Status:     running
+        Overtime:   #{overtime}
+        Shutdown:   #{shutdown}
+        Update:     #{update}\
+        """
+
+      {:error, _reason} ->
+        """
+        #{header}
+        Status:     not running\
+        """
+    end
+  end
+
+  @spec format_time(Time.t()) :: String.t()
+  defp format_time(time) do
+    Calendar.strftime(time, "%H:%M")
+  end
+
+  @spec format_update({:ok, String.t()} | {:error, term()}, String.t()) :: String.t()
+  defp format_update({:ok, latest}, current) do
+    case Severance.Updater.check_version(current, latest) do
+      :update_available -> "v#{latest} available (run `sev update`)"
+      :up_to_date -> "up to date"
+    end
+  end
+
+  defp format_update({:error, _reason}, _current) do
+    "unknown (check failed)"
+  end
+
   @spec with_daemon_rpc((atom() -> term()), keyword()) :: term() | {:error, String.t()}
   defp with_daemon_rpc(callback, opts \\ []) do
     quiet = Keyword.get(opts, :quiet, false)
