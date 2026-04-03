@@ -197,10 +197,9 @@ Small, well-understood changes go straight to code. For anything larger:
   - Update AGENTS.md with instructions for cleaning up docs so that old and outdated plans to live in there forever
   - Fix: I ended up with conflicts on main because the changes on main hadn't been pushed up before the new branch was created
   - Update: the workflow that I plan to use, is to add one or more new todo items to the README then call `mix todo | claude` this should commit (with a skill if available) any changes and push them up before branching off main 
-- [x] Fix issues from code audit (`docs/research/2026-03-30-code-audit.md`): osascript injection, crash on bad `--shutdown-time`, typos, dead code, duplicate env var parsing
 - [x] add `mix tag` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
 - [x] `sev start` and `sev` should start the daemon in the backgroung and return (if the daemon is already running it should note that and then exit 0)
-- [ ] `sev status` the user needs to be able to check:
+- [x] `sev status` the user needs to be able to check:
   - if severance is running
   - if over time protocol has been enabled
   - how long until the next shutdown

@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `sev status` command showing daemon state, overtime mode, shutdown countdown, version, and update availability
 - ETS-cached version check (24-hour TTL) for update availability in status output
+- `sev status` the user needs to be able to check:
 
 ## [0.3.0] -- 2026-04-02
 
