@@ -1,6 +1,8 @@
 defmodule Severance.CountdownTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Severance.Countdown
 
   describe "overtime/0" do
@@ -22,18 +24,20 @@ defmodule Severance.CountdownTest do
 
   describe "status/0" do
     test "returns status map with mode, phase, shutdown_time, and minutes_remaining" do
-      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      future = NaiveDateTime.local_now() |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
+      start_supervised!({Countdown, shutdown_time: future})
 
       status = Countdown.status()
 
       assert status.mode == :severance
       assert status.phase == :waiting
-      assert status.shutdown_time == ~T[23:59:59]
+      assert status.shutdown_time == future
       assert is_integer(status.minutes_remaining)
     end
 
     test "reflects overtime mode" do
-      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      future = NaiveDateTime.local_now() |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
+      start_supervised!({Countdown, shutdown_time: future})
       Countdown.overtime()
 
       status = Countdown.status()
@@ -104,18 +108,20 @@ defmodule Severance.CountdownTest do
 
   describe "late start" do
     test "fires overtime burst instead of shutdown when started after shutdown time" do
-      pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
 
-      # Let the GenServer process :late_start and begin the burst
-      Process.sleep(100)
+        # Let the GenServer process :late_start and begin the burst
+        Process.sleep(100)
 
-      assert Process.alive?(pid)
+        assert Process.alive?(pid)
 
-      # The test adapter sends :shutdown_machine to self() (the GenServer)
-      # when shutdown_machine/0 is called. If late start works correctly,
-      # shutdown_machine should never be called.
-      {:messages, messages} = Process.info(pid, :messages)
-      refute :shutdown_machine in messages
+        # The test adapter sends :shutdown_machine to self() (the GenServer)
+        # when shutdown_machine/0 is called. If late start works correctly,
+        # shutdown_machine should never be called.
+        {:messages, messages} = Process.info(pid, :messages)
+        refute :shutdown_machine in messages
+      end)
     end
   end
 
@@ -133,29 +139,33 @@ defmodule Severance.CountdownTest do
     test "skips overtime burst when overtime_notifications is false (late start)" do
       Application.put_env(:severance, :overtime_notifications, false)
 
-      pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
-      Process.sleep(100)
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        Process.sleep(100)
 
-      assert Process.alive?(pid)
+        assert Process.alive?(pid)
 
-      # With notifications disabled, late_start should immediately finish
-      # and set phase to :done without scheduling any burst
-      state = :sys.get_state(pid)
-      assert state.phase == :done
+        # With notifications disabled, late_start should immediately finish
+        # and set phase to :done without scheduling any burst
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+      end)
     end
 
     test "fires overtime burst when overtime_notifications is true (late start)" do
       Application.put_env(:severance, :overtime_notifications, true)
 
-      pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
-      Process.sleep(100)
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        Process.sleep(100)
 
-      assert Process.alive?(pid)
+        assert Process.alive?(pid)
 
-      # With notifications enabled, the burst is in progress (takes 60s to
-      # complete), so phase should NOT be :done yet
-      state = :sys.get_state(pid)
-      refute state.phase == :done
+        # With notifications enabled, the burst is in progress (takes 60s to
+        # complete), so phase should NOT be :done yet
+        state = :sys.get_state(pid)
+        refute state.phase == :done
+      end)
     end
   end
 
