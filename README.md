@@ -176,6 +176,7 @@ starts fresh and relies on durable repo files rather than chat history.
 - **AGENTS.md** — shared conventions, build commands, workflow, and documentation lifecycle
 - **CLAUDE.md** — Claude Code-specific configuration (hooks)
 - **dialyxir** — static type analysis via Dialyzer (PLTs cached in `priv/plts/`)
+- **MCP tools** — runtime introspection via tidewave, erl_dist_mcp, and hex-mcp (see `.mcp.json`)
 
 Small, well-understood changes go straight to code. For anything larger:
 

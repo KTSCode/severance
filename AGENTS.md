@@ -16,6 +16,12 @@ Shared project conventions for all AI coding agents.
 - macOS only (uses `osascript` for notifications and shutdown)
 - tmux (status bar integration and stale pane detection)
 
+## MCP Tools
+Three MCP servers provide runtime introspection (configured in `.mcp.json`):
+- **tidewave** — eval/docs in mix sessions. Start with `mix tidewave` before using
+- **erl_dist_mcp** — deep OTP introspection of the running daemon
+- **hex-mcp** — hex package version queries (hosted service, always available)
+
 ## Architecture
 Background daemon that enforces daily computer shutdown with escalating warnings.
 Runs as a LaunchAgent, communicates via BEAM RPC for overtime protocol.

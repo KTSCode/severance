@@ -17,3 +17,6 @@ severance-*.tar
 
 # Tools
 .todo-current
+
+# Riptide artifacts (cloud-synced)
+.humanlayer/tasks/

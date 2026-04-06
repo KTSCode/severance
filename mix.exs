@@ -8,6 +8,7 @@ defmodule Severance.MixProject do
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
       releases: releases(),
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/project.plt"},
@@ -29,7 +30,16 @@ defmodule Severance.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.1", only: :dev},
-      {:burrito, "~> 1.5"}
+      {:burrito, "~> 1.5"},
+      {:tidewave, "~> 0.5", only: :dev},
+      {:bandit, "~> 1.0", only: :dev}
+    ]
+  end
+
+  defp aliases do
+    [
+      tidewave:
+        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4000) end)'"
     ]
   end
 
