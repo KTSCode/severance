@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__tidewave__project_eval"
     ]
   },
   "hooks": {
