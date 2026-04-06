@@ -1,8 +1,16 @@
 {
   "mcpServers": {
     "tidewave": {
-      "command": "mix",
-      "args": ["tidewave.connect"]
+      "type": "http",
+      "url": "http://localhost:4000/tidewave/mcp"
+    },
+    "erl_dist_mcp": {
+      "command": "erl_dist_mcp",
+      "args": ["--mode", "elixir", "--allow-eval"]
+    },
+    "hex": {
+      "type": "sse",
+      "url": "https://hex-mcp.9elements.com/sse"
     }
   }
 }

@@ -56,14 +56,13 @@ README.md, organized as:
 ### CLAUDE.md content (rewritten)
 Thin pointer (~10 lines):
 1. Instruction to read AGENTS.md for project conventions
-1. MCP section noting tidewave in `.mcp.json`
 1. Hooks section referencing `.claude/settings.local.json`
 
 ### README.md changes (lines 154-167)
 Updated AI-assisted workflow section:
 - References AGENTS.md first as the primary conventions file
 - Lists CLAUDE.md second with scope note "Claude Code-specific configuration"
-- Keeps tidewave and dialyxir references (project dependencies, not agent-specific)
+- Keeps dialyxir reference (project dependency, not agent-specific)
 
 ### mix.exs change (line 16)
 `usage_rules` target changes from `"CLAUDE.md"` to `"AGENTS.md"` so future

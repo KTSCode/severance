@@ -1,11 +1,23 @@
-/_build/
-/deps/
-/doc/
-/.fetch
-erl_crash.dump
+# Build artifacts
 *.ez
-severance-*.tar
-/tmp/
-/priv/plts/
+/.fetch
+/_build/
 /burrito_out/
+/deps/
+erl_crash.dump
+severance-*.tar
+
+# Generated
+/doc/
+/priv/plts/
+/tmp/
+
+# Third-party docs
+/docs/superpowers/
+
+# Tools
 .todo-current
+.claude/settings.local.json
+
+# Riptide artifacts (cloud-synced)
+.humanlayer/tasks/

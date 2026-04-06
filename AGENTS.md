@@ -16,6 +16,12 @@ Shared project conventions for all AI coding agents.
 - macOS only (uses `osascript` for notifications and shutdown)
 - tmux (status bar integration and stale pane detection)
 
+## MCP Tools
+Three MCP servers provide runtime introspection (configured in `.mcp.json`):
+- **tidewave** — eval/docs in mix sessions. Start with `mix tidewave` before using
+- **erl_dist_mcp** — deep OTP introspection of the running daemon
+- **hex-mcp** — hex package version queries (hosted service, always available)
+
 ## Architecture
 Background daemon that enforces daily computer shutdown with escalating warnings.
 Runs as a LaunchAgent, communicates via BEAM RPC for overtime protocol.
@@ -33,7 +39,7 @@ For anything larger:
 
 1. **Research** — `docs/research/<feature>.md`
 1. **Spec** — `docs/specs/<feature>.md`
-1. **Plan** — `docs/plans/<feature>.md`
+1. **Plan** — lives in the PR description (see Pull Requests below), not committed to the repo
 1. **Execute** — one phase at a time
 
 ## Pull Requests
@@ -62,8 +68,7 @@ For anything larger:
 - Write entries from the user's perspective, not the developer's
 
 ## Documentation Lifecycle
-- Completed plans move to `docs/archive/`
 - Superseded specs move to `docs/archive/`
 - Files keep their original names (date prefix provides chronological ordering)
 - Agents ignore `docs/archive/` during routine sessions
-- Never delete plans or specs — archive for historical context
+- Never delete specs — archive for historical context

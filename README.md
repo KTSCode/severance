@@ -174,9 +174,9 @@ This project is set up for AI-assisted development. Each coding session
 starts fresh and relies on durable repo files rather than chat history.
 
 - **AGENTS.md** — shared conventions, build commands, workflow, and documentation lifecycle
-- **CLAUDE.md** — Claude Code-specific configuration (MCP, hooks)
-- **tidewave** — MCP server for live BEAM introspection (`.mcp.json`)
+- **CLAUDE.md** — Claude Code-specific configuration (hooks)
 - **dialyxir** — static type analysis via Dialyzer (PLTs cached in `priv/plts/`)
+- **MCP tools** — runtime introspection via tidewave, erl_dist_mcp, and hex-mcp (see `.mcp.json`)
 
 Small, well-understood changes go straight to code. For anything larger:
 
@@ -192,19 +192,6 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-  - Update CLAUDE.md to be agnostic and point to AGENTS.md
-  - Move plans out of docs/superpowers
-  - Update AGENTS.md with instructions for cleaning up docs so that old and outdated plans to live in there forever
-  - Fix: I ended up with conflicts on main because the changes on main hadn't been pushed up before the new branch was created
-  - Update: the workflow that I plan to use, is to add one or more new todo items to the README then call `mix todo | claude` this should commit (with a skill if available) any changes and push them up before branching off main 
-- [x] add `mix tag` to take an arg `maj | min | pat` and then have it do all the necessary `gh` calls and file changes to increase the version number and initiate the release of the next version, including the change long stuff.
-- [x] `sev start` and `sev` should start the daemon in the backgroung and return (if the daemon is already running it should note that and then exit 0)
-- [x] `sev status` the user needs to be able to check:
-  - if severance is running
-  - if over time protocol has been enabled
-  - how long until the next shutdown
-  - the current severance version
-  - if the need to update (this should fail gracefully if the call to get the latest version doesn't work)
 - [ ] Fix GitHub Actions Warning. More info in: `docs/research/2026-04-02-gha-waring.md`
 - [ ] Remove `sev stop` and all related documentation, it goes against the nature of the application, if the user really wants to stop the daemon they can kill -9 it
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
@@ -214,4 +201,5 @@ Small, well-understood changes go straight to code. For anything larger:
 - [ ] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol 
   - the log file location needs to be configurable in the config file
 - [ ] Fix: I had a bunch of sev processes running last time I did the update, there should only be one ever
+- [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 
