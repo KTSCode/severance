@@ -39,7 +39,7 @@ defmodule Severance.MixProject do
   defp aliases do
     [
       tidewave:
-        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4000) end)'"
+        "run --no-halt -e '{:ok, _pid} = Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4000) end)'"
     ]
   end
 
