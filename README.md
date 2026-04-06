@@ -214,4 +214,5 @@ Small, well-understood changes go straight to code. For anything larger:
 - [ ] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol 
   - the log file location needs to be configurable in the config file
 - [ ] Fix: I had a bunch of sev processes running last time I did the update, there should only be one ever
+- [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 
