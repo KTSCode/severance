@@ -277,9 +277,11 @@ defmodule Severance.CLITest do
 
   describe "run_status/0" do
     test "returns :ok with not-running output and update line when daemon is not running" do
-      output =
-        ExUnit.CaptureIO.capture_io(fn ->
-          assert :ok = CLI.run_status()
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            assert :ok = CLI.run_status()
+          end)
         end)
 
       assert output =~ "not running"
@@ -289,7 +291,11 @@ defmodule Severance.CLITest do
 
   describe "run_stop/0" do
     test "returns error when daemon is not running" do
-      assert {:error, _reason} = CLI.run_stop()
+      ExUnit.CaptureLog.capture_log(fn ->
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert {:error, _reason} = CLI.run_stop()
+        end)
+      end)
     end
   end
 end
