@@ -40,6 +40,12 @@ defmodule Severance.Application do
     System.halt(if result == :ok, do: 0, else: 1)
   end
 
+  defp dispatch(:status) do
+    Node.stop()
+    CLI.run_status()
+    System.halt(0)
+  end
+
   defp dispatch(:stop) do
     result = CLI.run_stop()
     System.halt(if result == :ok, do: 0, else: 1)
@@ -165,6 +171,7 @@ defmodule Severance.Application do
   def start_daemon(opts \\ []) do
     config = resolve_config(opts)
     start_children = Application.get_env(:severance, :start_children, true)
+    Severance.Updater.create_cache_table()
 
     children =
       if start_children do

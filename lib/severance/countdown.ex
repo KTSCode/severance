@@ -61,6 +61,21 @@ defmodule Severance.Countdown do
   end
 
   @doc """
+  Returns status information for the running daemon.
+
+  Includes mode, phase, configured shutdown time, and minutes remaining.
+  """
+  @spec status() :: %{
+          mode: :severance | :overtime,
+          phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done,
+          shutdown_time: Time.t(),
+          minutes_remaining: integer()
+        }
+  def status do
+    GenServer.call(__MODULE__, :status)
+  end
+
+  @doc """
   Returns the phase for a given number of minutes remaining.
   """
   @spec phase_for_remaining(integer()) :: :gentle | :aggressive | :final | :shutdown
@@ -119,6 +134,18 @@ defmodule Severance.Countdown do
   @impl true
   def handle_call(:mode, _from, state) do
     {:reply, state.mode, state}
+  end
+
+  @impl true
+  def handle_call(:status, _from, state) do
+    status = %{
+      mode: state.mode,
+      phase: state.phase,
+      shutdown_time: state.shutdown_time,
+      minutes_remaining: minutes_remaining(state.shutdown_time)
+    }
+
+    {:reply, status, state}
   end
 
   @impl true

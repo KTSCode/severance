@@ -20,6 +20,28 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "status/0" do
+    test "returns status map with mode, phase, shutdown_time, and minutes_remaining" do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      status = Countdown.status()
+
+      assert status.mode == :severance
+      assert status.phase == :waiting
+      assert status.shutdown_time == ~T[23:59:59]
+      assert is_integer(status.minutes_remaining)
+    end
+
+    test "reflects overtime mode" do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      Countdown.overtime()
+
+      status = Countdown.status()
+
+      assert status.mode == :overtime
+    end
+  end
+
   describe "phase_for_remaining/1" do
     test "returns gentle for 30 to 16 minutes" do
       assert Countdown.phase_for_remaining(30) == :gentle
