@@ -39,7 +39,7 @@ For anything larger:
 
 1. **Research** — `docs/research/<feature>.md`
 1. **Spec** — `docs/specs/<feature>.md`
-1. **Plan** — `docs/plans/<feature>.md`
+1. **Plan** — lives in the PR description (see Pull Requests below), not committed to the repo
 1. **Execute** — one phase at a time
 
 ## Pull Requests
@@ -68,8 +68,7 @@ For anything larger:
 - Write entries from the user's perspective, not the developer's
 
 ## Documentation Lifecycle
-- Completed plans move to `docs/archive/`
 - Superseded specs move to `docs/archive/`
 - Files keep their original names (date prefix provides chronological ordering)
 - Agents ignore `docs/archive/` during routine sessions
-- Never delete plans or specs — archive for historical context
+- Never delete specs — archive for historical context
