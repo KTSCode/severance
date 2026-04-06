@@ -3,7 +3,7 @@
 Read **AGENTS.md** for project conventions, build commands, and workflow.
 
 ## Hooks
-- Pre-commit checks configured in `.claude/settings.local.json`
+- Pre-commit checks configured in `.claude/settings.json`
 
 ## MCP Servers
 Three MCP servers provide runtime introspection during development:

@@ -1,12 +1,4 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "WebSearch",
-      "mcp__tidewave__project_eval"
-    ]
-  },
   "hooks": {
     "PostToolUse": [
       {
