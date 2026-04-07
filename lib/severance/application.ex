@@ -166,9 +166,17 @@ defmodule Severance.Application do
 
   @doc """
   Starts the daemon supervision tree.
+
+  Ensures BEAM distribution is active so the daemon registers with EPMD
+  as `severance@hostname`. This is required because Burrito's Zig launcher
+  bypasses `env.sh` and never sets `RELEASE_DISTRIBUTION` or `RELEASE_NODE`.
   """
   @spec start_daemon(keyword()) :: {:ok, pid()}
   def start_daemon(opts \\ []) do
+    if Application.get_env(:severance, :start_distribution, true) do
+      ensure_distribution()
+    end
+
     config = resolve_config(opts)
     start_children = Application.get_env(:severance, :start_children, true)
     Severance.Updater.create_cache_table()
@@ -182,6 +190,80 @@ defmodule Severance.Application do
 
     sup_opts = [strategy: :one_for_one, name: Severance.Supervisor]
     Supervisor.start_link(children, sup_opts)
+  end
+
+  @doc """
+  Returns the node name the daemon uses for BEAM distribution.
+  """
+  @spec daemon_node_name() :: node()
+  def daemon_node_name do
+    :"severance@#{daemon_hostname()}"
+  end
+
+  @spec ensure_distribution() :: :ok
+  defp ensure_distribution do
+    ensure_epmd()
+    node_name = daemon_node_name()
+
+    case Node.start(node_name, name_domain: :shortnames) do
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
+      {:error, reason} ->
+        raise "Failed to start BEAM distribution: #{inspect(reason)}. " <>
+                "The daemon would be unreachable by sev stop / sev overtime."
+    end
+  end
+
+  @spec ensure_epmd() :: :ok
+  defp ensure_epmd do
+    case :erl_epmd.names() do
+      {:ok, _names} ->
+        :ok
+
+      {:error, _} ->
+        case find_epmd() do
+          nil ->
+            raise "Could not locate epmd. " <>
+                    "The daemon would be unreachable by sev stop / sev overtime."
+
+          path ->
+            System.cmd(path, ["-daemon"])
+        end
+
+        :ok
+    end
+  end
+
+  @spec find_epmd() :: String.t() | nil
+  defp find_epmd do
+    case :os.find_executable(~c"epmd") do
+      false ->
+        path = Path.join(erts_bin_dir(), "epmd")
+        if File.exists?(path), do: path
+
+      path ->
+        List.to_string(path)
+    end
+  end
+
+  @spec erts_bin_dir() :: String.t()
+  defp erts_bin_dir do
+    System.get_env("BINDIR") ||
+      Path.join([
+        :code.root_dir() |> List.to_string(),
+        "erts-#{:erlang.system_info(:version) |> List.to_string()}",
+        "bin"
+      ])
+  end
+
+  @spec daemon_hostname() :: String.t()
+  defp daemon_hostname do
+    {:ok, hostname} = :inet.gethostname()
+    List.to_string(hostname)
   end
 
   @spec burrito?() :: boolean()

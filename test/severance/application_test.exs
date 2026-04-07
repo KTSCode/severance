@@ -15,6 +15,13 @@ defmodule Severance.ApplicationTest do
       # the supervisor is running
       assert Process.whereis(Severance.Supervisor) != nil
     end
+
+    test "daemon_node_name/0 returns severance@hostname" do
+      {:ok, hostname} = :inet.gethostname()
+      expected = :"severance@#{List.to_string(hostname)}"
+
+      assert Application.daemon_node_name() == expected
+    end
   end
 
   describe "resolve_config/1" do
