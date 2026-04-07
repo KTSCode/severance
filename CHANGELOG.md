@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Opt CI into Node.js 24 to silence GitHub Actions deprecation warning
+- Start BEAM distribution in `start_daemon/1` so daemon registers with EPMD as `severance@hostname`
 
 ## [0.4.0] -- 2026-04-06
 

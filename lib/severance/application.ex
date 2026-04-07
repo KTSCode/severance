@@ -166,9 +166,14 @@ defmodule Severance.Application do
 
   @doc """
   Starts the daemon supervision tree.
+
+  Ensures BEAM distribution is active so the daemon registers with EPMD
+  as `severance@hostname`. This is required because Burrito's Zig launcher
+  bypasses `env.sh` and never sets `RELEASE_DISTRIBUTION` or `RELEASE_NODE`.
   """
   @spec start_daemon(keyword()) :: {:ok, pid()}
   def start_daemon(opts \\ []) do
+    ensure_distribution()
     config = resolve_config(opts)
     start_children = Application.get_env(:severance, :start_children, true)
     Severance.Updater.create_cache_table()
@@ -182,6 +187,43 @@ defmodule Severance.Application do
 
     sup_opts = [strategy: :one_for_one, name: Severance.Supervisor]
     Supervisor.start_link(children, sup_opts)
+  end
+
+  @spec ensure_distribution() :: :ok
+  defp ensure_distribution do
+    ensure_epmd()
+    hostname = daemon_hostname()
+    node_name = :"severance@#{hostname}"
+
+    case Node.start(node_name, name_domain: :shortnames) do
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to start BEAM distribution: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  @spec ensure_epmd() :: :ok
+  defp ensure_epmd do
+    case :erl_epmd.names() do
+      {:ok, _names} ->
+        :ok
+
+      {:error, _} ->
+        System.cmd("epmd", ["-daemon"])
+        :ok
+    end
+  end
+
+  @spec daemon_hostname() :: String.t()
+  defp daemon_hostname do
+    {:ok, hostname} = :inet.gethostname()
+    List.to_string(hostname)
   end
 
   @spec burrito?() :: boolean()

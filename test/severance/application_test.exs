@@ -15,6 +15,13 @@ defmodule Severance.ApplicationTest do
       # the supervisor is running
       assert Process.whereis(Severance.Supervisor) != nil
     end
+
+    test "starts BEAM distribution as severance@hostname" do
+      assert Node.alive?()
+      {:ok, hostname} = :inet.gethostname()
+      expected = :"severance@#{List.to_string(hostname)}"
+      assert Node.self() == expected
+    end
   end
 
   describe "resolve_config/1" do
