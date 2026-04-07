@@ -215,7 +215,11 @@ defmodule Severance.Application do
         :ok
 
       {:error, _} ->
-        System.cmd("epmd", ["-daemon"])
+        case :os.find_executable(~c"epmd") do
+          false -> :ok
+          path -> System.cmd(List.to_string(path), ["-daemon"])
+        end
+
         :ok
     end
   end
