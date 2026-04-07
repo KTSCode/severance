@@ -192,11 +192,18 @@ defmodule Severance.Application do
     Supervisor.start_link(children, sup_opts)
   end
 
+  @doc """
+  Returns the node name the daemon uses for BEAM distribution.
+  """
+  @spec daemon_node_name() :: node()
+  def daemon_node_name do
+    :"severance@#{daemon_hostname()}"
+  end
+
   @spec ensure_distribution() :: :ok
   defp ensure_distribution do
     ensure_epmd()
-    hostname = daemon_hostname()
-    node_name = :"severance@#{hostname}"
+    node_name = daemon_node_name()
 
     case Node.start(node_name, name_domain: :shortnames) do
       {:ok, _pid} ->
