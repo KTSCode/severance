@@ -6,12 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Opt CI into Node.js 24 to silence GitHub Actions deprecation warning
+
 ## [0.4.0] -- 2026-04-06
 
 ### Added
 - `sev status` command showing daemon state, overtime mode, shutdown countdown, version, and update availability
 - ETS-cached version check (24-hour TTL) for update availability in status output
-- Fix GitHub Actions Warning. More info in: `docs/research/2026-04-02-gha-waring.md`
 
 ### Fixed
 - `sev status` now shows the daemon's version instead of the CLI's after update-without-restart
