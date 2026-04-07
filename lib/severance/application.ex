@@ -203,8 +203,8 @@ defmodule Severance.Application do
         :ok
 
       {:error, reason} ->
-        Logger.warning("Failed to start BEAM distribution: #{inspect(reason)}")
-        :ok
+        raise "Failed to start BEAM distribution: #{inspect(reason)}. " <>
+                "The daemon would be unreachable by sev stop / sev overtime."
     end
   end
 
@@ -215,13 +215,39 @@ defmodule Severance.Application do
         :ok
 
       {:error, _} ->
-        case :os.find_executable(~c"epmd") do
-          false -> :ok
-          path -> System.cmd(List.to_string(path), ["-daemon"])
+        case find_epmd() do
+          nil ->
+            raise "Could not locate epmd. " <>
+                    "The daemon would be unreachable by sev stop / sev overtime."
+
+          path ->
+            System.cmd(path, ["-daemon"])
         end
 
         :ok
     end
+  end
+
+  @spec find_epmd() :: String.t() | nil
+  defp find_epmd do
+    case :os.find_executable(~c"epmd") do
+      false ->
+        path = Path.join(erts_bin_dir(), "epmd")
+        if File.exists?(path), do: path
+
+      path ->
+        List.to_string(path)
+    end
+  end
+
+  @spec erts_bin_dir() :: String.t()
+  defp erts_bin_dir do
+    System.get_env("BINDIR") ||
+      Path.join([
+        :code.root_dir() |> List.to_string(),
+        "erts-#{:erlang.system_info(:version) |> List.to_string()}",
+        "bin"
+      ])
   end
 
   @spec daemon_hostname() :: String.t()

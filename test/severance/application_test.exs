@@ -17,11 +17,10 @@ defmodule Severance.ApplicationTest do
     end
 
     test "starts BEAM distribution as severance@hostname" do
+      assert Node.alive?(), "BEAM distribution is not running"
       {:ok, hostname} = :inet.gethostname()
       expected = :"severance@#{List.to_string(hostname)}"
-
-      # Either we claimed the name, or a real daemon already has it
-      assert Node.self() == expected or Node.connect(expected)
+      assert Node.self() == expected
     end
   end
 
