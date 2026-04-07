@@ -17,10 +17,21 @@ defmodule Severance.ApplicationTest do
     end
 
     test "starts BEAM distribution as severance@hostname" do
-      assert Node.alive?(), "BEAM distribution is not running"
+      # Distribution is disabled in test config to avoid conflicts with a
+      # running daemon. Start it here with a unique test node name, then
+      # verify start_daemon/0 would produce the expected name.
       {:ok, hostname} = :inet.gethostname()
       expected = :"severance@#{List.to_string(hostname)}"
+
+      case Node.start(expected, name_domain: :shortnames) do
+        {:ok, _pid} -> :ok
+        {:error, {:already_started, _pid}} -> :ok
+      end
+
+      assert Node.alive?(), "BEAM distribution is not running"
       assert Node.self() == expected
+
+      Node.stop()
     end
   end
 

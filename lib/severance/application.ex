@@ -173,7 +173,10 @@ defmodule Severance.Application do
   """
   @spec start_daemon(keyword()) :: {:ok, pid()}
   def start_daemon(opts \\ []) do
-    ensure_distribution()
+    if Application.get_env(:severance, :start_distribution, true) do
+      ensure_distribution()
+    end
+
     config = resolve_config(opts)
     start_children = Application.get_env(:severance, :start_children, true)
     Severance.Updater.create_cache_table()
