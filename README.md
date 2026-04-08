@@ -212,5 +212,7 @@ Small, well-understood changes go straight to code. For anything larger:
   - the log file location needs to be configurable in the config file
 - [ ] Fix: I had a bunch of sev processes running last time I did the update, there should only be one ever
 - [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
-- [ ] Run `mix format` to apply styler rewrites across the codebase and review the changes
+- [ ] Run `mix format` to apply styler rewrites across the codebase, review the changes, and commit
+- [ ] Remove this TODO item once the styler rewrites are committed
+- [ ] Run `mix quality` to verify all checks pass with the new tooling
 
