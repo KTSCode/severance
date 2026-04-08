@@ -10,6 +10,7 @@ Shared project conventions for all AI coding agents.
 - `mix credo --strict` — lint
 - `mix dialyzer` — typecheck (slow first run, builds PLT)
 - `mix format` — format code
+- `mix quality` — run all quality checks (compile, format, credo, dialyzer, tests)
 
 ## Stack
 - Elixir 1.19+ / OTP 28+

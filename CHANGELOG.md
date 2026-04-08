@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- `ex_quality` for unified quality checks (`mix quality`)
+- `styler` formatter plugin for consistent code style
+
 ## [0.5.0] -- 2026-04-07
 
 ### Fixed
