@@ -193,7 +193,7 @@ Small, well-understood changes go straight to code. For anything larger:
 
 ## TODO
 - [x] Fix GitHub Actions Warning. More info in: `docs/research/2026-04-02-gha-waring.md`
-- [ ] Severance didn't shut down my computer yesterday at 5pm
+- [x] Severance didn't shut down my computer yesterday at 5pm
       ```
       kylesanclemente:~❯ sev status
       Severance v0.5.0
