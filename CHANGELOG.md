@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Late start (daemon started/restarted after shutdown time) now attempts shutdown on weekdays instead of only sending notifications
+
 ## [0.5.0] -- 2026-04-07
 
 ### Fixed
@@ -17,7 +20,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `sev status` command showing daemon state, overtime mode, shutdown countdown, version, and update availability
 - ETS-cached version check (24-hour TTL) for update availability in status output
-- Severance didn't shut down my computer yesterday at 5pm
 
 ### Fixed
 - `sev status` now shows the daemon's version instead of the CLI's after update-without-restart

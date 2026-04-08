@@ -40,7 +40,8 @@ defmodule Severance.Countdown do
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     shutdown_time = Keyword.fetch!(opts, :shutdown_time)
-    GenServer.start_link(__MODULE__, shutdown_time, name: __MODULE__)
+    mode = Keyword.get(opts, :mode, :severance)
+    GenServer.start_link(__MODULE__, {shutdown_time, mode}, name: __MODULE__)
   end
 
   @doc """
@@ -120,8 +121,8 @@ defmodule Severance.Countdown do
   # --- GenServer Callbacks ---
 
   @impl true
-  def init(shutdown_time) do
-    state = %__MODULE__{shutdown_time: shutdown_time}
+  def init({shutdown_time, mode}) do
+    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode}
     schedule_countdown_start(state)
     {:ok, state}
   end
@@ -161,12 +162,19 @@ defmodule Severance.Countdown do
     original_status = Tmux.capture_status_right()
     state = %{state | original_tmux_status: original_status}
 
-    if Application.get_env(:severance, :overtime_notifications, true) do
-      Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
-      {:noreply, state}
-    else
-      Tmux.set_status_right(original_status)
-      {:noreply, %{state | phase: :done}}
+    case effective_mode(state) do
+      :severance ->
+        handle_shutdown(state)
+        {:noreply, %{state | phase: :done}}
+
+      :overtime ->
+        if Application.get_env(:severance, :overtime_notifications, true) do
+          Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
+          {:noreply, state}
+        else
+          Tmux.set_status_right(original_status)
+          {:noreply, %{state | phase: :done}}
+        end
     end
   end
 
@@ -184,9 +192,7 @@ defmodule Severance.Countdown do
       _ ->
         Notifier.send_countdown(minutes_left, effective_mode(state), phase)
 
-        Tmux.set_status_right(
-          Tmux.countdown_status(minutes_left, phase, state.original_tmux_status)
-        )
+        Tmux.set_status_right(Tmux.countdown_status(minutes_left, phase, state.original_tmux_status))
 
         if phase == :aggressive and minutes_left == 15 do
           send_stale_pane_warnings()
@@ -236,7 +242,7 @@ defmodule Severance.Countdown do
 
     cond do
       past_shutdown?(state.shutdown_time) ->
-        Logger.info("Started after shutdown time. Firing overtime burst.")
+        Logger.info("Started after shutdown time.")
         send(self(), :late_start)
 
       ms > 0 ->

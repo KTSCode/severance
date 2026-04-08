@@ -107,9 +107,25 @@ defmodule Severance.CountdownTest do
   end
 
   describe "late start" do
-    test "fires overtime burst instead of shutdown when started after shutdown time" do
+    test "attempts shutdown when started after shutdown time on a weekday" do
       capture_log(fn ->
         pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+
+        # Let the GenServer process :late_start and handle_shutdown
+        Process.sleep(100)
+
+        assert Process.alive?(pid)
+
+        # In severance mode on a weekday, late start should call
+        # handle_shutdown which sets phase to :done
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+      end)
+    end
+
+    test "fires overtime burst instead of shutdown when in overtime mode" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
 
         # Let the GenServer process :late_start and begin the burst
         Process.sleep(100)
@@ -117,7 +133,7 @@ defmodule Severance.CountdownTest do
         assert Process.alive?(pid)
 
         # The test adapter sends :shutdown_machine to self() (the GenServer)
-        # when shutdown_machine/0 is called. If late start works correctly,
+        # when shutdown_machine/0 is called. In overtime mode,
         # shutdown_machine should never be called.
         {:messages, messages} = Process.info(pid, :messages)
         refute :shutdown_machine in messages
@@ -136,11 +152,11 @@ defmodule Severance.CountdownTest do
       :ok
     end
 
-    test "skips overtime burst when overtime_notifications is false (late start)" do
+    test "skips overtime burst when overtime_notifications is false (late start in overtime mode)" do
       Application.put_env(:severance, :overtime_notifications, false)
 
       capture_log(fn ->
-        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
         Process.sleep(100)
 
         assert Process.alive?(pid)
@@ -152,11 +168,11 @@ defmodule Severance.CountdownTest do
       end)
     end
 
-    test "fires overtime burst when overtime_notifications is true (late start)" do
+    test "fires overtime burst when overtime_notifications is true (late start in overtime mode)" do
       Application.put_env(:severance, :overtime_notifications, true)
 
       capture_log(fn ->
-        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
         Process.sleep(100)
 
         assert Process.alive?(pid)
