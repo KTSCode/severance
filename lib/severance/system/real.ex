@@ -1,7 +1,7 @@
 defmodule Severance.System.Real do
   @moduledoc """
-  Real system adapter. Calls osascript for notifications, sudo shutdown
-  for machine power-off, and tmux for status bar manipulation.
+  Real system adapter. Calls osascript for notifications and shutdown,
+  and tmux for status bar manipulation.
   """
 
   @behaviour Severance.System
@@ -39,15 +39,19 @@ defmodule Severance.System.Real do
 
   @impl true
   @doc """
-  Shuts down the machine via `sudo /sbin/shutdown`.
+  Shuts down the machine via osascript System Events.
 
-  Requires passwordless sudo for `/sbin/shutdown` (configured by `sev init`).
-  Logs a warning on failure but always returns `:ok` — the retry mechanism
-  in `Severance.Countdown` handles repeated attempts.
+  Triggers a graceful macOS shutdown. Apps with unsaved changes present
+  save dialogs, which block the shutdown until dismissed. The retry
+  mechanism in `Severance.Countdown` handles repeated attempts.
+
+  Logs a warning on failure but always returns `:ok`.
   """
   @spec shutdown_machine() :: :ok
   def shutdown_machine do
-    case System.cmd("sudo", ["/sbin/shutdown", "-h", "now"], stderr_to_stdout: true) do
+    script = ~s(tell application "System Events" to shut down)
+
+    case System.cmd("osascript", ["-e", script], stderr_to_stdout: true) do
       {_output, 0} ->
         :ok
 

@@ -5,6 +5,15 @@ defmodule Severance.CountdownTest do
 
   alias Severance.Countdown
 
+  @frozen_now ~N[2026-04-09 10:00:00]
+
+  setup do
+    frozen = @frozen_now
+    Application.put_env(:severance, :now_fn, fn -> frozen end)
+    on_exit(fn -> Application.delete_env(:severance, :now_fn) end)
+    :ok
+  end
+
   describe "overtime/0" do
     test "switches mode from severance to overtime" do
       start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
@@ -24,7 +33,7 @@ defmodule Severance.CountdownTest do
 
   describe "status/0" do
     test "returns status map with mode, phase, shutdown_time, and minutes_remaining" do
-      future = NaiveDateTime.local_now() |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
+      future = @frozen_now |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
       start_supervised!({Countdown, shutdown_time: future})
 
       status = Countdown.status()
@@ -36,7 +45,7 @@ defmodule Severance.CountdownTest do
     end
 
     test "reflects overtime mode" do
-      future = NaiveDateTime.local_now() |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
+      future = @frozen_now |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
       start_supervised!({Countdown, shutdown_time: future})
       Countdown.overtime()
 
@@ -82,17 +91,25 @@ defmodule Severance.CountdownTest do
     end
   end
 
-  describe "retry_delay_ms/1" do
-    test "returns exponential backoff delays" do
-      assert Countdown.retry_delay_ms(0) == 5_000
-      assert Countdown.retry_delay_ms(1) == 10_000
-      assert Countdown.retry_delay_ms(2) == 20_000
-      assert Countdown.retry_delay_ms(3) == 40_000
-    end
+  describe "retry_shutdown" do
+    test "retries shutdown and schedules another retry indefinitely" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
 
-    test "caps at max retries" do
-      assert Countdown.retry_delay_ms(4) == :stop
-      assert Countdown.retry_delay_ms(10) == :stop
+        # Let late_start trigger handle_shutdown which fires
+        # the first shutdown + schedules :retry_shutdown
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+
+        # Send :retry_shutdown — it should call shutdown_machine
+        # and schedule another :retry_shutdown (no stop condition)
+        send(pid, :retry_shutdown)
+        Process.sleep(50)
+
+        assert Process.alive?(pid)
+      end)
     end
   end
 
@@ -204,8 +221,8 @@ defmodule Severance.CountdownTest do
         pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
         Process.sleep(50)
 
-        now = NaiveDateTime.to_time(NaiveDateTime.local_now())
-        countdown_active_time = Time.add(now, 20, :minute)
+        frozen_time = NaiveDateTime.to_time(@frozen_now)
+        countdown_active_time = Time.add(frozen_time, 20, :minute)
 
         :sys.replace_state(pid, fn state ->
           %{state | shutdown_time: countdown_active_time}

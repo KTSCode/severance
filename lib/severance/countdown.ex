@@ -23,8 +23,7 @@ defmodule Severance.Countdown do
   @overtime_burst_count 12
   @stale_threshold_minutes 15
   @wait_poll_ms 60_000
-  @base_retry_ms 5_000
-  @max_retries 4
+  @shutdown_retry_ms 60_000
 
   defstruct [
     :shutdown_time,
@@ -93,14 +92,6 @@ defmodule Severance.Countdown do
   def tick_interval_ms(:gentle), do: @gentle_interval_ms
   def tick_interval_ms(:aggressive), do: @aggressive_interval_ms
   def tick_interval_ms(:final), do: @final_interval_ms
-
-  @doc """
-  Returns the retry delay in ms for a given attempt number,
-  or `:stop` if max retries exceeded. Uses exponential backoff.
-  """
-  @spec retry_delay_ms(non_neg_integer()) :: non_neg_integer() | :stop
-  def retry_delay_ms(attempt) when attempt >= @max_retries, do: :stop
-  def retry_delay_ms(attempt), do: @base_retry_ms * Integer.pow(2, attempt)
 
   @doc """
   Returns true if the given date falls on a weekend.
@@ -205,17 +196,10 @@ defmodule Severance.Countdown do
   end
 
   @impl true
-  def handle_info({:retry_shutdown, attempt}, state) do
-    case retry_delay_ms(attempt) do
-      :stop ->
-        Notifier.send_countdown(0, :severance, :final)
-        {:noreply, state}
-
-      delay ->
-        Severance.System.adapter().shutdown_machine()
-        Process.send_after(self(), {:retry_shutdown, attempt + 1}, delay)
-        {:noreply, state}
-    end
+  def handle_info(:retry_shutdown, state) do
+    Severance.System.adapter().shutdown_machine()
+    Process.send_after(self(), :retry_shutdown, @shutdown_retry_ms)
+    {:noreply, state}
   end
 
   @impl true
@@ -286,7 +270,7 @@ defmodule Severance.Countdown do
         Notifier.send_countdown(0, :severance, :final)
         Tmux.set_status_right(state.original_tmux_status)
         Severance.System.adapter().shutdown_machine()
-        Process.send_after(self(), {:retry_shutdown, 1}, @base_retry_ms)
+        Process.send_after(self(), :retry_shutdown, @shutdown_retry_ms)
 
       :overtime ->
         if Application.get_env(:severance, :overtime_notifications, true) do
@@ -317,7 +301,10 @@ defmodule Severance.Countdown do
   end
 
   defp local_now do
-    NaiveDateTime.local_now()
+    case Application.get_env(:severance, :now_fn) do
+      nil -> NaiveDateTime.local_now()
+      fun -> fun.()
+    end
   end
 
   defp send_stale_pane_warnings do
