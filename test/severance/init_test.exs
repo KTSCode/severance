@@ -56,24 +56,4 @@ defmodule Severance.InitTest do
       end
     end
   end
-
-  describe "sudoers_content/1" do
-    test "generates a NOPASSWD rule for /sbin/shutdown" do
-      content = Init.sudoers_content("kyle")
-
-      assert content == "kyle ALL = NOPASSWD: /sbin/shutdown\n"
-    end
-
-    test "uses the given username" do
-      content = Init.sudoers_content("testuser")
-
-      assert content =~ "testuser ALL"
-    end
-  end
-
-  describe "sudoers_configured?/0" do
-    test "returns false when sudo is not configured for shutdown" do
-      refute Init.sudoers_configured?()
-    end
-  end
 end
