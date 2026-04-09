@@ -30,7 +30,9 @@ defmodule Severance.System.RealTest do
 
   describe "shutdown_machine/0" do
     test "returns :ok on successful shutdown" do
-      stub(System, :cmd, fn "sudo", ["/sbin/shutdown", "-h", "now"], _opts ->
+      stub(System, :cmd, fn "osascript", ["-e", script], _opts ->
+        assert script =~ "System Events"
+        assert script =~ "shut down"
         {"", 0}
       end)
 
@@ -38,8 +40,8 @@ defmodule Severance.System.RealTest do
     end
 
     test "returns :ok and logs warning when shutdown fails" do
-      stub(System, :cmd, fn "sudo", ["/sbin/shutdown", "-h", "now"], _opts ->
-        {"permission denied", 1}
+      stub(System, :cmd, fn "osascript", ["-e", _script], _opts ->
+        {"execution error", 1}
       end)
 
       log =
