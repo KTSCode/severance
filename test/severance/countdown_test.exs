@@ -185,6 +185,60 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "check_countdown_start poll" do
+    test "stays in waiting when countdown start is in the future" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        send(pid, :check_countdown_start)
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :waiting
+      end)
+    end
+
+    test "transitions to gentle when countdown start time has passed" do
+      # Start with far-future time so init stays in :waiting,
+      # then swap shutdown_time to 20min from now (countdown window active)
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        Process.sleep(50)
+
+        now = NaiveDateTime.to_time(NaiveDateTime.local_now())
+        countdown_active_time = Time.add(now, 20, :minute)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | shutdown_time: countdown_active_time}
+        end)
+
+        send(pid, :check_countdown_start)
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :gentle
+      end)
+    end
+
+    test "triggers late_start when past shutdown time" do
+      # Start with far-future time so init stays in :waiting,
+      # then swap to a past time and let the poll detect it
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | shutdown_time: ~T[00:00:01]}
+        end)
+
+        send(pid, :check_countdown_start)
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+      end)
+    end
+  end
+
   describe "weekend detection" do
     test "weekend?/1 returns true for Saturday and Sunday" do
       # 2026-03-28 is a Saturday

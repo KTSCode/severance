@@ -22,6 +22,7 @@ defmodule Severance.Countdown do
   @overtime_burst_interval_ms 5 * 1000
   @overtime_burst_count 12
   @stale_threshold_minutes 15
+  @wait_poll_ms 60_000
   @base_retry_ms 5_000
   @max_retries 4
 
@@ -231,6 +232,23 @@ defmodule Severance.Countdown do
   end
 
   @impl true
+  def handle_info(:check_countdown_start, state) do
+    cond do
+      past_shutdown?(state.shutdown_time) ->
+        Logger.info("Started after shutdown time.")
+        send(self(), :late_start)
+
+      ms_until_countdown_start(state.shutdown_time) <= 0 ->
+        send(self(), :start_countdown)
+
+      true ->
+        Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
+    end
+
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info(_msg, state) do
     {:noreply, state}
   end
@@ -246,7 +264,7 @@ defmodule Severance.Countdown do
         send(self(), :late_start)
 
       ms > 0 ->
-        Process.send_after(self(), :start_countdown, ms)
+        Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
 
       true ->
         send(self(), :start_countdown)

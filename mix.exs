@@ -33,6 +33,7 @@ defmodule Severance.MixProject do
       {:burrito, "~> 1.5"},
       {:ex_quality, "~> 0.6", only: :dev},
       {:styler, "~> 1.11", only: [:dev, :test], runtime: false},
+      {:mimic, "~> 1.10", only: :test},
       {:tidewave, "~> 0.5", only: :dev},
       {:bandit, "~> 1.0", only: :dev}
     ]
@@ -40,8 +41,7 @@ defmodule Severance.MixProject do
 
   defp aliases do
     [
-      tidewave:
-        "run --no-halt -e '{:ok, _} = Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4000) end)'"
+      tidewave: "run --no-halt -e '{:ok, _} = Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4000) end)'"
     ]
   end
 
