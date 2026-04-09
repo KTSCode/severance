@@ -301,7 +301,10 @@ defmodule Severance.Countdown do
   end
 
   defp local_now do
-    NaiveDateTime.local_now()
+    case Application.get_env(:severance, :now_fn) do
+      nil -> NaiveDateTime.local_now()
+      fun -> fun.()
+    end
   end
 
   defp send_stale_pane_warnings do

@@ -5,6 +5,15 @@ defmodule Severance.CountdownTest do
 
   alias Severance.Countdown
 
+  @frozen_now ~N[2026-04-09 10:00:00]
+
+  setup do
+    frozen = @frozen_now
+    Application.put_env(:severance, :now_fn, fn -> frozen end)
+    on_exit(fn -> Application.delete_env(:severance, :now_fn) end)
+    :ok
+  end
+
   describe "overtime/0" do
     test "switches mode from severance to overtime" do
       start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
@@ -24,7 +33,7 @@ defmodule Severance.CountdownTest do
 
   describe "status/0" do
     test "returns status map with mode, phase, shutdown_time, and minutes_remaining" do
-      future = NaiveDateTime.local_now() |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
+      future = @frozen_now |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
       start_supervised!({Countdown, shutdown_time: future})
 
       status = Countdown.status()
@@ -36,7 +45,7 @@ defmodule Severance.CountdownTest do
     end
 
     test "reflects overtime mode" do
-      future = NaiveDateTime.local_now() |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
+      future = @frozen_now |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
       start_supervised!({Countdown, shutdown_time: future})
       Countdown.overtime()
 
@@ -212,8 +221,8 @@ defmodule Severance.CountdownTest do
         pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
         Process.sleep(50)
 
-        now = NaiveDateTime.to_time(NaiveDateTime.local_now())
-        countdown_active_time = Time.add(now, 20, :minute)
+        frozen_time = NaiveDateTime.to_time(@frozen_now)
+        countdown_active_time = Time.add(frozen_time, 20, :minute)
 
         :sys.replace_state(pid, fn state ->
           %{state | shutdown_time: countdown_active_time}
