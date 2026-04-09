@@ -215,4 +215,5 @@ Small, well-understood changes go straight to code. For anything larger:
 - [ ] Run `mix format` to apply styler rewrites across the codebase, review the changes, and commit
 - [ ] Remove this TODO item once the styler rewrites are committed
 - [ ] Run `mix quality` to verify all checks pass with the new tooling
+- [ ] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 
