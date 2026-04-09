@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] -- 2026-04-08
+
 ### Fixed
 - Shutdown now uses `sudo /sbin/shutdown` instead of an osascript dialog that could go unnoticed
 - `sev init` configures passwordless sudo for shutdown (one-time setup)
