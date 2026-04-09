@@ -107,9 +107,25 @@ defmodule Severance.CountdownTest do
   end
 
   describe "late start" do
-    test "fires overtime burst instead of shutdown when started after shutdown time" do
+    test "attempts shutdown when started after shutdown time on a weekday" do
       capture_log(fn ->
         pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+
+        # Let the GenServer process :late_start and handle_shutdown
+        Process.sleep(100)
+
+        assert Process.alive?(pid)
+
+        # In severance mode on a weekday, late start should call
+        # handle_shutdown which sets phase to :done
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+      end)
+    end
+
+    test "fires overtime burst instead of shutdown when in overtime mode" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
 
         # Let the GenServer process :late_start and begin the burst
         Process.sleep(100)
@@ -117,7 +133,7 @@ defmodule Severance.CountdownTest do
         assert Process.alive?(pid)
 
         # The test adapter sends :shutdown_machine to self() (the GenServer)
-        # when shutdown_machine/0 is called. If late start works correctly,
+        # when shutdown_machine/0 is called. In overtime mode,
         # shutdown_machine should never be called.
         {:messages, messages} = Process.info(pid, :messages)
         refute :shutdown_machine in messages
@@ -136,11 +152,11 @@ defmodule Severance.CountdownTest do
       :ok
     end
 
-    test "skips overtime burst when overtime_notifications is false (late start)" do
+    test "skips overtime burst when overtime_notifications is false (late start in overtime mode)" do
       Application.put_env(:severance, :overtime_notifications, false)
 
       capture_log(fn ->
-        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
         Process.sleep(100)
 
         assert Process.alive?(pid)
@@ -152,11 +168,11 @@ defmodule Severance.CountdownTest do
       end)
     end
 
-    test "fires overtime burst when overtime_notifications is true (late start)" do
+    test "fires overtime burst when overtime_notifications is true (late start in overtime mode)" do
       Application.put_env(:severance, :overtime_notifications, true)
 
       capture_log(fn ->
-        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
         Process.sleep(100)
 
         assert Process.alive?(pid)
@@ -165,6 +181,60 @@ defmodule Severance.CountdownTest do
         # complete), so phase should NOT be :done yet
         state = :sys.get_state(pid)
         refute state.phase == :done
+      end)
+    end
+  end
+
+  describe "check_countdown_start poll" do
+    test "stays in waiting when countdown start is in the future" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        send(pid, :check_countdown_start)
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :waiting
+      end)
+    end
+
+    test "transitions to gentle when countdown start time has passed" do
+      # Start with far-future time so init stays in :waiting,
+      # then swap shutdown_time to 20min from now (countdown window active)
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        Process.sleep(50)
+
+        now = NaiveDateTime.to_time(NaiveDateTime.local_now())
+        countdown_active_time = Time.add(now, 20, :minute)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | shutdown_time: countdown_active_time}
+        end)
+
+        send(pid, :check_countdown_start)
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :gentle
+      end)
+    end
+
+    test "triggers late_start when past shutdown time" do
+      # Start with far-future time so init stays in :waiting,
+      # then swap to a past time and let the poll detect it
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | shutdown_time: ~T[00:00:01]}
+        end)
+
+        send(pid, :check_countdown_start)
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :done
       end)
     end
   end

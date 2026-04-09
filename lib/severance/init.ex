@@ -12,7 +12,7 @@ defmodule Severance.Init do
   @plist_name "com.severance.daemon.plist"
 
   @doc """
-  Runs the full init sequence: config, plist, tmux check.
+  Runs the full init sequence: config, plist, sudoers, tmux check.
   Prints results to stdout.
   """
   @spec run() :: :ok
@@ -22,6 +22,7 @@ defmodule Severance.Init do
     create_config()
     create_plist()
     check_tmux()
+    setup_sudoers()
 
     IO.puts("\nDone.")
     :ok
@@ -120,6 +121,61 @@ defmodule Severance.Init do
     case BurritoArgs.get_bin_path() do
       path when is_binary(path) -> path
       :not_in_burrito -> System.find_executable("sev") || "#{File.cwd!()}/burrito_out/sev"
+    end
+  end
+
+  @doc """
+  Returns the sudoers file content granting passwordless shutdown
+  for the given username.
+  """
+  @spec sudoers_content(String.t()) :: String.t()
+  def sudoers_content(username) do
+    "#{username} ALL = NOPASSWD: /sbin/shutdown\n"
+  end
+
+  @doc """
+  Returns true if the current user has passwordless sudo access
+  to `/sbin/shutdown`.
+  """
+  @spec sudoers_configured?() :: boolean()
+  def sudoers_configured? do
+    case File.read("/etc/sudoers.d/severance") do
+      {:ok, content} ->
+        username = System.get_env("USER")
+        String.contains?(content, "#{username} ALL = NOPASSWD: /sbin/shutdown")
+
+      {:error, _} ->
+        false
+    end
+  end
+
+  defp setup_sudoers do
+    if sudoers_configured?() do
+      IO.puts("[sudo]  Passwordless shutdown already configured.")
+    else
+      IO.puts("[sudo]  Configuring passwordless shutdown...")
+      install_sudoers()
+    end
+
+    :ok
+  end
+
+  defp install_sudoers do
+    username = System.get_env("USER")
+    content = sudoers_content(username)
+    tmp = "/tmp/severance_sudoers"
+
+    File.write!(tmp, content)
+
+    with {_, 0} <- System.cmd("visudo", ["-cf", tmp], stderr_to_stdout: true),
+         {_, 0} <- System.cmd("sudo", ["cp", tmp, "/etc/sudoers.d/severance"], stderr_to_stdout: true),
+         {_, 0} <- System.cmd("sudo", ["chmod", "0440", "/etc/sudoers.d/severance"], stderr_to_stdout: true) do
+      File.rm(tmp)
+      IO.puts("[sudo]  Passwordless shutdown configured.")
+    else
+      {output, _code} ->
+        File.rm(tmp)
+        IO.puts("[sudo]  Failed: #{String.trim(output)}")
     end
   end
 

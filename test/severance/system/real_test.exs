@@ -1,5 +1,8 @@
 defmodule Severance.System.RealTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
+  use Mimic
+
+  import ExUnit.CaptureLog
 
   alias Severance.System.Real
 
@@ -22,6 +25,29 @@ defmodule Severance.System.RealTest do
 
     test "handles empty string" do
       assert Real.escape_applescript("") == ""
+    end
+  end
+
+  describe "shutdown_machine/0" do
+    test "returns :ok on successful shutdown" do
+      stub(System, :cmd, fn "sudo", ["/sbin/shutdown", "-h", "now"], _opts ->
+        {"", 0}
+      end)
+
+      assert Real.shutdown_machine() == :ok
+    end
+
+    test "returns :ok and logs warning when shutdown fails" do
+      stub(System, :cmd, fn "sudo", ["/sbin/shutdown", "-h", "now"], _opts ->
+        {"permission denied", 1}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert Real.shutdown_machine() == :ok
+        end)
+
+      assert log =~ "shutdown failed"
     end
   end
 end
