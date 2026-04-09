@@ -82,17 +82,28 @@ defmodule Severance.CountdownTest do
     end
   end
 
-  describe "retry_delay_ms/1" do
-    test "returns exponential backoff delays" do
-      assert Countdown.retry_delay_ms(0) == 5_000
-      assert Countdown.retry_delay_ms(1) == 10_000
-      assert Countdown.retry_delay_ms(2) == 20_000
-      assert Countdown.retry_delay_ms(3) == 40_000
-    end
+  describe "retry_shutdown" do
+    test "retries shutdown on 60-second interval indefinitely" do
+      import ExUnit.CaptureLog
 
-    test "caps at max retries" do
-      assert Countdown.retry_delay_ms(4) == :stop
-      assert Countdown.retry_delay_ms(10) == :stop
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+
+        # Let late_start trigger handle_shutdown which fires
+        # the first shutdown + schedules :retry_shutdown
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+
+        # Send :retry_shutdown — it should call shutdown_machine
+        # and schedule another :retry_shutdown (no stop condition)
+        send(pid, :retry_shutdown)
+        Process.sleep(50)
+
+        # The GenServer is still alive (no crash, no stop)
+        assert Process.alive?(pid)
+      end)
     end
   end
 
