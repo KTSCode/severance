@@ -83,9 +83,7 @@ defmodule Severance.CountdownTest do
   end
 
   describe "retry_shutdown" do
-    test "retries shutdown on 60-second interval indefinitely" do
-      import ExUnit.CaptureLog
-
+    test "retries shutdown and schedules another retry indefinitely" do
       capture_log(fn ->
         pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
 
@@ -101,7 +99,6 @@ defmodule Severance.CountdownTest do
         send(pid, :retry_shutdown)
         Process.sleep(50)
 
-        # The GenServer is still alive (no crash, no stop)
         assert Process.alive?(pid)
       end)
     end
