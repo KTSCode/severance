@@ -411,9 +411,30 @@ defmodule Severance.CLI do
     if Node.connect(target) do
       callback.(target)
     else
-      if !quiet, do: IO.puts("Could not connect to severance daemon. Is it running?")
+      if !quiet, do: print_connection_failure()
       {:error, "connection failed"}
     end
+  end
+
+  @spec print_connection_failure() :: :ok
+  defp print_connection_failure do
+    IO.puts("Could not connect to severance daemon.")
+
+    case :erl_epmd.names() do
+      {:ok, []} ->
+        IO.puts("EPMD reports no registered nodes.")
+
+      {:ok, names} ->
+        IO.puts("EPMD registered nodes: #{format_epmd_names(names)}")
+
+      {:error, _} ->
+        IO.puts("EPMD is not running.")
+    end
+  end
+
+  @spec format_epmd_names([{charlist(), non_neg_integer()}]) :: String.t()
+  defp format_epmd_names(names) do
+    Enum.map_join(names, ", ", fn {name, port} -> "#{name}:#{port}" end)
   end
 
   @spec node_hostname() :: String.t()
