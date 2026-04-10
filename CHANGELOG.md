@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] -- 2026-04-10
+
 ### Changed
 - Shutdown uses osascript System Events instead of sudo, removing the sudoers requirement
 - Shutdown retries use a fixed 60-second interval instead of exponential backoff with a 4-attempt cap
