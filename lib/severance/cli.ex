@@ -368,7 +368,7 @@ defmodule Severance.CLI do
     target = :"severance@#{hostname}"
     cli_name = :"severance_cli_#{:rand.uniform(100_000)}@#{hostname}"
 
-    prev_level = :logger.get_primary_config() |> Map.get(:level, :all)
+    prev_level = Map.get(:logger.get_primary_config(), :level, :all)
     if quiet, do: :logger.set_primary_config(:level, :error)
 
     result = start_and_connect(cli_name, target, callback, quiet)
@@ -389,7 +389,7 @@ defmodule Severance.CLI do
         handle_already_started(target, callback, quiet)
 
       {:error, reason} ->
-        unless quiet, do: IO.puts("Could not start distribution: #{inspect(reason)}")
+        if !quiet, do: IO.puts("Could not start distribution: #{inspect(reason)}")
         {:error, "distribution failed"}
     end
   end
@@ -398,7 +398,7 @@ defmodule Severance.CLI do
           term() | {:error, String.t()}
   defp handle_already_started(target, callback, quiet) do
     if Node.self() == target do
-      unless quiet, do: IO.puts("Cannot check daemon: this node is the daemon node.")
+      if !quiet, do: IO.puts("Cannot check daemon: this node is the daemon node.")
       {:error, "self-connection"}
     else
       connect_to_daemon(target, callback, quiet)
@@ -408,21 +408,16 @@ defmodule Severance.CLI do
   @spec connect_to_daemon(atom(), (atom() -> term()), boolean()) ::
           term() | {:error, String.t()}
   defp connect_to_daemon(target, callback, quiet) do
-    case Node.connect(target) do
-      true ->
-        callback.(target)
-
-      false ->
-        unless quiet, do: IO.puts("Could not connect to severance daemon. Is it running?")
-        {:error, "connection failed"}
+    if Node.connect(target) do
+      callback.(target)
+    else
+      if !quiet, do: IO.puts("Could not connect to severance daemon. Is it running?")
+      {:error, "connection failed"}
     end
   end
 
   @spec node_hostname() :: String.t()
-  defp node_hostname do
-    {:ok, hostname} = :inet.gethostname()
-    List.to_string(hostname)
-  end
+  defp node_hostname, do: "localhost"
 
   @spec cookie() :: atom()
   defp cookie do

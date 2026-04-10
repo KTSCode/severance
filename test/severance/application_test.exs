@@ -13,14 +13,11 @@ defmodule Severance.ApplicationTest do
     test "starts the supervisor tree" do
       # The application is already started by ExUnit, so we verify
       # the supervisor is running
-      assert Process.whereis(Severance.Supervisor) != nil
+      assert Process.whereis(Severance.Supervisor)
     end
 
-    test "daemon_node_name/0 returns severance@hostname" do
-      {:ok, hostname} = :inet.gethostname()
-      expected = :"severance@#{List.to_string(hostname)}"
-
-      assert Application.daemon_node_name() == expected
+    test "daemon_node_name/0 returns severance@localhost" do
+      assert Application.daemon_node_name() == :severance@localhost
     end
   end
 
