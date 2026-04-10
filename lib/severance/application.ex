@@ -141,7 +141,7 @@ defmodule Severance.Application do
           {time, Map.get(file_config, :overtime_notifications, overtime_notifications)}
 
         {:error, :not_found} ->
-          unless resolve_opts[:suppress_warning] do
+          if !resolve_opts[:suppress_warning] do
             Logger.info("No config file found. Run `sev init` to create one.")
           end
 
@@ -254,17 +254,14 @@ defmodule Severance.Application do
   defp erts_bin_dir do
     System.get_env("BINDIR") ||
       Path.join([
-        :code.root_dir() |> List.to_string(),
-        "erts-#{:erlang.system_info(:version) |> List.to_string()}",
+        List.to_string(:code.root_dir()),
+        "erts-#{:version |> :erlang.system_info() |> List.to_string()}",
         "bin"
       ])
   end
 
   @spec daemon_hostname() :: String.t()
-  defp daemon_hostname do
-    {:ok, hostname} = :inet.gethostname()
-    List.to_string(hostname)
-  end
+  defp daemon_hostname, do: "localhost"
 
   @spec burrito?() :: boolean()
   defp burrito? do
