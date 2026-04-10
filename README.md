@@ -202,7 +202,14 @@ Small, well-understood changes go straight to code. For anything larger:
       Shutdown:   17:00 (passed)
       Update:     up to date
       ```
-- [ ] When I run `sev status` it says "not running" even though I'm getting the notifcations and tmux status line updates indicating that it is running.
+- [x] When I run `sev status` it says "not running" even though I'm getting the notifcations and tmux status line updates indicating that it is running.
+- [ ] Set up ex_quality make sure it's running:
+  ```sh 
+  mix compile --warnings-as-errors
+  mix cred --strict
+  mix test
+  mix dialyzer
+  ```
 - [ ] Remove `sev stop` and all related documentation, it goes against the nature of the application, if the user really wants to stop the daemon they can kill -9 it
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
