@@ -203,7 +203,7 @@ Small, well-understood changes go straight to code. For anything larger:
       Update:     up to date
       ```
 - [x] When I run `sev status` it says "not running" even though I'm getting the notifcations and tmux status line updates indicating that it is running.
-- [ ] Set up ex_quality make sure it's running:
+- [x] Set up ex_quality make sure it's running:
   ```sh 
   mix compile --warnings-as-errors
   mix cred --strict
