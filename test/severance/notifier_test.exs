@@ -29,8 +29,7 @@ defmodule Severance.NotifierTest do
 
     test "overtime mode warns without shutdown threat" do
       assert Notifier.countdown_message(15, :overtime) ==
-               {"Shutdown in 15m",
-                "Your planned end of day is coming up. Push your work and call it quits."}
+               {"Shutdown in 15m", "Your planned end of day is coming up. Push your work and call it quits."}
     end
 
     test "uses urgent language at 5 minutes" do

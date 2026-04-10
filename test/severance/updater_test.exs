@@ -480,10 +480,10 @@ defmodule Severance.UpdaterTest do
     setup do
       table = :severance_version_cache
 
-      if :ets.whereis(table) != :undefined do
-        :ets.delete_all_objects(table)
-      else
+      if :ets.whereis(table) == :undefined do
         :ets.new(table, [:named_table, :set, :public, read_concurrency: true])
+      else
+        :ets.delete_all_objects(table)
       end
 
       on_exit(fn ->

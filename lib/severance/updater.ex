@@ -45,11 +45,11 @@ defmodule Severance.Updater do
   """
   @spec create_cache_table() :: :ok | :already_exists
   def create_cache_table do
-    if :ets.whereis(@cache_table) != :undefined do
-      :already_exists
-    else
+    if :ets.whereis(@cache_table) == :undefined do
       :ets.new(@cache_table, [:named_table, :set, :public, read_concurrency: true])
       :ok
+    else
+      :already_exists
     end
   end
 
@@ -338,7 +338,7 @@ defmodule Severance.Updater do
 
   @spec default_arch() :: String.t()
   defp default_arch do
-    :erlang.system_info(:system_architecture) |> List.to_string()
+    :system_architecture |> :erlang.system_info() |> List.to_string()
   end
 
   @spec find_binary_path() :: String.t() | nil

@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Todo do
+  @shortdoc "Work on the next README TODO item"
+
   @moduledoc """
   Picks the next unchecked TODO from README.md, creates a branch, and
   emits an agent prompt. With `--done`, finalizes the work into a PR.
@@ -10,8 +12,6 @@ defmodule Mix.Tasks.Todo do
   """
 
   use Mix.Task
-
-  @shortdoc "Work on the next README TODO item"
 
   @type todo_item :: %{checked: boolean(), text: String.t(), line_number: pos_integer()}
 
@@ -334,8 +334,7 @@ defmodule Mix.Tasks.Todo do
     {before, rest} = Enum.split(lines, unreleased_idx + 1)
     added_block = ["", "### Added", "", "- #{entry}"]
 
-    (before ++ added_block ++ rest)
-    |> Enum.join("\n")
+    Enum.join(before ++ added_block ++ rest, "\n")
   end
 
   defp insert_unreleased_section(changelog, entry) do
@@ -351,8 +350,7 @@ defmodule Mix.Tasks.Todo do
     {before, rest} = Enum.split(lines, insert_at)
     unreleased_block = ["## [Unreleased]", "", "### Added", "", "- #{entry}", ""]
 
-    (before ++ unreleased_block ++ rest)
-    |> Enum.join("\n")
+    Enum.join(before ++ unreleased_block ++ rest, "\n")
   end
 
   @doc """
@@ -394,7 +392,7 @@ defmodule Mix.Tasks.Todo do
     path = Path.join(root, ".todo-current")
 
     if File.exists?(path) do
-      text = File.read!(path) |> String.trim()
+      text = path |> File.read!() |> String.trim()
       {:error, {:already_started, text}}
     else
       :ok

@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Tag do
+  @shortdoc "Tag a new release version"
+
   @moduledoc """
   Bumps the application version, finalizes the changelog, and pushes a
   git tag to trigger the CI release workflow.
@@ -11,8 +13,6 @@ defmodule Mix.Tasks.Tag do
   """
 
   use Mix.Task
-
-  @shortdoc "Tag a new release version"
 
   @doc """
   Computes a new version string by bumping the specified component.
@@ -149,7 +149,7 @@ defmodule Mix.Tasks.Tag do
          {:ok, changelog} <- read_changelog(),
          {:ok, _entries} <- unreleased_entries(changelog),
          :ok <- confirm_release(changelog, current, new_version),
-         finalized <- finalize_changelog(changelog, new_version, today()),
+         finalized = finalize_changelog(changelog, new_version, today()),
          {:ok, mix_content} <- read_mix_exs(),
          {:ok, new_mix} <- update_version_in_mix(mix_content, new_version),
          :ok <- write_mix_exs(new_mix),
@@ -239,7 +239,7 @@ defmodule Mix.Tasks.Tag do
 
   defp today do
     {{year, month, day}, _time} = :calendar.local_time()
-    Date.new!(year, month, day) |> Date.to_iso8601()
+    year |> Date.new!(month, day) |> Date.to_iso8601()
   end
 
   defp confirm_release(changelog, current, new_version) do
@@ -272,12 +272,12 @@ defmodule Mix.Tasks.Tag do
 
   defp git_tag(version) do
     stderr("Tagging v#{version}...")
-    cmd("git", ["tag", "v#{version}"]) |> normalize()
+    "git" |> cmd(["tag", "v#{version}"]) |> normalize()
   end
 
   defp git_push(version) do
     stderr("Pushing...")
-    cmd("git", ["push", "--atomic", "origin", "HEAD", "v#{version}"]) |> normalize()
+    "git" |> cmd(["push", "--atomic", "origin", "HEAD", "v#{version}"]) |> normalize()
   end
 
   defp normalize({:ok, _}), do: :ok
@@ -288,28 +288,23 @@ defmodule Mix.Tasks.Tag do
     exit({:shutdown, 1})
   end
 
-  defp error_message({:not_main, branch}),
-    do: "Must be on main branch to tag a release (currently on #{branch})"
+  defp error_message({:not_main, branch}), do: "Must be on main branch to tag a release (currently on #{branch})"
 
-  defp error_message(:dirty_worktree),
-    do: "Uncommitted changes detected. Commit or stash them before tagging."
+  defp error_message(:dirty_worktree), do: "Uncommitted changes detected. Commit or stash them before tagging."
 
-  defp error_message(:not_up_to_date),
-    do: "Local main is behind or ahead of origin/main. Pull or push first."
+  defp error_message(:not_up_to_date), do: "Local main is behind or ahead of origin/main. Pull or push first."
 
   defp error_message(:invalid_component), do: "Usage: mix tag <maj|min|pat>"
   defp error_message(:invalid_version), do: "Could not parse current version from mix.exs"
 
-  defp error_message(:empty_unreleased),
-    do: "No entries in [Unreleased] section. Nothing to release."
+  defp error_message(:empty_unreleased), do: "No entries in [Unreleased] section. Nothing to release."
 
   defp error_message(:no_unreleased), do: "No [Unreleased] section found in CHANGELOG.md"
   defp error_message(:no_changelog), do: "CHANGELOG.md not found"
   defp error_message(:no_mix_exs), do: "mix.exs not found"
   defp error_message(:version_not_found), do: "Could not find version field in mix.exs"
 
-  defp error_message({output, code}) when is_binary(output),
-    do: "Command failed (exit #{code}):\n#{output}"
+  defp error_message({output, code}) when is_binary(output), do: "Command failed (exit #{code}):\n#{output}"
 
   defp error_message(reason), do: "Unexpected error: #{inspect(reason)}"
 
