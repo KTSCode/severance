@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "output=$(cd $HOME/severance && mix format --check-formatted 2>&1 && mix compile --warnings-as-errors 2>&1 && mix credo --strict 2>&1 && mix test 2>&1); rc=$?; if [ $rc -ne 0 ]; then echo \"$output\" | tail -30 | jq -Rs '{continue: false, stopReason: \"Pre-commit checks failed\", hookSpecificOutput: {hookEventName: \"PreToolUse\", additionalContext: .}}'; fi",
+            "command": "output=$(cd $HOME/severance && mix quality 2>&1); rc=$?; if [ $rc -ne 0 ]; then echo \"$output\" | tail -30 | jq -Rs '{continue: false, stopReason: \"Pre-commit checks failed\", hookSpecificOutput: {hookEventName: \"PreToolUse\", additionalContext: .}}'; fi",
             "timeout": 120,
             "statusMessage": "Running pre-commit checks..."
           }

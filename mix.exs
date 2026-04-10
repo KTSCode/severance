@@ -10,6 +10,7 @@ defmodule Severance.MixProject do
       deps: deps(),
       aliases: aliases(),
       releases: releases(),
+      test_coverage: [tool: ExCoveralls],
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/project.plt"},
         plt_add_apps: [:mix]
@@ -31,7 +32,9 @@ defmodule Severance.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.1", only: :dev},
       {:burrito, "~> 1.5"},
+      {:doctor, "~> 0.22", only: :dev},
       {:ex_quality, "~> 0.6", only: :dev},
+      {:excoveralls, "~> 0.18", only: :test},
       {:styler, "~> 1.11", only: [:dev, :test], runtime: false},
       {:mimic, "~> 1.10", only: :test},
       {:tidewave, "~> 0.5", only: :dev},

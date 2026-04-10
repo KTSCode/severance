@@ -157,16 +157,26 @@ overtime is active or when starting after shutdown time.
 ```bash
 asdf install
 mix deps.get
-mix compile --warnings-as-errors
-mix test
+mix quality
 ```
 
 ### Quality checks
 
 ```bash
-mix credo --strict                  # lint
-mix dialyzer                        # typecheck (slow first run — builds PLT)
+mix quality                         # full suite: format, compile, credo, dialyzer, doctor, tests + coverage
+mix quality --quick                 # fast iteration: skips dialyzer and coverage enforcement
 ```
+
+Individual checks are still available (`mix credo --strict`, `mix dialyzer`,
+`mix test`, etc.) but `mix quality` is the single entry point.
+
+### Git hooks
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The pre-commit hook runs `mix quality --quick` before each commit.
 
 ### AI-assisted workflow
 
@@ -174,7 +184,7 @@ This project is set up for AI-assisted development. Each coding session
 starts fresh and relies on durable repo files rather than chat history.
 
 - **AGENTS.md** — shared conventions, build commands, workflow, and documentation lifecycle
-- **CLAUDE.md** — Claude Code-specific configuration (hooks)
+- **CLAUDE.md** — Claude Code-specific configuration (hooks run `mix quality` before commits)
 - **dialyxir** — static type analysis via Dialyzer (PLTs cached in `priv/plts/`)
 - **MCP tools** — runtime introspection via tidewave, erl_dist_mcp, and hex-mcp (see `.mcp.json`)
 

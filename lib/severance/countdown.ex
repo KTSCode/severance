@@ -25,6 +25,13 @@ defmodule Severance.Countdown do
   @wait_poll_ms 60_000
   @shutdown_retry_ms 60_000
 
+  @type t :: %__MODULE__{
+          shutdown_time: Time.t() | nil,
+          original_tmux_status: String.t() | nil,
+          mode: :severance | :overtime,
+          phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done
+        }
+
   defstruct [
     :shutdown_time,
     :original_tmux_status,
