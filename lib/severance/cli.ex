@@ -16,7 +16,6 @@ defmodule Severance.CLI do
       sev otp                    # Activate Overtime Protocol on running daemon
       sev overtime               # Activate Overtime Protocol on running daemon
       sev over_time_protocol     # Activate Overtime Protocol on running daemon
-      sev stop                   # Stop the running daemon
   """
 
   @doc """
@@ -25,7 +24,7 @@ defmodule Severance.CLI do
   Returns `:start` for no args, `start` subcommand, or unrecognized args.
   Returns `{:start, opts}` when options like `--shutdown-time` are provided.
   Returns `:daemon` or `{:daemon, opts}` for the internal `--daemon` flag.
-  Returns `:overtime`, `:status`, `:stop`, `:init`, `:update`, or
+  Returns `:overtime`, `:status`, `:init`, `:update`, or
   `:version` for their respective subcommands.
 
   ## Examples
@@ -52,7 +51,6 @@ defmodule Severance.CLI do
           | {:daemon, keyword()}
           | :overtime
           | :status
-          | :stop
           | :init
           | :update
           | :version
@@ -68,7 +66,6 @@ defmodule Severance.CLI do
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime
-  def parse_args(["stop" | _rest]), do: :stop
   def parse_args(["start"]), do: :start
   def parse_args(["start", "--shutdown-time" | _] = args), do: parse_args(tl(args))
   def parse_args(["start" | _rest]), do: :start
@@ -203,16 +200,7 @@ defmodule Severance.CLI do
     end)
   end
 
-  @doc """
-  Connects to the running severance node and stops it.
-
-  Starts a temporary named node, connects to the daemon, makes an RPC call
-  to `System.stop/1`, then returns the result.
-
-  Returns `:ok` on success, `{:error, reason}` on failure.
-  Treats `{:badrpc, :nodedown}` as success since the remote node shut
-  down before responding.
-  """
+  @doc false
   @spec run_stop() :: :ok | {:error, String.t()}
   def run_stop do
     with_daemon_rpc(fn target ->

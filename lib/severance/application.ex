@@ -46,11 +46,6 @@ defmodule Severance.Application do
     System.halt(0)
   end
 
-  defp dispatch(:stop) do
-    result = CLI.run_stop()
-    System.halt(if result == :ok, do: 0, else: 1)
-  end
-
   defp dispatch({:error, message}) do
     IO.puts(:stderr, message)
     System.halt(1)
@@ -214,7 +209,7 @@ defmodule Severance.Application do
 
       {:error, reason} ->
         raise "Failed to start BEAM distribution: #{inspect(reason)}. " <>
-                "The daemon would be unreachable by sev stop / sev overtime."
+                "The daemon would be unreachable by sev overtime."
     end
   end
 
@@ -228,7 +223,7 @@ defmodule Severance.Application do
         case find_epmd() do
           nil ->
             raise "Could not locate epmd. " <>
-                    "The daemon would be unreachable by sev stop / sev overtime."
+                    "The daemon would be unreachable by sev overtime."
 
           path ->
             System.cmd(path, ["-daemon"])
