@@ -25,10 +25,6 @@ defmodule Severance.CLITest do
                {:start, shutdown_time: ~T[17:00:00]}
     end
 
-    test "stop arg returns :stop" do
-      assert CLI.parse_args(["stop"]) == :stop
-    end
-
     test "init arg returns :init" do
       assert CLI.parse_args(["init"]) == :init
     end
@@ -286,16 +282,6 @@ defmodule Severance.CLITest do
 
       assert output =~ "not running"
       assert output =~ "Update:"
-    end
-  end
-
-  describe "run_stop/0" do
-    test "returns error when daemon is not running" do
-      ExUnit.CaptureLog.capture_log(fn ->
-        ExUnit.CaptureIO.capture_io(fn ->
-          assert {:error, _reason} = CLI.run_stop()
-        end)
-      end)
     end
   end
 end

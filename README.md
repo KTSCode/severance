@@ -111,7 +111,6 @@ and checks tmux readiness. Safe to re-run.
 sev            # start the daemon
 sev status     # show daemon status and version info
 sev otp        # activate overtime protocol
-sev stop       # stop the daemon
 sev update     # update to latest release
 sev version    # print current version
 ```
@@ -220,7 +219,6 @@ Small, well-understood changes go straight to code. For anything larger:
   mix test
   mix dialyzer
   ```
-- [ ] Remove `sev stop` and all related documentation, it goes against the nature of the application, if the user really wants to stop the daemon they can kill -9 it
 - [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
   - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
