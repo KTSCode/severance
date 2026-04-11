@@ -231,4 +231,5 @@ Small, well-understood changes go straight to code. For anything larger:
 - [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [ ] Run `mix format` to apply styler rewrites across the codebase and review the changes
 - [ ] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
+- [ ] Make `sec <INVALID COMMAND>` error and not start severance
 
