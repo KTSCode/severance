@@ -153,6 +153,30 @@ defmodule Mix.Tasks.BumpTest do
     end
   end
 
+  describe "format_outdated_result/1" do
+    test "formats successful hex.outdated output as a markdown table" do
+      result =
+        Bump.format_outdated_result(
+          {:ok,
+           """
+           Dependency          Current  Latest  Status
+           credo               1.7.5    1.7.7   Update possible
+           """}
+        )
+
+      assert result =~ "| Package | Current | Latest | Status |"
+      assert result =~ "| credo | 1.7.5 | 1.7.7 | Update possible |"
+    end
+
+    test "surfaces hex.outdated failures instead of claiming success" do
+      result = Bump.format_outdated_result({:error, "Hex registry unavailable\n"})
+
+      refute result =~ "All dependencies are up to date."
+      assert result =~ "Dependency check failed"
+      assert result =~ "Hex registry unavailable"
+    end
+  end
+
   describe "format_runtime_table/1" do
     test "formats runtime updates as a markdown table" do
       updates = [
@@ -168,6 +192,15 @@ defmodule Mix.Tasks.BumpTest do
 
     test "returns message when list is empty" do
       assert Bump.format_runtime_table([]) =~ "at latest"
+    end
+  end
+
+  describe "homebrew_asdf_candidates/0" do
+    test "includes Apple Silicon and Intel Homebrew paths in order" do
+      assert Bump.homebrew_asdf_candidates() == [
+               "/opt/homebrew/bin/asdf",
+               "/usr/local/bin/asdf"
+             ]
     end
   end
 

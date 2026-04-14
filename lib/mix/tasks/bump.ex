@@ -168,6 +168,30 @@ defmodule Mix.Tasks.Bump do
   end
 
   @doc """
+  Formats the `mix hex.outdated` command result for the final prompt.
+
+  Successful output is parsed into the normal markdown table. Failures are
+  surfaced directly so the prompt does not incorrectly claim all dependencies
+  are current.
+  """
+  @spec format_outdated_result({:ok, String.t()} | {:error, String.t()}) :: String.t()
+  def format_outdated_result({:ok, output}) do
+    output
+    |> parse_hex_outdated()
+    |> format_outdated_table()
+  end
+
+  def format_outdated_result({:error, output}) do
+    String.trim("""
+    Dependency check failed; see command output below.
+
+    ```
+    #{String.trim(output)}
+    ```
+    """)
+  end
+
+  @doc """
   Formats a list of runtime update maps as a markdown table.
 
   Returns a human-readable message when the list is empty.
@@ -186,6 +210,14 @@ defmodule Mix.Tasks.Bump do
       end)
 
     Enum.join([header, separator | rows], "\n")
+  end
+
+  @doc """
+  Returns the Homebrew `asdf` install paths to probe when `PATH` lookup fails.
+  """
+  @spec homebrew_asdf_candidates() :: [String.t()]
+  def homebrew_asdf_candidates do
+    ["/opt/homebrew/bin/asdf", "/usr/local/bin/asdf"]
   end
 
   @doc """
@@ -245,9 +277,12 @@ defmodule Mix.Tasks.Bump do
     mix_lock = read_or_warn("mix.lock", "mix.lock not found")
     tool_versions_content = read_or_warn(".tool-versions", ".tool-versions not found")
 
-    outdated_output = gather_hex_outdated()
-    deps = parse_hex_outdated(outdated_output)
-    outdated_table = format_outdated_table(deps)
+    outdated_result = gather_hex_outdated()
+    outdated_table = format_outdated_result(outdated_result)
+
+    if match?({:error, _}, outdated_result) do
+      stderr("mix hex.outdated failed — including command output in prompt")
+    end
 
     current_runtimes = parse_tool_versions(tool_versions_content)
     latest_runtimes = gather_latest_runtimes(current_runtimes)
@@ -279,8 +314,10 @@ defmodule Mix.Tasks.Bump do
   end
 
   defp gather_hex_outdated do
-    {output, _} = System.cmd("mix", ["hex.outdated"], stderr_to_stdout: true)
-    output
+    case System.cmd("mix", ["hex.outdated"], stderr_to_stdout: true) do
+      {output, 0} -> {:ok, output}
+      {output, _} -> {:error, output}
+    end
   end
 
   defp gather_latest_runtimes(current_runtimes) do
@@ -316,8 +353,7 @@ defmodule Mix.Tasks.Bump do
   end
 
   defp homebrew_asdf do
-    path = "/opt/homebrew/bin/asdf"
-    if File.exists?(path), do: path
+    Enum.find(homebrew_asdf_candidates(), &File.exists?/1)
   end
 
   defp gather_config_files do
