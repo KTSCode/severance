@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `sev status` command showing daemon state, overtime mode, shutdown countdown, version, and update availability
 - ETS-cached version check (24-hour TTL) for update availability in status output
 - When I run `sev status` it says "not running" even though I'm getting the notifcations and tmux status line updates indicating that it is running.
+- add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 
 ### Fixed
 - `sev status` now shows the daemon's version instead of the CLI's after update-without-restart

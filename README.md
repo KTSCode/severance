@@ -201,8 +201,6 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Fix GitHub Actions Warning. More info in: `docs/research/2026-04-02-gha-waring.md`
-- [x] Severance didn't shut down my computer yesterday at 5pm
       ```
       kylesanclemente:~❯ sev status
       Severance v0.5.0
@@ -219,7 +217,7 @@ Small, well-understood changes go straight to code. For anything larger:
   mix test
   mix dialyzer
   ```
-- [ ] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
+- [x] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
   - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings 
