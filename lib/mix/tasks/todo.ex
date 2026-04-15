@@ -172,7 +172,7 @@ defmodule Mix.Tasks.Todo do
     2. Read AGENTS.md and the codebase to understand conventions and patterns.
     3. Follow TDD: write a failing test first, then implement until it passes.
     4. Commit your changes. Quality checks run automatically on commit.
-    5. Run `mix todo --done` to finalize the PR.
+    5. Stop and wait for review. When told to finalize, run `mix todo --done`.
     """
   end
 

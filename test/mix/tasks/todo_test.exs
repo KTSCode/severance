@@ -407,6 +407,11 @@ defmodule Mix.Tasks.TodoTest do
       done_pos = result |> :binary.match("mix todo --done") |> elem(0)
       assert commit_pos < done_pos
     end
+
+    test "instructs to stop and wait for review before finalizing" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "Stop and wait for review"
+    end
   end
 
   describe "extract_pr_url/1" do
