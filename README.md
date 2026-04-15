@@ -229,4 +229,4 @@ Small, well-understood changes go straight to code. For anything larger:
 - [ ] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 - [ ] Make `sec <INVALID COMMAND>` error and not start severance
 - [ ] Add `sev upgrade` as an alias for `sev update`
-
+- [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
