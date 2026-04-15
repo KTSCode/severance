@@ -237,6 +237,7 @@ defmodule Mix.Tasks.Todo do
          :ok <- git_commit(todo_text),
          :ok <- git_push(),
          {:ok, pr_url} <- create_pr(todo_text),
+         :ok <- merge_pr(pr_url),
          :ok <- delete_current(root) do
       IO.write(build_done_prompt(todo_text, pr_url))
       open_pr(pr_url)
@@ -509,6 +510,15 @@ defmodule Mix.Tasks.Todo do
              "Implements: #{todo_text}\n\n_Body to be filled in by the agent._"
            ]) do
       extract_pr_url(output)
+    end
+  end
+
+  defp merge_pr(pr_url) do
+    stderr("Merging pull request...")
+
+    case cmd("gh", ["pr", "merge", pr_url, "--squash", "--delete-branch"]) do
+      {:ok, _} -> :ok
+      error -> error
     end
   end
 
