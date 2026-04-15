@@ -239,6 +239,7 @@ defmodule Mix.Tasks.Todo do
          {:ok, pr_url} <- create_pr(todo_text),
          :ok <- delete_current(root) do
       IO.write(build_done_prompt(todo_text, pr_url))
+      open_pr(pr_url)
     else
       error -> handle_error(error)
     end
@@ -509,6 +510,11 @@ defmodule Mix.Tasks.Todo do
            ]) do
       extract_pr_url(output)
     end
+  end
+
+  defp open_pr(pr_url) do
+    cmd("gh", ["pr", "view", pr_url, "--web"])
+    :ok
   end
 
   defp handle_error({:error, :no_todo_section}) do

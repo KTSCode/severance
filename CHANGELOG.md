@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `mix todo --done` CHANGELOG entries no longer land under a versioned `### Added` section
+- `mix todo --done` prompt instructs the agent to rewrite raw TODO text as a user-facing changelog entry
+- `mix todo --done` propagates `.todo-current` deletion errors instead of silently swallowing them
+
+### Added
+- `mix todo --done` opens the PR in the browser after creation
+
 ## [0.9.0] -- 2026-04-14
  - Added `mix bump` to update deps
 
