@@ -311,8 +311,7 @@ defmodule Mix.Tasks.TodoTest do
     end
 
     test "contains the README contents" do
-      readme = "# Project\n\nBuild commands here."
-      result = Todo.build_prompt("Fix bug", readme)
+      result = Todo.build_prompt("Fix bug", "# Project\n\nBuild commands here.")
       assert result =~ "Build commands here."
     end
 
@@ -330,6 +329,26 @@ defmodule Mix.Tasks.TodoTest do
       result = Todo.build_prompt("Fix bug", "# Readme")
       assert result =~ "Create a feature branch from `main`"
       assert result =~ "todo/"
+    end
+
+    test "references AGENTS.md for conventions" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "AGENTS.md"
+    end
+
+    test "does not reference individual quality steps" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      refute result =~ "Run `mix format`"
+      refute result =~ "Run `mix credo"
+      refute result =~ "Run `mix test`"
+    end
+
+    test "instructs to commit before running mix todo --done" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      # "commit" should appear before "mix todo --done"
+      commit_pos = result |> :binary.match("commit") |> elem(0)
+      done_pos = result |> :binary.match("mix todo --done") |> elem(0)
+      assert commit_pos < done_pos
     end
   end
 

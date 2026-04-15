@@ -169,13 +169,10 @@ defmodule Mix.Tasks.Todo do
 
     1. Create a feature branch from `main` with the `todo/` prefix.
        Choose a concise, descriptive branch name (e.g., `todo/add-user-auth`).
-    2. Read the codebase to understand the architecture and existing patterns.
+    2. Read AGENTS.md and the codebase to understand conventions and patterns.
     3. Follow TDD: write a failing test first, then implement until it passes.
-    4. Run `mix format` after changes.
-    5. Run `mix credo --strict` and fix any issues.
-    6. Run `mix test` to verify everything passes.
-    7. When implementation is complete and all tests pass, run:
-       mix todo --done
+    4. Commit your changes. Quality checks run automatically on commit.
+    5. Run `mix todo --done` to finalize the PR.
     """
   end
 
