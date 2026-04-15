@@ -36,7 +36,7 @@ defmodule Severance.MixProject do
       {:ex_quality, "~> 0.6", only: :dev},
       {:excoveralls, "~> 0.18", only: :test},
       {:styler, "~> 1.11", only: [:dev, :test], runtime: false},
-      {:mimic, "~> 1.10", only: :test},
+      {:mimic, "~> 2.3", only: :test},
       {:tidewave, "~> 0.5", only: :dev},
       {:bandit, "~> 1.0", only: :dev}
     ]
