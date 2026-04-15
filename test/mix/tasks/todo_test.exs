@@ -302,6 +302,63 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "### Added\n\n- New feature"
       assert result =~ "## [1.0.0]"
     end
+
+    test "inserts under [Unreleased] when versioned section also has ### Added" do
+      changelog =
+        "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Existing unreleased\n\n## [1.0.0]\n\n### Added\n\n- Initial release\n"
+
+      result = Todo.add_changelog_entry(changelog, "New feature")
+      lines = String.split(result, "\n")
+
+      unreleased_idx = Enum.find_index(lines, &(&1 == "## [Unreleased]"))
+      version_idx = Enum.find_index(lines, &(&1 == "## [1.0.0]"))
+      new_entry_idx = Enum.find_index(lines, &(&1 == "- New feature"))
+
+      assert new_entry_idx > unreleased_idx,
+             "entry should be after [Unreleased]"
+
+      assert new_entry_idx < version_idx,
+             "entry should be before [1.0.0]"
+
+      # Versioned section should be untouched
+      versioned_added_idx =
+        lines
+        |> Enum.with_index()
+        |> Enum.find_value(fn {line, idx} ->
+          if line == "### Added" and idx > version_idx, do: idx
+        end)
+
+      initial_idx = Enum.find_index(lines, &(&1 == "- Initial release"))
+      assert initial_idx > versioned_added_idx
+    end
+
+    test "creates ### Added under [Unreleased] when only versioned section has it" do
+      changelog =
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed\n\n- A fix\n\n## [1.0.0]\n\n### Added\n\n- Initial release\n"
+
+      result = Todo.add_changelog_entry(changelog, "New feature")
+      lines = String.split(result, "\n")
+
+      unreleased_idx = Enum.find_index(lines, &(&1 == "## [Unreleased]"))
+      version_idx = Enum.find_index(lines, &(&1 == "## [1.0.0]"))
+      new_entry_idx = Enum.find_index(lines, &(&1 == "- New feature"))
+
+      assert new_entry_idx > unreleased_idx
+      assert new_entry_idx < version_idx
+
+      # Should have created a new ### Added under [Unreleased]
+      unreleased_added_idx =
+        lines
+        |> Enum.with_index()
+        |> Enum.find_value(fn {line, idx} ->
+          if line == "### Added" and idx > unreleased_idx and idx < version_idx, do: idx
+        end)
+
+      assert unreleased_added_idx != nil,
+             "should create ### Added under [Unreleased]"
+
+      assert new_entry_idx > unreleased_added_idx
+    end
   end
 
   describe "build_prompt/2" do
@@ -386,6 +443,11 @@ defmodule Mix.Tasks.TodoTest do
       result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
       assert result =~ "CHANGELOG"
       assert result =~ "Added"
+    end
+
+    test "instructs agent to rewrite entry as user-facing language" do
+      result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
+      assert result =~ "user-facing"
     end
   end
 end

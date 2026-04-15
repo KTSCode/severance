@@ -196,8 +196,9 @@ defmodule Mix.Tasks.Todo do
        fold. If this work was based on an implementation plan, include the
        full plan in a collapsed `<details>` block.
     3. Review CHANGELOG.md — the entry was added under "### Added" as a
-       placeholder. Pick the correct category: Added, Changed, Fixed, or
-       Removed. If you change the category, commit and push.
+       placeholder. Rewrite the entry text to be user-facing (it currently
+       contains the raw TODO text). Pick the correct category: Added,
+       Changed, Fixed, or Removed. Commit and push any changes.
     """
   end
 
@@ -295,17 +296,49 @@ defmodule Mix.Tasks.Todo do
   defp parse_todo_line(_line, _line_number), do: []
 
   defp has_unreleased_added?(changelog) do
-    changelog =~ "## [Unreleased]" and changelog =~ "### Added"
+    has_unreleased?(changelog) and
+      changelog
+      |> unreleased_section()
+      |> String.contains?("### Added")
   end
 
   defp has_unreleased?(changelog) do
     changelog =~ "## [Unreleased]"
   end
 
+  defp unreleased_section(changelog) do
+    lines = String.split(changelog, "\n")
+    {start_idx, end_idx} = unreleased_range(lines)
+
+    lines
+    |> Enum.slice(start_idx..end_idx)
+    |> Enum.join("\n")
+  end
+
+  defp unreleased_range(lines) do
+    start_idx = Enum.find_index(lines, &(&1 == "## [Unreleased]"))
+
+    end_idx =
+      lines
+      |> Enum.drop(start_idx + 1)
+      |> Enum.with_index(start_idx + 1)
+      |> Enum.find_value(length(lines) - 1, fn {line, idx} ->
+        if String.starts_with?(line, "## [") and line != "## [Unreleased]", do: idx - 1
+      end)
+
+    {start_idx, end_idx}
+  end
+
   defp insert_under_added(changelog, entry) do
     lines = String.split(changelog, "\n")
+    {unreleased_start, unreleased_end} = unreleased_range(lines)
 
-    added_idx = Enum.find_index(lines, &(&1 == "### Added"))
+    added_idx =
+      lines
+      |> Enum.with_index()
+      |> Enum.find_value(fn {line, idx} ->
+        if line == "### Added" and idx >= unreleased_start and idx <= unreleased_end, do: idx
+      end)
 
     # Find the last entry line under ### Added, halting at the next heading
     insert_idx =
@@ -425,8 +458,10 @@ defmodule Mix.Tasks.Todo do
   end
 
   defp delete_current(root) do
-    File.rm(Path.join(root, ".todo-current"))
-    :ok
+    case File.rm(Path.join(root, ".todo-current")) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:delete_failed, reason}}
+    end
   end
 
   defp write_changelog(root, todo_text) do
@@ -514,6 +549,11 @@ defmodule Mix.Tasks.Todo do
 
   defp handle_error({:error, :no_pr_url}) do
     stderr("Could not extract PR URL from gh output")
+    exit({:shutdown, 1})
+  end
+
+  defp handle_error({:error, {:delete_failed, reason}}) do
+    stderr("Failed to delete .todo-current: #{reason}")
     exit({:shutdown, 1})
   end
 
