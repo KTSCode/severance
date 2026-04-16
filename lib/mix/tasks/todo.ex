@@ -65,8 +65,11 @@ defmodule Mix.Tasks.Todo do
     lines = String.split(readme, "\n")
 
     case todo_section_range(lines) do
-      nil -> {:error, :not_found}
-      range -> replace_first_unchecked(lines, text, range)
+      nil ->
+        {:error, :not_found}
+
+      range ->
+        check_or_passthrough(lines, text, range, readme)
     end
   end
 
@@ -273,6 +276,21 @@ defmodule Mix.Tasks.Todo do
     else
       {:error, :not_found}
     end
+  end
+
+  defp check_or_passthrough(lines, text, range, readme) do
+    case replace_first_unchecked(lines, text, range) do
+      {:ok, _} = ok -> ok
+      {:error, :not_found} -> if already_checked?(lines, text, range), do: {:ok, readme}, else: {:error, :not_found}
+    end
+  end
+
+  defp already_checked?(lines, text, {start_idx, end_idx}) do
+    lines
+    |> Enum.with_index()
+    |> Enum.any?(fn {line, idx} ->
+      idx >= start_idx and idx <= end_idx and String.trim(line) == "- [x] #{text}"
+    end)
   end
 
   defp parse_todo_line("- [x] " <> text, line_number) do

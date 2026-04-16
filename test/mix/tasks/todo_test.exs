@@ -154,6 +154,17 @@ defmodule Mix.Tasks.TodoTest do
       assert Enum.at(lines, 2) == "- [x] First item"
     end
 
+    test "returns ok unchanged when item is already checked" do
+      readme = """
+      ## TODO
+      - [x] First item
+      - [ ] Second item
+      """
+
+      assert {:ok, result} = Todo.check_todo_in_readme(readme, "First item")
+      assert result == readme
+    end
+
     test "does not check items outside ## TODO section" do
       readme = "- [ ] Outside item\n\n## TODO\n- [ ] Inside item\n\n## Other\n- [ ] Also outside"
 
