@@ -311,7 +311,7 @@ defmodule Severance.Updater do
   defp rewrite_plist(binary_path, override_path) do
     path = override_path || plist_path()
 
-    if override_path || File.exists?(path) do
+    if File.exists?(path) do
       with :ok <- File.mkdir_p(Path.dirname(path)),
            :ok <- File.write(path, Severance.Init.plist_contents(binary_path)) do
         IO.puts("[plist] Updated #{path}")

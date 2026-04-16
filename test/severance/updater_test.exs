@@ -249,6 +249,7 @@ defmodule Severance.UpdaterTest do
       binary_path = Path.join(tmp_dir, "sev")
       plist_path = Path.join(tmp_dir, "com.severance.daemon.plist")
       File.write!(binary_path, "old-binary")
+      File.write!(plist_path, "old-plist")
 
       on_exit(fn -> File.rm_rf!(tmp_dir) end)
 
@@ -319,7 +320,8 @@ defmodule Severance.UpdaterTest do
         assert Updater.run(
                  http_get: http_get,
                  binary_path: binary_path,
-                 arch: "aarch64-apple-darwin24.3.0"
+                 arch: "aarch64-apple-darwin24.3.0",
+                 plist_path: plist_path
                ) == :ok
       end)
 
