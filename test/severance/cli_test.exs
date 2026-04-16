@@ -41,6 +41,10 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["status"]) == :status
     end
 
+    test "log arg returns :log" do
+      assert CLI.parse_args(["log"]) == :log
+    end
+
     test "-v flag returns :version" do
       assert CLI.parse_args(["-v"]) == :version
     end
@@ -282,6 +286,34 @@ defmodule Severance.CLITest do
 
       assert output =~ "not running"
       assert output =~ "Update:"
+    end
+  end
+
+  describe "run_log/1" do
+    test "prints log file contents" do
+      dir = Path.join(System.tmp_dir!(), "severance_test_#{System.unique_integer([:positive])}")
+      log_file = Path.join(dir, "activity.log")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+      File.write!(log_file, "2026-04-15T10:00:00 started\n2026-04-15T16:45:00 overtime\n")
+
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          CLI.run_log(log_file)
+        end)
+
+      assert output =~ "2026-04-15T10:00:00 started"
+      assert output =~ "2026-04-15T16:45:00 overtime"
+    end
+
+    test "prints message when log file does not exist" do
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          CLI.run_log("/nonexistent/path/activity.log")
+        end)
+
+      assert output =~ "No activity log found"
     end
   end
 end

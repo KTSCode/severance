@@ -11,6 +11,7 @@ defmodule Severance.Countdown do
 
   use GenServer
 
+  alias Severance.ActivityLog
   alias Severance.Notifier
   alias Severance.Tmux
 
@@ -128,6 +129,8 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_call(:overtime, _from, state) do
+    log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+    ActivityLog.log_overtime(log_file)
     {:reply, :ok, %{state | mode: :overtime}}
   end
 
@@ -244,6 +247,16 @@ defmodule Severance.Countdown do
     {:noreply, state}
   end
 
+  @impl true
+  def terminate(reason, _state) do
+    if normal_shutdown?(reason) do
+      log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+      ActivityLog.log_stopped(log_file)
+    end
+
+    :ok
+  end
+
   # --- Private ---
 
   defp schedule_countdown_start(state) do
@@ -313,6 +326,11 @@ defmodule Severance.Countdown do
       fun -> fun.()
     end
   end
+
+  defp normal_shutdown?(:normal), do: true
+  defp normal_shutdown?(:shutdown), do: true
+  defp normal_shutdown?({:shutdown, _}), do: true
+  defp normal_shutdown?(_), do: false
 
   defp send_stale_pane_warnings do
     @stale_threshold_minutes

@@ -269,4 +269,51 @@ defmodule Severance.CountdownTest do
       assert Countdown.weekend?(~D[2026-03-26]) == false
     end
   end
+
+  describe "activity log integration" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "severance_test_#{System.unique_integer([:positive])}")
+      log_file = Path.join(dir, "activity.log")
+      Application.put_env(:severance, :log_file, log_file)
+
+      on_exit(fn ->
+        Application.delete_env(:severance, :log_file)
+        Application.delete_env(:severance, :activity_log_started_at)
+        File.rm_rf!(dir)
+      end)
+
+      %{log_file: log_file}
+    end
+
+    test "overtime/0 logs an overtime event", %{log_file: log_file} do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      Countdown.overtime()
+
+      assert File.exists?(log_file)
+      contents = File.read!(log_file)
+      assert contents =~ "overtime"
+    end
+
+    test "terminate logs a stopped event on normal shutdown", %{log_file: log_file} do
+      Application.put_env(:severance, :activity_log_started_at, @frozen_now)
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      GenServer.stop(pid)
+      Process.sleep(50)
+
+      assert File.exists?(log_file)
+      contents = File.read!(log_file)
+      assert contents =~ "stopped"
+      assert contents =~ "duration_minutes="
+    end
+
+    test "terminate does not log stopped on crash", %{log_file: log_file} do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      Process.exit(pid, :kill)
+      Process.sleep(50)
+
+      refute File.exists?(log_file)
+    end
+  end
 end

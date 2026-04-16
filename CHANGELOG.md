@@ -8,7 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Activity log tracking daemon sessions and overtime protocol usage (`sev log` to view)
+- `log_file` configuration option for custom activity log location
 - Investigate why the plist entry isn't starting `sev` on my machine
+- add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol
 
 ### Fixed
 - `sev update` no longer overwrites the LaunchAgent plist when no plist existed before the update
