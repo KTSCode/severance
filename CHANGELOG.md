@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.0] -- 2026-04-15
+
 ### Fixed
 - `mix todo --done` CHANGELOG entries no longer land under a versioned `### Added` section
 - `mix todo --done` prompt instructs the agent to rewrite raw TODO text as a user-facing changelog entry
