@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - `mix todo --done` opens the merged PR in the browser
+- investigate why `mix todo --done` isn't getting called
 
 ## [0.9.0] -- 2026-04-14
  - Added `mix bump` to update deps
