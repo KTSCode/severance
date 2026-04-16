@@ -45,12 +45,10 @@ defmodule Severance.Updater do
   """
   @spec create_cache_table() :: :ok | :already_exists
   def create_cache_table do
-    if :ets.whereis(@cache_table) == :undefined do
-      :ets.new(@cache_table, [:named_table, :set, :public, read_concurrency: true])
-      :ok
-    else
-      :already_exists
-    end
+    :ets.new(@cache_table, [:named_table, :set, :public, read_concurrency: true])
+    :ok
+  rescue
+    ArgumentError -> :already_exists
   end
 
   @doc """

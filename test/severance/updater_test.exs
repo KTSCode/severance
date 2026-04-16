@@ -598,6 +598,21 @@ defmodule Severance.UpdaterTest do
 
       assert :already_exists = Updater.create_cache_table()
     end
+
+    test "does not crash when two callers race to create the table" do
+      table = :severance_version_cache
+
+      if :ets.whereis(table) != :undefined do
+        :ets.delete(table)
+      end
+
+      results =
+        1..50
+        |> Enum.map(fn _ -> Task.async(fn -> Updater.create_cache_table() end) end)
+        |> Task.await_many(5_000)
+
+      assert Enum.all?(results, &(&1 in [:ok, :already_exists]))
+    end
   end
 
   defp bump_patch(version) do
