@@ -151,7 +151,7 @@ defmodule Severance.Application do
             Logger.info("No config file found. Run `sev init` to create one.")
           end
 
-          {compiled_time, overtime_notifications, compiled_log_file}
+          {compiled_time, overtime_notifications, Path.expand(compiled_log_file)}
       end
 
     # Layer 3: env var
@@ -198,7 +198,7 @@ defmodule Severance.Application do
     sup_opts = [strategy: :one_for_one, name: Severance.Supervisor]
     result = Supervisor.start_link(children, sup_opts)
 
-    if start_children do
+    with {:ok, _pid} <- result, true <- start_children do
       log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
       ActivityLog.log_started(log_file)
     end
