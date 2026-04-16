@@ -486,7 +486,7 @@ defmodule Mix.Tasks.Todo do
   end
 
   defp find_pr do
-    case cmd("gh", ["pr", "view", "HEAD", "--json", "url", "-q", ".url"]) do
+    case cmd("gh", ["pr", "view", "--json", "url", "-q", ".url"]) do
       {:ok, url} -> {:ok, url}
       _error -> {:error, :no_pr}
     end
