@@ -206,11 +206,10 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Investigate why the plist entry isn't starting `sev` on my machine
 - [x] Run `mix format` to apply styler rewrites across the codebase and review the changes
 - [x] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol
   - the log file location needs to be configurable in the config file, but default to the standard log file location for applications whose config lives in ~/.config
-- [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
+- [x] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [ ] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 - [ ] Make `sev <INVALID COMMAND>` error and not start severance
 - [ ] Always update the tmux status line with how long is left before shutdown 
