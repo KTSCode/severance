@@ -302,6 +302,63 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "### Added\n\n- New feature"
       assert result =~ "## [1.0.0]"
     end
+
+    test "inserts under [Unreleased] when versioned section also has ### Added" do
+      changelog =
+        "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Existing unreleased\n\n## [1.0.0]\n\n### Added\n\n- Initial release\n"
+
+      result = Todo.add_changelog_entry(changelog, "New feature")
+      lines = String.split(result, "\n")
+
+      unreleased_idx = Enum.find_index(lines, &(&1 == "## [Unreleased]"))
+      version_idx = Enum.find_index(lines, &(&1 == "## [1.0.0]"))
+      new_entry_idx = Enum.find_index(lines, &(&1 == "- New feature"))
+
+      assert new_entry_idx > unreleased_idx,
+             "entry should be after [Unreleased]"
+
+      assert new_entry_idx < version_idx,
+             "entry should be before [1.0.0]"
+
+      # Versioned section should be untouched
+      versioned_added_idx =
+        lines
+        |> Enum.with_index()
+        |> Enum.find_value(fn {line, idx} ->
+          if line == "### Added" and idx > version_idx, do: idx
+        end)
+
+      initial_idx = Enum.find_index(lines, &(&1 == "- Initial release"))
+      assert initial_idx > versioned_added_idx
+    end
+
+    test "creates ### Added under [Unreleased] when only versioned section has it" do
+      changelog =
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed\n\n- A fix\n\n## [1.0.0]\n\n### Added\n\n- Initial release\n"
+
+      result = Todo.add_changelog_entry(changelog, "New feature")
+      lines = String.split(result, "\n")
+
+      unreleased_idx = Enum.find_index(lines, &(&1 == "## [Unreleased]"))
+      version_idx = Enum.find_index(lines, &(&1 == "## [1.0.0]"))
+      new_entry_idx = Enum.find_index(lines, &(&1 == "- New feature"))
+
+      assert new_entry_idx > unreleased_idx
+      assert new_entry_idx < version_idx
+
+      # Should have created a new ### Added under [Unreleased]
+      unreleased_added_idx =
+        lines
+        |> Enum.with_index()
+        |> Enum.find_value(fn {line, idx} ->
+          if line == "### Added" and idx > unreleased_idx and idx < version_idx, do: idx
+        end)
+
+      assert unreleased_added_idx != nil,
+             "should create ### Added under [Unreleased]"
+
+      assert new_entry_idx > unreleased_added_idx
+    end
   end
 
   describe "build_prompt/2" do
@@ -311,8 +368,7 @@ defmodule Mix.Tasks.TodoTest do
     end
 
     test "contains the README contents" do
-      readme = "# Project\n\nBuild commands here."
-      result = Todo.build_prompt("Fix bug", readme)
+      result = Todo.build_prompt("Fix bug", "# Project\n\nBuild commands here.")
       assert result =~ "Build commands here."
     end
 
@@ -330,6 +386,39 @@ defmodule Mix.Tasks.TodoTest do
       result = Todo.build_prompt("Fix bug", "# Readme")
       assert result =~ "Create a feature branch from `main`"
       assert result =~ "todo/"
+    end
+
+    test "references AGENTS.md for conventions" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "AGENTS.md"
+    end
+
+    test "does not reference individual quality steps" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      refute result =~ "Run `mix format`"
+      refute result =~ "Run `mix credo"
+      refute result =~ "Run `mix test`"
+    end
+
+    test "instructs to commit before running mix todo --done" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      # "commit" should appear before "mix todo --done"
+      commit_pos = result |> :binary.match("commit") |> elem(0)
+      done_pos = result |> :binary.match("mix todo --done") |> elem(0)
+      assert commit_pos < done_pos
+    end
+
+    test "instructs to push and create PR before waiting for review" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "gh pr create"
+      pr_pos = result |> :binary.match("gh pr create") |> elem(0)
+      wait_pos = result |> :binary.match("Stop and wait") |> elem(0)
+      assert pr_pos < wait_pos
+    end
+
+    test "instructs to stop and wait for review before finalizing" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "Stop and wait for review"
     end
   end
 
@@ -357,16 +446,9 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "https://github.com/org/repo/pull/42"
     end
 
-    test "contains git status verification step" do
+    test "indicates PR was merged" do
       result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
-      assert result =~ "git status"
-      assert result =~ "untracked or unstaged"
-    end
-
-    test "contains CHANGELOG review instructions" do
-      result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
-      assert result =~ "CHANGELOG"
-      assert result =~ "Added"
+      assert result =~ "merged"
     end
   end
 end

@@ -169,13 +169,11 @@ defmodule Mix.Tasks.Todo do
 
     1. Create a feature branch from `main` with the `todo/` prefix.
        Choose a concise, descriptive branch name (e.g., `todo/add-user-auth`).
-    2. Read the codebase to understand the architecture and existing patterns.
+    2. Read AGENTS.md and the codebase to understand conventions and patterns.
     3. Follow TDD: write a failing test first, then implement until it passes.
-    4. Run `mix format` after changes.
-    5. Run `mix credo --strict` and fix any issues.
-    6. Run `mix test` to verify everything passes.
-    7. When implementation is complete and all tests pass, run:
-       mix todo --done
+    4. Commit your changes. Quality checks run automatically on commit.
+    5. Push your branch and open a PR with `gh pr create`.
+    6. Stop and wait for review. When told to finalize, run `mix todo --done`.
     """
   end
 
@@ -188,19 +186,7 @@ defmodule Mix.Tasks.Todo do
   @spec build_done_prompt(String.t(), String.t()) :: String.t()
   def build_done_prompt(_todo_text, pr_url) do
     """
-    TODO item completed. PR created: #{pr_url}
-
-    ## Remaining Steps
-
-    1. Run `git status` to verify all changes were committed. If any files
-       are untracked or unstaged, commit and push them.
-    2. Update the PR description using `gh pr edit #{pr_url} --body "..."`.
-       Follow the convention in AGENTS.md: summary and test plan above the
-       fold. If this work was based on an implementation plan, include the
-       full plan in a collapsed `<details>` block.
-    3. Review CHANGELOG.md — the entry was added under "### Added" as a
-       placeholder. Pick the correct category: Added, Changed, Fixed, or
-       Removed. If you change the category, commit and push.
+    TODO item completed. PR merged: #{pr_url}
     """
   end
 
@@ -238,9 +224,11 @@ defmodule Mix.Tasks.Todo do
          :ok <- write_changelog(root, todo_text),
          :ok <- git_commit(todo_text),
          :ok <- git_push(),
-         {:ok, pr_url} <- create_pr(todo_text),
+         {:ok, pr_url} <- find_pr(),
+         :ok <- merge_pr(pr_url),
          :ok <- delete_current(root) do
       IO.write(build_done_prompt(todo_text, pr_url))
+      open_pr(pr_url)
     else
       error -> handle_error(error)
     end
@@ -298,17 +286,49 @@ defmodule Mix.Tasks.Todo do
   defp parse_todo_line(_line, _line_number), do: []
 
   defp has_unreleased_added?(changelog) do
-    changelog =~ "## [Unreleased]" and changelog =~ "### Added"
+    has_unreleased?(changelog) and
+      changelog
+      |> unreleased_section()
+      |> String.contains?("### Added")
   end
 
   defp has_unreleased?(changelog) do
     changelog =~ "## [Unreleased]"
   end
 
+  defp unreleased_section(changelog) do
+    lines = String.split(changelog, "\n")
+    {start_idx, end_idx} = unreleased_range(lines)
+
+    lines
+    |> Enum.slice(start_idx..end_idx)
+    |> Enum.join("\n")
+  end
+
+  defp unreleased_range(lines) do
+    start_idx = Enum.find_index(lines, &(&1 == "## [Unreleased]"))
+
+    end_idx =
+      lines
+      |> Enum.drop(start_idx + 1)
+      |> Enum.with_index(start_idx + 1)
+      |> Enum.find_value(length(lines) - 1, fn {line, idx} ->
+        if String.starts_with?(line, "## [") and line != "## [Unreleased]", do: idx - 1
+      end)
+
+    {start_idx, end_idx}
+  end
+
   defp insert_under_added(changelog, entry) do
     lines = String.split(changelog, "\n")
+    {unreleased_start, unreleased_end} = unreleased_range(lines)
 
-    added_idx = Enum.find_index(lines, &(&1 == "### Added"))
+    added_idx =
+      lines
+      |> Enum.with_index()
+      |> Enum.find_value(fn {line, idx} ->
+        if line == "### Added" and idx >= unreleased_start and idx <= unreleased_end, do: idx
+      end)
 
     # Find the last entry line under ### Added, halting at the next heading
     insert_idx =
@@ -428,8 +448,10 @@ defmodule Mix.Tasks.Todo do
   end
 
   defp delete_current(root) do
-    File.rm(Path.join(root, ".todo-current"))
-    :ok
+    case File.rm(Path.join(root, ".todo-current")) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:delete_failed, reason}}
+    end
   end
 
   defp write_changelog(root, todo_text) do
@@ -463,20 +485,25 @@ defmodule Mix.Tasks.Todo do
     end
   end
 
-  defp create_pr(todo_text) do
-    stderr("Creating pull request...")
-
-    with {:ok, output} <-
-           cmd("gh", [
-             "pr",
-             "create",
-             "--title",
-             todo_text,
-             "--body",
-             "Implements: #{todo_text}\n\n_Body to be filled in by the agent._"
-           ]) do
-      extract_pr_url(output)
+  defp find_pr do
+    case cmd("gh", ["pr", "view", "--json", "url", "-q", ".url"]) do
+      {:ok, url} -> {:ok, url}
+      _error -> {:error, :no_pr}
     end
+  end
+
+  defp merge_pr(pr_url) do
+    stderr("Merging pull request...")
+
+    case cmd("gh", ["pr", "merge", pr_url, "--squash", "--delete-branch"]) do
+      {:ok, _} -> :ok
+      error -> error
+    end
+  end
+
+  defp open_pr(pr_url) do
+    cmd("gh", ["pr", "view", pr_url, "--web"])
+    :ok
   end
 
   defp handle_error({:error, :no_todo_section}) do
@@ -515,8 +542,18 @@ defmodule Mix.Tasks.Todo do
     exit({:shutdown, 1})
   end
 
+  defp handle_error({:error, :no_pr}) do
+    stderr("No open PR found for this branch. Push and create one first.")
+    exit({:shutdown, 1})
+  end
+
   defp handle_error({:error, :no_pr_url}) do
     stderr("Could not extract PR URL from gh output")
+    exit({:shutdown, 1})
+  end
+
+  defp handle_error({:error, {:delete_failed, reason}}) do
+    stderr("Failed to delete .todo-current: #{reason}")
     exit({:shutdown, 1})
   end
 
