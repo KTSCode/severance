@@ -10,7 +10,8 @@ defmodule Severance.Config do
 
   @default_config %{
     shutdown_time: "17:00",
-    overtime_notifications: true
+    overtime_notifications: true,
+    log_file: Path.join([System.user_home!(), ".local", "state", "severance", "activity.log"])
   }
 
   @doc """
@@ -63,7 +64,8 @@ defmodule Severance.Config do
     """
     %{
       shutdown_time: #{inspect(config.shutdown_time)},
-      overtime_notifications: #{inspect(config.overtime_notifications)}
+      overtime_notifications: #{inspect(config.overtime_notifications)},
+      log_file: #{inspect(config.log_file)}
     }
     """
   end

@@ -9,9 +9,11 @@ defmodule Severance.ConfigTest do
 
       assert %{
                shutdown_time: "17:00",
-               overtime_notifications: true
+               overtime_notifications: true,
+               log_file: log_file
              } = defaults
 
+      assert log_file =~ ".local/state/severance/activity.log"
       refute Map.has_key?(defaults, :timezone)
     end
   end
@@ -28,7 +30,8 @@ defmodule Severance.ConfigTest do
     test "generates valid Elixir term that round-trips back to the input map" do
       config = %{
         shutdown_time: "16:30",
-        overtime_notifications: false
+        overtime_notifications: false,
+        log_file: "~/.local/state/severance/activity.log"
       }
 
       contents = Config.generate_contents(config)
