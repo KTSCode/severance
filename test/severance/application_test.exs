@@ -23,10 +23,15 @@ defmodule Severance.ApplicationTest do
 
   describe "resolve_config/1" do
     setup do
-      original = Elixir.Application.get_env(:severance, :overtime_notifications)
+      original_ot = Elixir.Application.get_env(:severance, :overtime_notifications)
+      original_lf = Elixir.Application.get_env(:severance, :log_file)
 
       on_exit(fn ->
-        Elixir.Application.put_env(:severance, :overtime_notifications, original || true)
+        Elixir.Application.put_env(:severance, :overtime_notifications, original_ot || true)
+
+        if original_lf,
+          do: Elixir.Application.put_env(:severance, :log_file, original_lf),
+          else: Elixir.Application.delete_env(:severance, :log_file)
       end)
 
       :ok
@@ -103,6 +108,71 @@ defmodule Severance.ApplicationTest do
       Application.resolve_config([], config_dir: dir)
 
       assert Elixir.Application.get_env(:severance, :overtime_notifications) == false
+    end
+
+    test "resolves log_file from config file" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      config_content =
+        ~s(%{shutdown_time: "17:00", overtime_notifications: true, log_file: "/custom/path/sev.log"})
+
+      File.write!(Path.join(dir, "config.exs"), config_content)
+
+      resolved = Application.resolve_config([], config_dir: dir)
+
+      assert resolved.log_file == "/custom/path/sev.log"
+    end
+
+    test "uses default log_file when config file has no log_file key" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      config_content =
+        ~s(%{shutdown_time: "17:00", overtime_notifications: true})
+
+      File.write!(Path.join(dir, "config.exs"), config_content)
+
+      resolved = Application.resolve_config([], config_dir: dir)
+
+      assert resolved.log_file =~ ".local/state/severance/activity.log"
+    end
+
+    test "expands tilde in log_file path" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      config_content =
+        ~s(%{shutdown_time: "17:00", overtime_notifications: true, log_file: "~/.local/state/severance/activity.log"})
+
+      File.write!(Path.join(dir, "config.exs"), config_content)
+
+      resolved = Application.resolve_config([], config_dir: dir)
+
+      refute String.starts_with?(resolved.log_file, "~")
+      assert resolved.log_file =~ ".local/state/severance/activity.log"
+    end
+
+    test "stores log_file in Application env" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      config_content =
+        ~s(%{shutdown_time: "17:00", overtime_notifications: true, log_file: "/tmp/test.log"})
+
+      File.write!(Path.join(dir, "config.exs"), config_content)
+
+      Application.resolve_config([], config_dir: dir)
+
+      assert Elixir.Application.get_env(:severance, :log_file) == "/tmp/test.log"
     end
   end
 end

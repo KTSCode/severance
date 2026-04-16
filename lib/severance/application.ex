@@ -9,6 +9,7 @@ defmodule Severance.Application do
 
   use Application
 
+  alias Severance.ActivityLog
   alias Severance.CLI
   alias Severance.Config
 
@@ -112,7 +113,8 @@ defmodule Severance.Application do
   """
   @spec resolve_config(keyword(), keyword()) :: %{
           shutdown_time: Time.t(),
-          overtime_notifications: boolean()
+          overtime_notifications: boolean(),
+          log_file: String.t()
         }
   def resolve_config(opts \\ [], resolve_opts \\ []) do
     config_dir = Keyword.get(resolve_opts, :config_dir)
@@ -129,18 +131,20 @@ defmodule Severance.Application do
         Config.read()
       end
 
-    {shutdown_time, overtime_notifications} =
+    {shutdown_time, overtime_notifications, log_file} =
       case file_result do
         {:ok, file_config} ->
           time = parse_time_string(file_config.shutdown_time, compiled_time)
-          {time, Map.get(file_config, :overtime_notifications, overtime_notifications)}
+          ot = Map.get(file_config, :overtime_notifications, overtime_notifications)
+          lf = Map.get(file_config, :log_file, ActivityLog.default_log_file())
+          {time, ot, Path.expand(lf)}
 
         {:error, :not_found} ->
           if !resolve_opts[:suppress_warning] do
             Logger.info("No config file found. Run `sev init` to create one.")
           end
 
-          {compiled_time, overtime_notifications}
+          {compiled_time, overtime_notifications, ActivityLog.default_log_file()}
       end
 
     # Layer 3: env var
@@ -155,8 +159,9 @@ defmodule Severance.Application do
 
     # Side effect: store overtime_notifications for Countdown to read
     Application.put_env(:severance, :overtime_notifications, overtime_notifications)
+    Application.put_env(:severance, :log_file, log_file)
 
-    %{shutdown_time: shutdown_time, overtime_notifications: overtime_notifications}
+    %{shutdown_time: shutdown_time, overtime_notifications: overtime_notifications, log_file: log_file}
   end
 
   @doc """
@@ -184,7 +189,14 @@ defmodule Severance.Application do
       end
 
     sup_opts = [strategy: :one_for_one, name: Severance.Supervisor]
-    Supervisor.start_link(children, sup_opts)
+    result = Supervisor.start_link(children, sup_opts)
+
+    if start_children do
+      log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+      ActivityLog.log_started(log_file)
+    end
+
+    result
   end
 
   @doc """
