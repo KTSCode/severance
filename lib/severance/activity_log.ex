@@ -10,13 +10,18 @@ defmodule Severance.ActivityLog do
       2026-04-15T18:30:00 stopped duration_minutes=510
   """
 
-  @default_log_file Path.join([System.user_home!(), ".local", "state", "severance", "activity.log"])
+  require Logger
 
   @doc """
   Returns the default log file path (`~/.local/state/severance/activity.log`).
+
+  Computed at runtime so the path reflects the current user's home
+  directory, not the build machine's.
   """
   @spec default_log_file() :: String.t()
-  def default_log_file, do: @default_log_file
+  def default_log_file do
+    Path.join([System.user_home!(), ".local", "state", "severance", "activity.log"])
+  end
 
   @doc """
   Formats a log entry as a single line string.
@@ -81,9 +86,14 @@ defmodule Severance.ActivityLog do
   end
 
   defp append(log_file, line) do
-    log_file |> Path.dirname() |> File.mkdir_p!()
-    File.write!(log_file, line <> "\n", [:append])
-    :ok
+    with :ok <- log_file |> Path.dirname() |> File.mkdir_p(),
+         :ok <- File.write(log_file, line <> "\n", [:append]) do
+      :ok
+    else
+      {:error, reason} ->
+        Logger.warning("Failed to write activity log to #{log_file}: #{inspect(reason)}")
+        :ok
+    end
   end
 
   defp local_now do

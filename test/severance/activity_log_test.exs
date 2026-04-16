@@ -112,6 +112,21 @@ defmodule Severance.ActivityLogTest do
     end
   end
 
+  describe "graceful degradation" do
+    test "log_started returns :ok and logs warning when path is unwritable" do
+      frozen = ~N[2026-04-15 10:00:00]
+      Application.put_env(:severance, :now_fn, fn -> frozen end)
+      on_exit(fn -> Application.delete_env(:severance, :now_fn) end)
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert :ok = ActivityLog.log_started("/dev/null/impossible/activity.log")
+        end)
+
+      assert log =~ "Failed to write activity log"
+    end
+  end
+
   defp tmp_log_file(_context) do
     dir = Path.join(System.tmp_dir!(), "severance_test_#{System.unique_integer([:positive])}")
     log_file = Path.join(dir, "activity.log")

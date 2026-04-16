@@ -248,9 +248,12 @@ defmodule Severance.Countdown do
   end
 
   @impl true
-  def terminate(_reason, _state) do
-    log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
-    ActivityLog.log_stopped(log_file)
+  def terminate(reason, _state) do
+    if normal_shutdown?(reason) do
+      log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+      ActivityLog.log_stopped(log_file)
+    end
+
     :ok
   end
 
@@ -323,6 +326,11 @@ defmodule Severance.Countdown do
       fun -> fun.()
     end
   end
+
+  defp normal_shutdown?(:normal), do: true
+  defp normal_shutdown?(:shutdown), do: true
+  defp normal_shutdown?({:shutdown, _}), do: true
+  defp normal_shutdown?(_), do: false
 
   defp send_stale_pane_warnings do
     @stale_threshold_minutes

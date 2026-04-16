@@ -11,7 +11,7 @@ defmodule Severance.Config do
   @default_config %{
     shutdown_time: "17:00",
     overtime_notifications: true,
-    log_file: Path.join([System.user_home!(), ".local", "state", "severance", "activity.log"])
+    log_file: "~/.local/state/severance/activity.log"
   }
 
   @doc """

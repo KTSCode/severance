@@ -294,7 +294,7 @@ defmodule Severance.CountdownTest do
       assert contents =~ "overtime"
     end
 
-    test "terminate logs a stopped event", %{log_file: log_file} do
+    test "terminate logs a stopped event on normal shutdown", %{log_file: log_file} do
       Application.put_env(:severance, :activity_log_started_at, @frozen_now)
       pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
 
@@ -305,6 +305,15 @@ defmodule Severance.CountdownTest do
       contents = File.read!(log_file)
       assert contents =~ "stopped"
       assert contents =~ "duration_minutes="
+    end
+
+    test "terminate does not log stopped on crash", %{log_file: log_file} do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      Process.exit(pid, :kill)
+      Process.sleep(50)
+
+      refute File.exists?(log_file)
     end
   end
 end
