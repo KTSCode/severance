@@ -544,6 +544,34 @@ defmodule Severance.UpdaterTest do
 
       assert {:error, :nxdomain} = Updater.fetch_latest_version(http_get: http_get)
     end
+
+    test "creates ETS table when missing so subsequent calls use the cache" do
+      table = :severance_version_cache
+
+      if :ets.whereis(table) != :undefined do
+        :ets.delete(table)
+      end
+
+      test_pid = self()
+
+      http_get = fn _url ->
+        send(test_pid, :http_called)
+        body = :json.encode(%{"tag_name" => "v3.0.0", "assets" => []})
+        {:ok, IO.iodata_to_binary(body)}
+      end
+
+      http_get_different = fn _url ->
+        send(test_pid, :http_called)
+        body = :json.encode(%{"tag_name" => "v4.0.0", "assets" => []})
+        {:ok, IO.iodata_to_binary(body)}
+      end
+
+      assert {:ok, "3.0.0"} = Updater.fetch_latest_version(http_get: http_get)
+      assert {:ok, "3.0.0"} = Updater.fetch_latest_version(http_get: http_get_different)
+
+      assert_received :http_called
+      refute_received :http_called
+    end
   end
 
   describe "create_cache_table/0" do

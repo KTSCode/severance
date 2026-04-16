@@ -237,10 +237,8 @@ defmodule Severance.Updater do
     with {:ok, body} <- http_get.(api_url()),
          {:ok, release} <- decode_json(body),
          {:ok, version} <- extract_version(release) do
-      if :ets.whereis(@cache_table) != :undefined do
-        :ets.insert(@cache_table, {:latest_version, version, now})
-      end
-
+      create_cache_table()
+      :ets.insert(@cache_table, {:latest_version, version, now})
       {:ok, version}
     end
   end
