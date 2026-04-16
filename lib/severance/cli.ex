@@ -12,6 +12,7 @@ defmodule Severance.CLI do
       sev version                # Print current version
       sev -v                     # Print current version
       sev status                 # Show daemon status and version info
+      sev log                    # Print the activity log
       sev --shutdown-time HH:MM  # Start with custom shutdown time
       sev otp                    # Activate Overtime Protocol on running daemon
       sev overtime               # Activate Overtime Protocol on running daemon
@@ -51,6 +52,7 @@ defmodule Severance.CLI do
           | {:daemon, keyword()}
           | :overtime
           | :status
+          | :log
           | :init
           | :update
           | :version
@@ -63,6 +65,7 @@ defmodule Severance.CLI do
   def parse_args(["-v" | _rest]), do: :version
   def parse_args(["--version" | _rest]), do: :version
   def parse_args(["status" | _rest]), do: :status
+  def parse_args(["log" | _rest]), do: :log
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
   def parse_args(["over_time_protocol" | _rest]), do: :overtime
@@ -218,6 +221,22 @@ defmodule Severance.CLI do
           :ok
       end
     end)
+  end
+
+  @doc """
+  Prints the activity log to stdout.
+
+  If the log file doesn't exist, prints a message indicating no log was found.
+  """
+  @spec run_log(String.t()) :: :ok
+  def run_log(log_file) do
+    if File.exists?(log_file) do
+      log_file |> File.read!() |> IO.write()
+    else
+      IO.puts("No activity log found at #{log_file}")
+    end
+
+    :ok
   end
 
   @doc """

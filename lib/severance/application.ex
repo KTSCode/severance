@@ -47,6 +47,12 @@ defmodule Severance.Application do
     System.halt(0)
   end
 
+  defp dispatch(:log) do
+    config = resolve_config([], suppress_warning: true)
+    CLI.run_log(config.log_file)
+    System.halt(0)
+  end
+
   defp dispatch({:error, message}) do
     IO.puts(:stderr, message)
     System.halt(1)
