@@ -174,5 +174,18 @@ defmodule Severance.ApplicationTest do
 
       assert Elixir.Application.get_env(:severance, :log_file) == "/tmp/test.log"
     end
+
+    test "respects compiled :log_file from application env" do
+      nonexistent =
+        Path.join(System.tmp_dir!(), "sev_no_config_#{System.unique_integer([:positive])}")
+
+      Elixir.Application.put_env(:severance, :log_file, "/compiled/default.log")
+
+      on_exit(fn -> Elixir.Application.delete_env(:severance, :log_file) end)
+
+      resolved = Application.resolve_config([], config_dir: nonexistent, suppress_warning: true)
+
+      assert resolved.log_file == "/compiled/default.log"
+    end
   end
 end
