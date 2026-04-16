@@ -1,34 +1,59 @@
-defmodule Mix.Tasks.Tag do
-  @shortdoc "Tag a new release version"
+defmodule Mix.Tasks.Changelog.Finalize do
+  @shortdoc "Finalize the changelog for an upcoming release"
 
   @moduledoc """
-  Bumps the application version, finalizes the changelog, and pushes a
-  git tag to trigger the CI release workflow.
+  Moves entries from `## [Unreleased]` into a versioned section,
+  then commits `CHANGELOG.md`.
 
-  ## Usage
+  Accepts a bump flag that matches `mix version` so both tasks can share
+  the same args when called from the `mix tag` alias:
 
-      mix tag maj   # bump major version
-      mix tag min   # bump minor version
-      mix tag pat   # bump patch version
+      mix changelog.finalize --major
+      mix changelog.finalize --minor
+      mix changelog.finalize --patch
   """
 
   use Mix.Task
+
+  @doc """
+  Parses the bump flag from args list.
+
+  ## Examples
+
+      iex> Mix.Tasks.Changelog.Finalize.parse_bump_flag(["--major"])
+      {:ok, :major}
+
+      iex> Mix.Tasks.Changelog.Finalize.parse_bump_flag(["--patch"])
+      {:ok, :patch}
+
+      iex> Mix.Tasks.Changelog.Finalize.parse_bump_flag([])
+      {:error, :invalid_flag}
+  """
+  @spec parse_bump_flag([String.t()]) :: {:ok, :major | :minor | :patch} | {:error, :invalid_flag}
+  def parse_bump_flag(args) do
+    cond do
+      "--major" in args -> {:ok, :major}
+      "--minor" in args -> {:ok, :minor}
+      "--patch" in args -> {:ok, :patch}
+      true -> {:error, :invalid_flag}
+    end
+  end
 
   @doc """
   Computes a new version string by bumping the specified component.
 
   ## Examples
 
-      iex> Mix.Tasks.Tag.bump_version("0.1.0", :maj)
+      iex> Mix.Tasks.Changelog.Finalize.bump_version("0.1.0", :major)
       {:ok, "1.0.0"}
 
-      iex> Mix.Tasks.Tag.bump_version("0.1.0", :min)
+      iex> Mix.Tasks.Changelog.Finalize.bump_version("0.1.0", :minor)
       {:ok, "0.2.0"}
 
-      iex> Mix.Tasks.Tag.bump_version("0.1.0", :pat)
+      iex> Mix.Tasks.Changelog.Finalize.bump_version("0.1.0", :patch)
       {:ok, "0.1.1"}
   """
-  @spec bump_version(String.t(), :maj | :min | :pat) ::
+  @spec bump_version(String.t(), :major | :minor | :patch) ::
           {:ok, String.t()} | {:error, :invalid_version}
   def bump_version(version, component) do
     case Version.parse(version) do
@@ -37,23 +62,6 @@ defmodule Mix.Tasks.Tag do
 
       :error ->
         {:error, :invalid_version}
-    end
-  end
-
-  @doc """
-  Replaces the version string in mix.exs file content.
-
-  Matches the pattern `version: "X.Y.Z"` and replaces the version.
-  """
-  @spec update_version_in_mix(String.t(), String.t()) ::
-          {:ok, String.t()} | {:error, :version_not_found}
-  def update_version_in_mix(content, new_version) do
-    pattern = ~r/(version:\s*")([^"]+)(")/
-
-    if Regex.match?(pattern, content) do
-      {:ok, Regex.replace(pattern, content, "\\g{1}#{new_version}\\g{3}", global: false)}
-    else
-      {:error, :version_not_found}
     end
   end
 
@@ -121,93 +129,33 @@ defmodule Mix.Tasks.Tag do
     Enum.join(new_lines, "\n")
   end
 
-  @doc """
-  Parses a version component string into an atom.
-
-  ## Examples
-
-      iex> Mix.Tasks.Tag.parse_component("maj")
-      {:ok, :maj}
-
-      iex> Mix.Tasks.Tag.parse_component("invalid")
-      {:error, :invalid_component}
-  """
-  @spec parse_component(String.t()) :: {:ok, :maj | :min | :pat} | {:error, :invalid_component}
-  def parse_component("maj"), do: {:ok, :maj}
-  def parse_component("min"), do: {:ok, :min}
-  def parse_component("pat"), do: {:ok, :pat}
-  def parse_component(_), do: {:error, :invalid_component}
-
   @impl Mix.Task
-  def run([arg]) do
-    with {:ok, component} <- parse_component(arg),
-         :ok <- check_main_branch(),
-         :ok <- check_clean_worktree(),
-         :ok <- check_up_to_date(),
+  def run(args) do
+    with {:ok, component} <- parse_bump_flag(args),
          {:ok, current} <- read_version(),
          {:ok, new_version} <- bump_version(current, component),
          {:ok, changelog} <- read_changelog(),
          {:ok, _entries} <- unreleased_entries(changelog),
          :ok <- confirm_release(changelog, current, new_version),
          finalized = finalize_changelog(changelog, new_version, today()),
-         {:ok, mix_content} <- read_mix_exs(),
-         {:ok, new_mix} <- update_version_in_mix(mix_content, new_version),
-         :ok <- write_mix_exs(new_mix),
          :ok <- write_changelog(finalized),
-         :ok <- git_commit(new_version),
-         :ok <- git_tag(new_version),
-         :ok <- git_push(new_version) do
-      stderr("Tagged v#{new_version} and pushed. CI will handle the release.")
+         :ok <- git_commit(new_version) do
+      :ok
     else
       {:error, :aborted} ->
         stderr("Aborted.")
+        exit({:shutdown, 1})
 
       {:error, reason} ->
         handle_error(reason)
     end
   end
 
-  def run(_) do
-    stderr("Usage: mix tag <maj|min|pat>")
-    exit({:shutdown, 1})
-  end
-
   # --- Private helpers ---
 
-  defp do_bump(maj, _min, _pat, :maj), do: "#{maj + 1}.0.0"
-  defp do_bump(maj, min, _pat, :min), do: "#{maj}.#{min + 1}.0"
-  defp do_bump(maj, min, pat, :pat), do: "#{maj}.#{min}.#{pat + 1}"
-
-  defp cmd(executable, args) do
-    case System.cmd(executable, args, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, String.trim(output)}
-      {output, code} -> {:error, {output, code}}
-    end
-  end
-
-  defp check_main_branch do
-    case cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"]) do
-      {:ok, "main"} -> :ok
-      {:ok, branch} -> {:error, {:not_main, branch}}
-      error -> error
-    end
-  end
-
-  defp check_clean_worktree do
-    case cmd("git", ["status", "--porcelain"]) do
-      {:ok, ""} -> :ok
-      {:ok, _} -> {:error, :dirty_worktree}
-      error -> error
-    end
-  end
-
-  defp check_up_to_date do
-    with {:ok, _} <- cmd("git", ["fetch", "origin", "main"]),
-         {:ok, local} <- cmd("git", ["rev-parse", "HEAD"]),
-         {:ok, remote} <- cmd("git", ["rev-parse", "origin/main"]) do
-      if local == remote, do: :ok, else: {:error, :not_up_to_date}
-    end
-  end
+  defp do_bump(maj, _min, _pat, :major), do: "#{maj + 1}.0.0"
+  defp do_bump(maj, min, _pat, :minor), do: "#{maj}.#{min + 1}.0"
+  defp do_bump(maj, min, pat, :patch), do: "#{maj}.#{min}.#{pat + 1}"
 
   defp read_version do
     {:ok, Mix.Project.config()[:version]}
@@ -218,18 +166,6 @@ defmodule Mix.Tasks.Tag do
       {:ok, content} -> {:ok, content}
       {:error, _} -> {:error, :no_changelog}
     end
-  end
-
-  defp read_mix_exs do
-    case File.read("mix.exs") do
-      {:ok, content} -> {:ok, content}
-      {:error, _} -> {:error, :no_mix_exs}
-    end
-  end
-
-  defp write_mix_exs(content) do
-    File.write!("mix.exs", content)
-    :ok
   end
 
   defp write_changelog(content) do
@@ -262,50 +198,32 @@ defmodule Mix.Tasks.Tag do
   end
 
   defp git_commit(version) do
-    stderr("Committing...")
+    stderr("Committing changelog...")
 
-    with {:ok, _} <- cmd("git", ["add", "mix.exs", "CHANGELOG.md"]),
-         {:ok, _} <- cmd("git", ["commit", "-m", "Release v#{version}"]) do
+    with {:ok, _} <- cmd("git", ["add", "CHANGELOG.md"]),
+         {:ok, _} <- cmd("git", ["commit", "-m", "Finalize changelog for #{version}"]) do
       :ok
     end
   end
 
-  defp git_tag(version) do
-    stderr("Tagging v#{version}...")
-    "git" |> cmd(["tag", "v#{version}"]) |> normalize()
+  defp cmd(executable, args) do
+    case System.cmd(executable, args, stderr_to_stdout: true) do
+      {output, 0} -> {:ok, String.trim(output)}
+      {output, code} -> {:error, {output, code}}
+    end
   end
-
-  defp git_push(version) do
-    stderr("Pushing...")
-    "git" |> cmd(["push", "--atomic", "origin", "HEAD", "v#{version}"]) |> normalize()
-  end
-
-  defp normalize({:ok, _}), do: :ok
-  defp normalize(error), do: error
 
   defp handle_error(reason) do
     stderr(error_message(reason))
     exit({:shutdown, 1})
   end
 
-  defp error_message({:not_main, branch}), do: "Must be on main branch to tag a release (currently on #{branch})"
-
-  defp error_message(:dirty_worktree), do: "Uncommitted changes detected. Commit or stash them before tagging."
-
-  defp error_message(:not_up_to_date), do: "Local main is behind or ahead of origin/main. Pull or push first."
-
-  defp error_message(:invalid_component), do: "Usage: mix tag <maj|min|pat>"
+  defp error_message(:invalid_flag), do: "Usage: mix changelog.finalize <--major|--minor|--patch>"
   defp error_message(:invalid_version), do: "Could not parse current version from mix.exs"
-
   defp error_message(:empty_unreleased), do: "No entries in [Unreleased] section. Nothing to release."
-
   defp error_message(:no_unreleased), do: "No [Unreleased] section found in CHANGELOG.md"
   defp error_message(:no_changelog), do: "CHANGELOG.md not found"
-  defp error_message(:no_mix_exs), do: "mix.exs not found"
-  defp error_message(:version_not_found), do: "Could not find version field in mix.exs"
-
   defp error_message({output, code}) when is_binary(output), do: "Command failed (exit #{code}):\n#{output}"
-
   defp error_message(reason), do: "Unexpected error: #{inspect(reason)}"
 
   defp stderr(msg), do: IO.puts(:stderr, msg)

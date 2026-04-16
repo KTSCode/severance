@@ -15,7 +15,13 @@ defmodule Severance.MixProject do
         plt_file: {:no_warn, "priv/plts/project.plt"},
         plt_add_apps: [:mix]
       ],
-      usage_rules: [file: "AGENTS.md", usage_rules: []]
+      usage_rules: [file: "AGENTS.md", usage_rules: []],
+      versioning: [
+        tag_prefix: "v",
+        commit_msg: "v%s",
+        annotate: true,
+        annotation: "Release %s"
+      ]
     ]
   end
 
@@ -37,6 +43,7 @@ defmodule Severance.MixProject do
       {:excoveralls, "~> 0.18", only: :test},
       {:styler, "~> 1.11", only: [:dev, :test], runtime: false},
       {:mimic, "~> 2.3", only: :test},
+      {:mix_version, "~> 2.4", only: [:dev, :test], runtime: false},
       {:tidewave, "~> 0.5", only: :dev},
       {:bandit, "~> 1.0", only: :dev}
     ]
@@ -44,8 +51,33 @@ defmodule Severance.MixProject do
 
   defp aliases do
     [
+      tag: &tag_release/1,
       tidewave: "run --no-halt -e '{:ok, _} = Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4000) end)'"
     ]
+  end
+
+  defp tag_release(args) do
+    check_release_preconditions!()
+    Mix.Task.run("changelog.finalize", args)
+    Mix.Task.run("version", args)
+    {tag, 0} = System.cmd("git", ["describe", "--tags", "--abbrev=0"])
+    tag = String.trim(tag)
+    {_, 0} = System.cmd("git", ["push", "--atomic", "origin", "HEAD", tag])
+    Mix.shell().info("Tagged #{tag} and pushed. CI will handle the release.")
+  end
+
+  defp check_release_preconditions! do
+    {branch, 0} = System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"])
+    branch = String.trim(branch)
+    if branch != "main", do: Mix.raise("Must be on main branch (currently on #{branch})")
+
+    {status, 0} = System.cmd("git", ["status", "--porcelain"])
+    if status != "", do: Mix.raise("Uncommitted changes detected. Commit or stash them first.")
+
+    {_, 0} = System.cmd("git", ["fetch", "origin", "main"])
+    {local, 0} = System.cmd("git", ["rev-parse", "HEAD"])
+    {remote, 0} = System.cmd("git", ["rev-parse", "origin/main"])
+    if String.trim(local) != String.trim(remote), do: Mix.raise("Local main is behind or ahead of origin/main.")
   end
 
   defp releases do
