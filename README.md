@@ -209,7 +209,6 @@ Small, well-understood changes go straight to code. For anything larger:
       Shutdown:   17:00 (passed)
       Update:     up to date
       ```
-- [x] Set up ex_quality make sure it's running:
   ```sh 
   mix compile --warnings-as-errors
   mix cred --strict
@@ -218,6 +217,7 @@ Small, well-understood changes go straight to code. For anything larger:
   ```
 - [x] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 - [x] investigate why `mix todo --done` isn't getting called
+- [x] Investigate why the plist entry isn't starting `sev` on my machine
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
   - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings 
