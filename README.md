@@ -111,6 +111,7 @@ and checks tmux readiness. Safe to re-run.
 sev            # start the daemon
 sev status     # show daemon status and version info
 sev otp        # activate overtime protocol
+sev log        # print the activity log
 sev update     # update to latest release
 sev version    # print current version
 ```
@@ -136,12 +137,16 @@ The config file is a plain Elixir term:
 ```elixir
 %{
   shutdown_time: "17:00",
-  overtime_notifications: true
+  overtime_notifications: true,
+  log_file: "~/.local/state/severance/activity.log"
 }
 ```
 
 Set `overtime_notifications: false` to disable the notification burst when
 overtime is active or when starting after shutdown time.
+
+Set `log_file` to a custom path to change where the activity log is
+written. Defaults to `~/.local/state/severance/activity.log`.
 
 ## Development
 

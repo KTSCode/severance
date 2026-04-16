@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Activity log tracking daemon sessions and overtime protocol usage (`sev log` to view)
+- `log_file` configuration option for custom activity log location
 - Investigate why the plist entry isn't starting `sev` on my machine
 
 ### Fixed
