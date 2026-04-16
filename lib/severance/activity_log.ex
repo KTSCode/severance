@@ -38,6 +38,61 @@ defmodule Severance.ActivityLog do
     end
   end
 
+  @doc """
+  Logs a daemon started event. Stores the start time in Application env
+  for duration calculation when the daemon stops.
+  """
+  @spec log_started(String.t()) :: :ok
+  def log_started(log_file) do
+    now = local_now()
+    Application.put_env(:severance, :activity_log_started_at, now)
+    append(log_file, format_entry(:started, timestamp: now))
+  end
+
+  @doc """
+  Logs an overtime protocol activation event.
+  """
+  @spec log_overtime(String.t()) :: :ok
+  def log_overtime(log_file) do
+    append(log_file, format_entry(:overtime, timestamp: local_now()))
+  end
+
+  @doc """
+  Logs a daemon stopped event with session duration in minutes.
+
+  Duration is calculated from the start time stored by `log_started/1`.
+  If no start time is available (abnormal state), logs without duration.
+  """
+  @spec log_stopped(String.t()) :: :ok
+  def log_stopped(log_file) do
+    now = local_now()
+
+    opts =
+      case Application.get_env(:severance, :activity_log_started_at) do
+        nil ->
+          [timestamp: now]
+
+        started_at ->
+          duration = NaiveDateTime.diff(now, started_at, :minute)
+          [timestamp: now, duration_minutes: duration]
+      end
+
+    append(log_file, format_entry(:stopped, opts))
+  end
+
+  defp append(log_file, line) do
+    log_file |> Path.dirname() |> File.mkdir_p!()
+    File.write!(log_file, line <> "\n", [:append])
+    :ok
+  end
+
+  defp local_now do
+    case Application.get_env(:severance, :now_fn) do
+      nil -> NaiveDateTime.local_now()
+      fun -> fun.()
+    end
+  end
+
   defp format_timestamp(ndt) do
     Calendar.strftime(ndt, "%Y-%m-%dT%H:%M:%S")
   end
