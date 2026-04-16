@@ -218,15 +218,14 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 - [x] investigate why `mix todo --done` isn't getting called
 - [x] Investigate why the plist entry isn't starting `sev` on my machine
-- [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
-  - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
-  - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings 
-- [ ] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol 
-  - the log file location needs to be configurable in the config file
-- [ ] Fix: I had a bunch of sev processes running last time I did the update, there should only be one ever
-- [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [ ] Run `mix format` to apply styler rewrites across the codebase and review the changes
+- [ ] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol 
+  - the log file location needs to be configurable in the config file, but default to the standard log file location for applications whose config lives in ~/.config
+- [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [ ] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 - [ ] Make `sec <INVALID COMMAND>` error and not start severance
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
+- [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
+  - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
+  - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings 
