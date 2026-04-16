@@ -408,6 +408,14 @@ defmodule Mix.Tasks.TodoTest do
       assert commit_pos < done_pos
     end
 
+    test "instructs to push and create PR before waiting for review" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "gh pr create"
+      pr_pos = result |> :binary.match("gh pr create") |> elem(0)
+      wait_pos = result |> :binary.match("Stop and wait") |> elem(0)
+      assert pr_pos < wait_pos
+    end
+
     test "instructs to stop and wait for review before finalizing" do
       result = Todo.build_prompt("Fix bug", "# Readme")
       assert result =~ "Stop and wait for review"
@@ -438,21 +446,9 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "https://github.com/org/repo/pull/42"
     end
 
-    test "contains git status verification step" do
+    test "indicates PR was merged" do
       result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
-      assert result =~ "git status"
-      assert result =~ "untracked or unstaged"
-    end
-
-    test "contains CHANGELOG review instructions" do
-      result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
-      assert result =~ "CHANGELOG"
-      assert result =~ "Added"
-    end
-
-    test "instructs agent to rewrite entry as user-facing language" do
-      result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
-      assert result =~ "user-facing"
+      assert result =~ "merged"
     end
   end
 end

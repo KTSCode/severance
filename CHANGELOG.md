@@ -11,9 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `mix todo --done` prompt instructs the agent to rewrite raw TODO text as a user-facing changelog entry
 - `mix todo --done` propagates `.todo-current` deletion errors instead of silently swallowing them
 
+### Changed
+- `mix todo --done` finds and squash-merges the existing PR instead of creating one
+- `mix todo` start prompt tells the agent to push and create the PR, then wait for review
+
 ### Added
-- `mix todo --done` opens the PR in the browser after creation
-- investigate why `mix todo --done` isn't getting called
+- `mix todo --done` opens the merged PR in the browser
 
 ## [0.9.0] -- 2026-04-14
  - Added `mix bump` to update deps

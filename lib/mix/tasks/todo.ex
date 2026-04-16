@@ -172,7 +172,8 @@ defmodule Mix.Tasks.Todo do
     2. Read AGENTS.md and the codebase to understand conventions and patterns.
     3. Follow TDD: write a failing test first, then implement until it passes.
     4. Commit your changes. Quality checks run automatically on commit.
-    5. Stop and wait for review. When told to finalize, run `mix todo --done`.
+    5. Push your branch and open a PR with `gh pr create`.
+    6. Stop and wait for review. When told to finalize, run `mix todo --done`.
     """
   end
 
@@ -185,20 +186,7 @@ defmodule Mix.Tasks.Todo do
   @spec build_done_prompt(String.t(), String.t()) :: String.t()
   def build_done_prompt(_todo_text, pr_url) do
     """
-    TODO item completed. PR created: #{pr_url}
-
-    ## Remaining Steps
-
-    1. Run `git status` to verify all changes were committed. If any files
-       are untracked or unstaged, commit and push them.
-    2. Update the PR description using `gh pr edit #{pr_url} --body "..."`.
-       Follow the convention in AGENTS.md: summary and test plan above the
-       fold. If this work was based on an implementation plan, include the
-       full plan in a collapsed `<details>` block.
-    3. Review CHANGELOG.md — the entry was added under "### Added" as a
-       placeholder. Rewrite the entry text to be user-facing (it currently
-       contains the raw TODO text). Pick the correct category: Added,
-       Changed, Fixed, or Removed. Commit and push any changes.
+    TODO item completed. PR merged: #{pr_url}
     """
   end
 
@@ -236,7 +224,7 @@ defmodule Mix.Tasks.Todo do
          :ok <- write_changelog(root, todo_text),
          :ok <- git_commit(todo_text),
          :ok <- git_push(),
-         {:ok, pr_url} <- create_pr(todo_text),
+         {:ok, pr_url} <- find_pr(),
          :ok <- merge_pr(pr_url),
          :ok <- delete_current(root) do
       IO.write(build_done_prompt(todo_text, pr_url))
@@ -497,19 +485,10 @@ defmodule Mix.Tasks.Todo do
     end
   end
 
-  defp create_pr(todo_text) do
-    stderr("Creating pull request...")
-
-    with {:ok, output} <-
-           cmd("gh", [
-             "pr",
-             "create",
-             "--title",
-             todo_text,
-             "--body",
-             "Implements: #{todo_text}\n\n_Body to be filled in by the agent._"
-           ]) do
-      extract_pr_url(output)
+  defp find_pr do
+    case cmd("gh", ["pr", "view", "HEAD", "--json", "url", "-q", ".url"]) do
+      {:ok, url} -> {:ok, url}
+      _error -> {:error, :no_pr}
     end
   end
 
@@ -560,6 +539,11 @@ defmodule Mix.Tasks.Todo do
 
   defp handle_error({:error, :no_current}) do
     stderr("No .todo-current file found. Run `mix todo` first.")
+    exit({:shutdown, 1})
+  end
+
+  defp handle_error({:error, :no_pr}) do
+    stderr("No open PR found for this branch. Push and create one first.")
     exit({:shutdown, 1})
   end
 
