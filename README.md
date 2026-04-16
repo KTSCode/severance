@@ -206,27 +206,20 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-      ```
-      kylesanclemente:~❯ sev status
-      Severance v0.5.0
-      Status:     running
-      Overtime:   inactive
-      Shutdown:   17:00 (passed)
-      Update:     up to date
-      ```
-  ```sh 
-  mix compile --warnings-as-errors
-  mix cred --strict
-  mix test
-  mix dialyzer
-  ```
 - [x] Investigate why the plist entry isn't starting `sev` on my machine
 - [x] Run `mix format` to apply styler rewrites across the codebase and review the changes
 - [x] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol
   - the log file location needs to be configurable in the config file, but default to the standard log file location for applications whose config lives in ~/.config
 - [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [ ] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
-- [ ] Make `sec <INVALID COMMAND>` error and not start severance
+- [ ] Make `sev <INVALID COMMAND>` error and not start severance
+- [ ] Always update the tmux status line with how long is left before shutdown 
+  - change the text before the time from "shutdown" to "sev"
+  - examples:
+    - sev 10h
+    - when it gets to less than an hour go to minutes: sev 45m
+  - it should still follow the same pattern for the last half hour changing the color 
+  - the default color should be cyan until it changes 
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine

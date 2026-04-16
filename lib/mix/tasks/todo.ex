@@ -95,17 +95,22 @@ defmodule Mix.Tasks.Todo do
           end)
           |> Enum.map(fn {_line, idx} -> idx end)
 
-        to_remove =
+        to_remove_parents =
           if length(checked_indices) > 3 do
             Enum.take(checked_indices, length(checked_indices) - 3)
           else
             []
           end
 
+        to_remove =
+          to_remove_parents
+          |> Enum.flat_map(&Enum.to_list(child_range(lines, &1, end_idx)))
+          |> MapSet.new()
+
         result =
           lines
           |> Enum.with_index()
-          |> Enum.reject(fn {_line, idx} -> idx in to_remove end)
+          |> Enum.reject(fn {_line, idx} -> MapSet.member?(to_remove, idx) end)
           |> Enum.map_join("\n", fn {line, _idx} -> line end)
 
         {:ok, result}
@@ -255,6 +260,29 @@ defmodule Mix.Tasks.Todo do
     |> Enum.find_value(length(lines) - 1, fn {line, idx} ->
       if next_heading?(line), do: idx - 1
     end)
+  end
+
+  # Returns the inclusive range of indices covering a checked parent and its
+  # indented child lines (nested bullets, fenced code blocks, etc.). The run
+  # stops at the next checklist item, any heading, a blank line, or the end
+  # of the TODO section.
+  @spec child_range([String.t()], non_neg_integer(), non_neg_integer()) :: Range.t()
+  defp child_range(lines, parent_idx, section_end) do
+    last =
+      Enum.reduce_while((parent_idx + 1)..section_end//1, parent_idx, fn idx, acc ->
+        line = Enum.at(lines, idx)
+
+        cond do
+          is_nil(line) -> {:halt, acc}
+          line == "" -> {:halt, acc}
+          String.match?(line, ~r/^- \[[ x]\] /) -> {:halt, acc}
+          String.match?(line, ~r/^#+\s/) -> {:halt, acc}
+          String.match?(line, ~r/^\s/) -> {:cont, idx}
+          true -> {:halt, acc}
+        end
+      end)
+
+    parent_idx..last//1
   end
 
   defp replace_first_unchecked(lines, text, {start_idx, end_idx}) do

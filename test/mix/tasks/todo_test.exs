@@ -238,6 +238,120 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "- [x] Delta"
       assert result =~ "- [ ] Pending"
     end
+
+    test "removes indented bullet children along with checked parent" do
+      readme = """
+      ## TODO
+      - [x] One
+        - nested child of one
+      - [x] Two
+      - [x] Three
+      - [x] Four
+      - [ ] Pending
+      """
+
+      assert {:ok, result} = Todo.prune_checked_todos(readme)
+      refute result =~ "- [x] One"
+      refute result =~ "nested child of one"
+      assert result =~ "- [x] Two"
+      assert result =~ "- [x] Three"
+      assert result =~ "- [x] Four"
+      assert result =~ "- [ ] Pending"
+    end
+
+    test "removes indented fenced code block along with checked parent" do
+      readme = """
+      ## TODO
+      - [x] One
+        ```sh
+        mix compile
+        ```
+      - [x] Two
+      - [x] Three
+      - [x] Four
+      - [ ] Pending
+      """
+
+      assert {:ok, result} = Todo.prune_checked_todos(readme)
+      refute result =~ "- [x] One"
+      refute result =~ "mix compile"
+      refute result =~ "```"
+      assert result =~ "- [x] Two"
+      assert result =~ "- [ ] Pending"
+    end
+
+    test "child range stops at next top-level checklist item" do
+      readme = """
+      ## TODO
+      - [x] Alpha
+        - child of alpha
+      - [ ] Bravo
+      - [x] Charlie
+      - [x] Delta
+      - [x] Echo
+      """
+
+      assert {:ok, result} = Todo.prune_checked_todos(readme)
+      refute result =~ "- [x] Alpha"
+      refute result =~ "child of alpha"
+      assert result =~ "- [ ] Bravo"
+      assert result =~ "- [x] Charlie"
+      assert result =~ "- [x] Delta"
+      assert result =~ "- [x] Echo"
+    end
+
+    test "child range stops at blank line" do
+      readme = """
+      ## TODO
+      - [x] One
+        indented child
+
+        indented after blank
+      - [x] Two
+      - [x] Three
+      - [x] Four
+      - [ ] Pending
+      """
+
+      assert {:ok, result} = Todo.prune_checked_todos(readme)
+      refute result =~ "- [x] One"
+      refute result =~ "indented child"
+      assert result =~ "indented after blank"
+      assert result =~ "- [x] Two"
+    end
+
+    test "child range stops at next heading" do
+      readme = """
+      ## TODO
+      - [x] One
+        indented child of one
+      ### Subsection
+        indented under subsection
+      - [x] Two
+      - [x] Three
+      - [x] Four
+      - [ ] Pending
+      """
+
+      assert {:ok, result} = Todo.prune_checked_todos(readme)
+      refute result =~ "- [x] One"
+      refute result =~ "indented child of one"
+      assert result =~ "### Subsection"
+      assert result =~ "indented under subsection"
+      assert result =~ "- [x] Two"
+    end
+
+    test "does not remove indented lines outside the TODO section" do
+      readme =
+        "## Other\n- [x] Outside\n  indented under outside\n\n## TODO\n- [x] Alpha\n- [x] Bravo\n- [x] Charlie\n- [x] Delta\n- [ ] Pending\n"
+
+      assert {:ok, result} = Todo.prune_checked_todos(readme)
+      refute result =~ "- [x] Alpha"
+      assert result =~ "- [x] Outside"
+      assert result =~ "indented under outside"
+      assert result =~ "- [x] Bravo"
+      assert result =~ "- [ ] Pending"
+    end
   end
 
   describe "new_changelog/1" do
