@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
+
 ## [0.11.0] -- 2026-04-15
 
 ### Added

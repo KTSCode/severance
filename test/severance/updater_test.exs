@@ -479,96 +479,19 @@ defmodule Severance.UpdaterTest do
   end
 
   describe "fetch_latest_version/1" do
-    setup do
-      table = :severance_version_cache
-
-      if :ets.whereis(table) == :undefined do
-        :ets.new(table, [:named_table, :set, :public, read_concurrency: true])
-      else
-        :ets.delete_all_objects(table)
-      end
-
-      on_exit(fn ->
-        if :ets.whereis(table) != :undefined do
-          :ets.delete_all_objects(table)
-        end
-      end)
-
-      :ok
-    end
-
-    test "fetches from GitHub and caches result" do
+    test "returns latest version on successful fetch" do
       http_get = fn _url ->
         body = :json.encode(%{"tag_name" => "v99.0.0", "assets" => []})
         {:ok, IO.iodata_to_binary(body)}
       end
 
       assert {:ok, "99.0.0"} = Updater.fetch_latest_version(http_get: http_get)
-
-      [{:latest_version, "99.0.0", _ts}] =
-        :ets.lookup(:severance_version_cache, :latest_version)
     end
 
-    test "returns cached version when cache is fresh" do
-      now = System.system_time(:second)
-      :ets.insert(:severance_version_cache, {:latest_version, "1.2.3", now})
-
-      http_get = fn _url -> raise "should not be called" end
-
-      assert {:ok, "1.2.3"} = Updater.fetch_latest_version(http_get: http_get)
-    end
-
-    test "fetches fresh when cache is stale (older than 24h)" do
-      stale_ts = System.system_time(:second) - 25 * 60 * 60
-      :ets.insert(:severance_version_cache, {:latest_version, "1.0.0", stale_ts})
-
-      http_get = fn _url ->
-        body = :json.encode(%{"tag_name" => "v2.0.0", "assets" => []})
-        {:ok, IO.iodata_to_binary(body)}
-      end
-
-      assert {:ok, "2.0.0"} = Updater.fetch_latest_version(http_get: http_get)
-    end
-
-    test "returns stale cache on fetch failure" do
-      stale_ts = System.system_time(:second) - 25 * 60 * 60
-      :ets.insert(:severance_version_cache, {:latest_version, "1.0.0", stale_ts})
-
-      http_get = fn _url -> {:error, :nxdomain} end
-
-      assert {:ok, "1.0.0"} = Updater.fetch_latest_version(http_get: http_get)
-    end
-
-    test "returns error on fetch failure with no cache" do
+    test "returns error on fetch failure" do
       http_get = fn _url -> {:error, :nxdomain} end
 
       assert {:error, :nxdomain} = Updater.fetch_latest_version(http_get: http_get)
-    end
-  end
-
-  describe "create_cache_table/0" do
-    test "creates ETS table" do
-      table = :severance_version_cache
-
-      if :ets.whereis(table) != :undefined do
-        :ets.delete(table)
-      end
-
-      assert :ok = Updater.create_cache_table()
-      assert :ets.whereis(table) != :undefined
-
-      # Clean up
-      :ets.delete(table)
-    end
-
-    test "returns :already_exists when table exists" do
-      table = :severance_version_cache
-
-      if :ets.whereis(table) == :undefined do
-        :ets.new(table, [:named_table, :set, :public, read_concurrency: true])
-      end
-
-      assert :already_exists = Updater.create_cache_table()
     end
   end
 

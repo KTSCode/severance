@@ -242,8 +242,8 @@ defmodule Severance.CLI do
   @doc """
   Connects to the running daemon and prints status information.
 
-  Queries the daemon for countdown status and version cache. If the daemon
-  is not running, prints a minimal status with the local version.
+  Queries the daemon for countdown status and the latest version from GitHub.
+  If the daemon is not running, prints a minimal status with the local version.
 
   Returns `:ok` always — status is informational.
   """
