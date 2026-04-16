@@ -218,7 +218,7 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] add a `mix bump` task that prints out a prompt will all the information necessary or instructions on how to get the information necessary to upgrade deps and configuration of the application. I'll call it with `mix bump | claude`
 - [x] investigate why `mix todo --done` isn't getting called
 - [x] Investigate why the plist entry isn't starting `sev` on my machine
-- [ ] Run `mix format` to apply styler rewrites across the codebase and review the changes
+- [x] Run `mix format` to apply styler rewrites across the codebase and review the changes
 - [ ] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol 
   - the log file location needs to be configurable in the config file, but default to the standard log file location for applications whose config lives in ~/.config
 - [ ] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
