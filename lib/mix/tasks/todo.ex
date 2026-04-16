@@ -547,11 +547,6 @@ defmodule Mix.Tasks.Todo do
     exit({:shutdown, 1})
   end
 
-  defp handle_error({:error, :no_pr_url}) do
-    stderr("Could not extract PR URL from gh output")
-    exit({:shutdown, 1})
-  end
-
   defp handle_error({:error, {:delete_failed, reason}}) do
     stderr("Failed to delete .todo-current: #{reason}")
     exit({:shutdown, 1})
