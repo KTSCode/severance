@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.13.0] -- 2026-04-17
+
 ### Added
 
 - Make `sev <INVALID COMMAND>` error and not start severance
