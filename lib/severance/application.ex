@@ -54,8 +54,12 @@ defmodule Severance.Application do
   end
 
   defp dispatch({:error, message}) do
-    IO.puts(:stderr, message)
-    System.halt(1)
+    if burrito?() do
+      IO.puts(:stderr, message)
+      System.halt(1)
+    else
+      start_daemon()
+    end
   end
 
   defp dispatch(:start) do

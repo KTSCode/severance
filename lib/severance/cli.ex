@@ -22,11 +22,12 @@ defmodule Severance.CLI do
   @doc """
   Parses command-line arguments into an action atom.
 
-  Returns `:start` for no args, `start` subcommand, or unrecognized args.
+  Returns `:start` for no args or the `start` subcommand.
   Returns `{:start, opts}` when options like `--shutdown-time` are provided.
   Returns `:daemon` or `{:daemon, opts}` for the internal `--daemon` flag.
   Returns `:overtime`, `:status`, `:init`, `:update`, or
   `:version` for their respective subcommands.
+  Returns `{:error, message}` for unrecognized commands or invalid options.
 
   ## Examples
 
@@ -43,7 +44,7 @@ defmodule Severance.CLI do
       :overtime
 
       iex> Severance.CLI.parse_args(["something-else"])
-      :start
+      {:error, "Unknown command: something-else"}
   """
   @type parse_args_result ::
           :start
@@ -93,7 +94,8 @@ defmodule Severance.CLI do
     end
   end
 
-  def parse_args(_args), do: :start
+  def parse_args([]), do: :start
+  def parse_args([cmd | _rest]), do: {:error, "Unknown command: #{cmd}"}
 
   @doc """
   Starts the daemon as a detached background process.
