@@ -182,6 +182,23 @@ git config core.hooksPath .githooks
 
 The pre-commit hook runs `mix quality --quick` before each commit.
 
+### Releasing
+
+From `main`, with a clean worktree synced with origin:
+
+```bash
+mix tag --major   # bump major version (e.g. 0.11.0 -> 1.0.0)
+mix tag --minor   # bump minor version (e.g. 0.11.0 -> 0.12.0)
+mix tag --patch   # bump patch version (e.g. 0.11.0 -> 0.11.1)
+```
+
+This orchestrates the full release:
+
+1. Shows the `[Unreleased]` changelog entries and prompts for confirmation
+1. Finalizes `CHANGELOG.md` under the new version heading and commits it
+1. Bumps the version in `mix.exs`, commits, and creates an annotated tag
+1. Pushes the commits and tag atomically to trigger the CI release workflow
+
 ### AI-assisted workflow
 
 This project is set up for AI-assisted development. Each coding session
@@ -210,7 +227,7 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] add log file functionality that keeps track of how long you're sev has been running, and usage of overtime protocol
   - the log file location needs to be configurable in the config file, but default to the standard log file location for applications whose config lives in ~/.config
 - [x] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
-- [ ] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
+- [x] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 - [ ] Make `sev <INVALID COMMAND>` error and not start severance
 - [ ] Always update the tmux status line with how long is left before shutdown 
   - change the text before the time from "shutdown" to "sev"
