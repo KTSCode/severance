@@ -28,14 +28,17 @@ defmodule Mix.Tasks.Changelog.Finalize do
 
       iex> Mix.Tasks.Changelog.Finalize.parse_bump_flag([])
       {:error, :invalid_flag}
+
+      iex> Mix.Tasks.Changelog.Finalize.parse_bump_flag(["--major", "--patch"])
+      {:error, :invalid_flag}
   """
   @spec parse_bump_flag([String.t()]) :: {:ok, :major | :minor | :patch} | {:error, :invalid_flag}
   def parse_bump_flag(args) do
-    cond do
-      "--major" in args -> {:ok, :major}
-      "--minor" in args -> {:ok, :minor}
-      "--patch" in args -> {:ok, :patch}
-      true -> {:error, :invalid_flag}
+    case args do
+      ["--major"] -> {:ok, :major}
+      ["--minor"] -> {:ok, :minor}
+      ["--patch"] -> {:ok, :patch}
+      _ -> {:error, :invalid_flag}
     end
   end
 

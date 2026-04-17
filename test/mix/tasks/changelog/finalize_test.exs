@@ -23,6 +23,14 @@ defmodule Mix.Tasks.Changelog.FinalizeTest do
     test "returns error for empty args" do
       assert {:error, :invalid_flag} = Finalize.parse_bump_flag([])
     end
+
+    test "returns error for multiple conflicting bump flags" do
+      assert {:error, :invalid_flag} = Finalize.parse_bump_flag(["--major", "--patch"])
+    end
+
+    test "returns error for bump flag with unsupported extra arg" do
+      assert {:error, :invalid_flag} = Finalize.parse_bump_flag(["--patch", "--unknown"])
+    end
   end
 
   describe "bump_version/2" do
