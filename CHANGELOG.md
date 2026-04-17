@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Make `sev <INVALID COMMAND>` error and not start severance
+
 ### Changed
 
 - `sev <unknown command>` now prints an error and exits with a non-zero status instead of starting the daemon
