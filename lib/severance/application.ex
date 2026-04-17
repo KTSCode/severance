@@ -17,7 +17,11 @@ defmodule Severance.Application do
 
   @impl true
   def start(_type, _args) do
-    cli_argv() |> CLI.parse_args() |> dispatch()
+    if burrito?() do
+      cli_argv() |> CLI.parse_args() |> dispatch()
+    else
+      start_daemon()
+    end
   end
 
   @spec dispatch(CLI.parse_args_result()) :: {:ok, pid()}
