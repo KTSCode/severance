@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
+- `mix tag --patch/--minor/--major` now delegates version bumping and tagging to `mix_version`, with changelog finalization extracted into `mix changelog.finalize`
+- Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 
 ## [0.11.0] -- 2026-04-15
 

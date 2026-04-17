@@ -1,56 +1,61 @@
-defmodule Mix.Tasks.TagTest do
+defmodule Mix.Tasks.Changelog.FinalizeTest do
   use ExUnit.Case, async: true
 
-  alias Mix.Tasks.Tag
+  alias Mix.Tasks.Changelog.Finalize
 
-  doctest Tag
-
-  describe "bump_version/2" do
-    test "bumps major version" do
-      assert {:ok, "1.0.0"} = Tag.bump_version("0.1.0", :maj)
+  describe "parse_bump_flag/1" do
+    test "parses --major" do
+      assert {:ok, :major} = Finalize.parse_bump_flag(["--major"])
     end
 
-    test "bumps minor version" do
-      assert {:ok, "0.2.0"} = Tag.bump_version("0.1.0", :min)
+    test "parses --minor" do
+      assert {:ok, :minor} = Finalize.parse_bump_flag(["--minor"])
     end
 
-    test "bumps patch version" do
-      assert {:ok, "0.1.1"} = Tag.bump_version("0.1.0", :pat)
+    test "parses --patch" do
+      assert {:ok, :patch} = Finalize.parse_bump_flag(["--patch"])
     end
 
-    test "major resets minor and patch" do
-      assert {:ok, "2.0.0"} = Tag.bump_version("1.3.5", :maj)
+    test "returns error for unknown flag" do
+      assert {:error, :invalid_flag} = Finalize.parse_bump_flag(["--invalid"])
     end
 
-    test "minor resets patch" do
-      assert {:ok, "1.4.0"} = Tag.bump_version("1.3.5", :min)
+    test "returns error for empty args" do
+      assert {:error, :invalid_flag} = Finalize.parse_bump_flag([])
     end
 
-    test "returns error for invalid version" do
-      assert {:error, :invalid_version} = Tag.bump_version("not.a.version", :min)
+    test "returns error for multiple conflicting bump flags" do
+      assert {:error, :invalid_flag} = Finalize.parse_bump_flag(["--major", "--patch"])
+    end
+
+    test "returns error for bump flag with unsupported extra arg" do
+      assert {:error, :invalid_flag} = Finalize.parse_bump_flag(["--patch", "--unknown"])
     end
   end
 
-  describe "update_version_in_mix/2" do
-    test "replaces version string in mix.exs content" do
-      mix_content = ~S|version: "0.1.0",|
-      assert {:ok, result} = Tag.update_version_in_mix(mix_content, "0.2.0")
-      assert result =~ ~S|version: "0.2.0"|
+  describe "bump_version/2" do
+    test "bumps major version" do
+      assert {:ok, "1.0.0"} = Finalize.bump_version("0.1.0", :major)
     end
 
-    test "only replaces in version field, not elsewhere" do
-      mix_content = """
-      version: "0.1.0",
-      elixir: "~> 1.19",
-      """
-
-      assert {:ok, result} = Tag.update_version_in_mix(mix_content, "0.2.0")
-      assert result =~ ~S|version: "0.2.0"|
-      assert result =~ ~S|elixir: "~> 1.19"|
+    test "bumps minor version" do
+      assert {:ok, "0.2.0"} = Finalize.bump_version("0.1.0", :minor)
     end
 
-    test "returns error when version field not found" do
-      assert {:error, :version_not_found} = Tag.update_version_in_mix("no version here", "1.0.0")
+    test "bumps patch version" do
+      assert {:ok, "0.1.1"} = Finalize.bump_version("0.1.0", :patch)
+    end
+
+    test "major resets minor and patch" do
+      assert {:ok, "2.0.0"} = Finalize.bump_version("1.3.5", :major)
+    end
+
+    test "minor resets patch" do
+      assert {:ok, "1.4.0"} = Finalize.bump_version("1.3.5", :minor)
+    end
+
+    test "returns error for invalid version" do
+      assert {:error, :invalid_version} = Finalize.bump_version("not.a.version", :minor)
     end
   end
 
@@ -77,7 +82,7 @@ defmodule Mix.Tasks.TagTest do
       - Initial release
       """
 
-      assert {:ok, entries} = Tag.unreleased_entries(changelog)
+      assert {:ok, entries} = Finalize.unreleased_entries(changelog)
       assert entries =~ "### Added"
       assert entries =~ "- Feature one"
       assert entries =~ "- Bug fix one"
@@ -97,14 +102,14 @@ defmodule Mix.Tasks.TagTest do
       - Initial release
       """
 
-      assert {:error, :empty_unreleased} = Tag.unreleased_entries(changelog)
+      assert {:error, :empty_unreleased} = Finalize.unreleased_entries(changelog)
     end
 
     test "returns error when unreleased section has only headings" do
       changelog =
         "# Changelog\n\n## [Unreleased]\n\n### Added\n\n### Fixed\n\n## [0.1.0] -- 2026-03-29\n"
 
-      assert {:error, :empty_unreleased} = Tag.unreleased_entries(changelog)
+      assert {:error, :empty_unreleased} = Finalize.unreleased_entries(changelog)
     end
 
     test "returns error when no unreleased section exists" do
@@ -118,7 +123,7 @@ defmodule Mix.Tasks.TagTest do
       - Initial release
       """
 
-      assert {:error, :no_unreleased} = Tag.unreleased_entries(changelog)
+      assert {:error, :no_unreleased} = Finalize.unreleased_entries(changelog)
     end
   end
 
@@ -140,7 +145,7 @@ defmodule Mix.Tasks.TagTest do
       - Initial release
       """
 
-      result = Tag.finalize_changelog(changelog, "0.2.0", "2026-04-01")
+      result = Finalize.finalize_changelog(changelog, "0.2.0", "2026-04-01")
       assert result =~ "## [Unreleased]"
       assert result =~ "## [0.2.0] -- 2026-04-01"
       assert result =~ "- Feature one"
@@ -160,7 +165,7 @@ defmodule Mix.Tasks.TagTest do
       ## [0.1.0] -- 2026-03-29
       """
 
-      result = Tag.finalize_changelog(changelog, "0.2.0", "2026-04-01")
+      result = Finalize.finalize_changelog(changelog, "0.2.0", "2026-04-01")
       lines = String.split(result, "\n")
       unreleased_idx = Enum.find_index(lines, &(&1 == "## [Unreleased]"))
       version_idx = Enum.find_index(lines, &(&1 =~ "## [0.2.0]"))
@@ -191,28 +196,10 @@ defmodule Mix.Tasks.TagTest do
       ## [0.1.0] -- 2026-03-29
       """
 
-      result = Tag.finalize_changelog(changelog, "0.2.0", "2026-04-01")
+      result = Finalize.finalize_changelog(changelog, "0.2.0", "2026-04-01")
       assert result =~ "## [0.2.0] -- 2026-04-01"
       assert result =~ "### Added\n\n- New thing"
       assert result =~ "### Fixed\n\n- Bug fix"
-    end
-  end
-
-  describe "parse_component/1" do
-    test "parses maj" do
-      assert {:ok, :maj} = Tag.parse_component("maj")
-    end
-
-    test "parses min" do
-      assert {:ok, :min} = Tag.parse_component("min")
-    end
-
-    test "parses pat" do
-      assert {:ok, :pat} = Tag.parse_component("pat")
-    end
-
-    test "returns error for unknown component" do
-      assert {:error, :invalid_component} = Tag.parse_component("major")
     end
   end
 end
