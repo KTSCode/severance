@@ -4,19 +4,26 @@ defmodule Severance.Tmux do
   stale pane detection.
   """
 
+  # Matches the exact banner prefix emitted by `countdown_status/3`.
+  # Anchored to the start of the string so unrelated user widgets
+  # whose text happens to contain `sev:` are not mistaken for the
+  # daemon's own banner.
+  @sev_prefix_regex ~r/\A#\[fg=colour\d+,bold(?:,blink)?\] sev:\S+ #\[default\]/
+
   @doc """
   Reads the current tmux global `status-right` value.
 
-  Returns an empty string when tmux is unavailable (e.g. no server has
-  been started yet). Severance runs as a LaunchAgent that boots before
-  the user opens a tmux session, so the daemon must not crash simply
-  because `tmux show-option` exits nonzero.
+  Returns `:error` when tmux is unavailable (e.g. no server has been
+  started yet). Severance runs as a LaunchAgent that boots before the
+  user opens a tmux session, so callers must distinguish "no tmux
+  server" from "tmux server with an empty status-right" instead of
+  treating both as the empty string.
   """
-  @spec capture_status_right() :: String.t()
+  @spec capture_status_right() :: {:ok, String.t()} | :error
   def capture_status_right do
     case system().tmux_cmd(["show-option", "-gv", "status-right"]) do
-      {output, 0} -> String.trim(output)
-      _ -> ""
+      {output, 0} -> {:ok, String.trim(output)}
+      _ -> :error
     end
   end
 
@@ -24,20 +31,13 @@ defmodule Severance.Tmux do
   Removes the Severance `sev:` banner prefix from a captured
   `status-right` value.
 
-  When the daemon restarts, or the countdown transitions out of the
-  waiting phase, we need to recover the user's true `status-right`
-  rather than the value we just wrote into it. This strips any banner
-  that matches the pattern produced by `countdown_status/3`.
+  Only strips when the string begins with the exact banner pattern
+  produced by `countdown_status/3`. User widgets that merely contain
+  the substring `sev:` are left untouched.
   """
   @spec strip_sev_prefix(String.t()) :: String.t()
   def strip_sev_prefix(status) do
-    case String.split(status, "#[default]", parts: 2) do
-      [prefix, rest] ->
-        if String.contains?(prefix, "sev:"), do: rest, else: status
-
-      _ ->
-        status
-    end
+    Regex.replace(@sev_prefix_regex, status, "")
   end
 
   @doc """

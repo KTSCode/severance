@@ -253,9 +253,10 @@ defmodule Severance.CountdownTest do
       end)
     end
 
-    test "survives init when tmux command fails" do
-      # This simulates the daemon starting at login before any tmux server exists.
-      # capture_status_right must not crash the GenServer.
+    test "survives init when tmux command fails and leaves original unset" do
+      # Daemon starts at login before any tmux server exists. capture must
+      # not crash the GenServer, and original_tmux_status must stay nil
+      # so a later restore does not wipe the user's real status-right.
       future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
 
       original_adapter = Application.get_env(:severance, :system_adapter)
@@ -276,7 +277,7 @@ defmodule Severance.CountdownTest do
         assert Process.alive?(pid)
         state = :sys.get_state(pid)
         assert state.phase == :waiting
-        assert state.original_tmux_status == ""
+        assert state.original_tmux_status == nil
       end)
     end
   end
@@ -468,7 +469,7 @@ defmodule Severance.CountdownTest do
     receive do
       {:tmux_cmd, _} -> drain_tmux()
     after
-      0 -> :ok
+      20 -> :ok
     end
   end
 end

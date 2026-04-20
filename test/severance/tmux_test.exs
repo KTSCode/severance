@@ -104,7 +104,7 @@ defmodule Severance.TmuxTest do
   end
 
   describe "capture_status_right/0" do
-    test "returns empty string when tmux command exits nonzero" do
+    test "returns :error when tmux command exits nonzero" do
       original = Application.get_env(:severance, :system_adapter)
       Application.put_env(:severance, :system_adapter, FailingSystem)
 
@@ -116,12 +116,17 @@ defmodule Severance.TmuxTest do
         end
       end)
 
-      assert Tmux.capture_status_right() == ""
+      assert Tmux.capture_status_right() == :error
+    end
+
+    test "returns {:ok, value} when tmux command succeeds" do
+      # Default test adapter returns {"", 0}
+      assert Tmux.capture_status_right() == {:ok, ""}
     end
   end
 
   describe "strip_sev_prefix/1" do
-    test "strips the sev banner prefix and returns the original status" do
+    test "strips a waiting-phase sev banner and returns the original status" do
       wrapped = "#[fg=colour51,bold] sev:5h12m #[default]original"
       assert Tmux.strip_sev_prefix(wrapped) == "original"
     end
@@ -138,6 +143,18 @@ defmodule Severance.TmuxTest do
 
     test "leaves strings with #[default] but no sev banner untouched" do
       raw = "#[fg=green]branch#[default] | #S"
+      assert Tmux.strip_sev_prefix(raw) == raw
+    end
+
+    test "leaves user widgets that merely contain sev: untouched" do
+      # User has their own widget whose text happens to contain "sev:".
+      # Must not be treated as Severance's banner.
+      raw = "#[fg=green]sev:prod#[default] | %H:%M"
+      assert Tmux.strip_sev_prefix(raw) == raw
+    end
+
+    test "only strips at the start of the string" do
+      raw = "leading #[fg=colour51,bold] sev:5h12m #[default]original"
       assert Tmux.strip_sev_prefix(raw) == raw
     end
 
