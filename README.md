@@ -24,9 +24,10 @@ countdown:
 
 | Phase | Window | Interval | Tmux Status |
 |---|---|---|---|
-| Gentle | T-30 to T-15 | Every 5 min | Yellow `SHUTDOWN:Xm` |
-| Aggressive | T-15 to T-5 | Every 2 min | Red blinking `SHUTDOWN:Xm` |
-| Final | T-5 to T-0 | Every 1 min | Red blinking `SHUTDOWN:Xm` |
+| Waiting | Until T-30 | Every 1 min | Cyan `sev:Xh[Ym]` / `sev:Ym` |
+| Gentle | T-30 to T-15 | Every 5 min | Yellow `sev:Xm` |
+| Aggressive | T-15 to T-5 | Every 2 min | Red blinking `sev:Xm` |
+| Final | T-5 to T-0 | Every 1 min | Red blinking `sev:Xm` |
 | Shutdown | T-0 | Machine powers off | — |
 
 At T-15, Severance checks all tmux panes for activity. Any pane idle for
@@ -226,13 +227,15 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [x] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 - [x] Make `sev <INVALID COMMAND>` error and not start severance
-- [ ] Always update the tmux status line with how long is left before shutdown 
+- [ ] Always update the tmux status line with how long is left before shutdown
   - change the text before the time from "shutdown" to "sev"
+  - show both hours and minutes when both are nonzero
   - examples:
-    - sev 10h
-    - when it gets to less than an hour go to minutes: sev 45m
-  - it should still follow the same pattern for the last half hour changing the color 
-  - the default color should be cyan until it changes 
+    - `sev:5h12m`
+    - exact hour boundary drops the minutes: `sev:10h`
+    - under an hour shows minutes only: `sev:45m`
+  - it should still follow the same pattern for the last half hour changing the color
+  - the default color should be cyan until it changes
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine

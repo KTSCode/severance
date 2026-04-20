@@ -45,17 +45,27 @@ defmodule Severance.Tmux do
         :final -> {"colour196", ",blink"}
       end
 
-    "#[fg=#{color},bold#{extra}] sev #{format_remaining(minutes_left)} #[default]#{original_status}"
+    "#[fg=#{color},bold#{extra}] sev:#{format_remaining(minutes_left)} #[default]#{original_status}"
   end
 
   @doc """
   Formats the time remaining until shutdown as a short tmux-friendly
-  string. Returns whole hours (e.g. `"10h"`) when at or above one hour,
-  otherwise minutes (e.g. `"45m"`). Partial hours round down.
+  string. Combines hours and minutes when both are nonzero
+  (e.g. `"5h12m"`), drops minutes on exact hour boundaries
+  (e.g. `"2h"`), and shows minutes only when under one hour
+  (e.g. `"45m"`).
   """
   @spec format_remaining(non_neg_integer()) :: String.t()
-  def format_remaining(minutes) when minutes >= 60, do: "#{div(minutes, 60)}h"
-  def format_remaining(minutes), do: "#{minutes}m"
+  def format_remaining(minutes) do
+    hours = div(minutes, 60)
+    mins = rem(minutes, 60)
+
+    cond do
+      hours == 0 -> "#{mins}m"
+      mins == 0 -> "#{hours}h"
+      true -> "#{hours}h#{mins}m"
+    end
+  end
 
   @doc """
   Queries tmux for all panes and returns those with no activity
