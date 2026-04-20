@@ -6,11 +6,38 @@ defmodule Severance.Tmux do
 
   @doc """
   Reads the current tmux global `status-right` value.
+
+  Returns an empty string when tmux is unavailable (e.g. no server has
+  been started yet). Severance runs as a LaunchAgent that boots before
+  the user opens a tmux session, so the daemon must not crash simply
+  because `tmux show-option` exits nonzero.
   """
   @spec capture_status_right() :: String.t()
   def capture_status_right do
-    {output, 0} = system().tmux_cmd(["show-option", "-gv", "status-right"])
-    String.trim(output)
+    case system().tmux_cmd(["show-option", "-gv", "status-right"]) do
+      {output, 0} -> String.trim(output)
+      _ -> ""
+    end
+  end
+
+  @doc """
+  Removes the Severance `sev:` banner prefix from a captured
+  `status-right` value.
+
+  When the daemon restarts, or the countdown transitions out of the
+  waiting phase, we need to recover the user's true `status-right`
+  rather than the value we just wrote into it. This strips any banner
+  that matches the pattern produced by `countdown_status/3`.
+  """
+  @spec strip_sev_prefix(String.t()) :: String.t()
+  def strip_sev_prefix(status) do
+    case String.split(status, "#[default]", parts: 2) do
+      [prefix, rest] ->
+        if String.contains?(prefix, "sev:"), do: rest, else: status
+
+      _ ->
+        status
+    end
   end
 
   @doc """

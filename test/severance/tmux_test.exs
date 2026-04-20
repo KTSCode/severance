@@ -1,7 +1,21 @@
 defmodule Severance.TmuxTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Severance.Tmux
+
+  defmodule FailingSystem do
+    @moduledoc false
+    @behaviour Severance.System
+
+    @impl true
+    def notify(_title, _message, _sound), do: :ok
+
+    @impl true
+    def shutdown_machine, do: :ok
+
+    @impl true
+    def tmux_cmd(_args), do: {"no server running", 1}
+  end
 
   describe "parse_stale_panes/2" do
     test "returns panes with activity older than threshold" do
@@ -86,6 +100,49 @@ defmodule Severance.TmuxTest do
     test "returns red blinking prefix for final phase" do
       result = Tmux.countdown_status(3, :final, "original")
       assert result == "#[fg=colour196,bold,blink] sev:3m #[default]original"
+    end
+  end
+
+  describe "capture_status_right/0" do
+    test "returns empty string when tmux command exits nonzero" do
+      original = Application.get_env(:severance, :system_adapter)
+      Application.put_env(:severance, :system_adapter, FailingSystem)
+
+      on_exit(fn ->
+        if original do
+          Application.put_env(:severance, :system_adapter, original)
+        else
+          Application.delete_env(:severance, :system_adapter)
+        end
+      end)
+
+      assert Tmux.capture_status_right() == ""
+    end
+  end
+
+  describe "strip_sev_prefix/1" do
+    test "strips the sev banner prefix and returns the original status" do
+      wrapped = "#[fg=colour51,bold] sev:5h12m #[default]original"
+      assert Tmux.strip_sev_prefix(wrapped) == "original"
+    end
+
+    test "strips the escalation blinking prefix" do
+      wrapped = "#[fg=colour196,bold,blink] sev:3m #[default]#S | %H:%M"
+      assert Tmux.strip_sev_prefix(wrapped) == "#S | %H:%M"
+    end
+
+    test "leaves unrelated strings untouched" do
+      raw = "#S | %Y-%m-%d %H:%M"
+      assert Tmux.strip_sev_prefix(raw) == raw
+    end
+
+    test "leaves strings with #[default] but no sev banner untouched" do
+      raw = "#[fg=green]branch#[default] | #S"
+      assert Tmux.strip_sev_prefix(raw) == raw
+    end
+
+    test "handles empty input" do
+      assert Tmux.strip_sev_prefix("") == ""
     end
   end
 

@@ -122,9 +122,8 @@ defmodule Severance.Countdown do
 
   @impl true
   def init({shutdown_time, mode}) do
-    original_status = Tmux.capture_status_right()
-    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode, original_tmux_status: original_status}
-    refresh_waiting_status(state)
+    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode, original_tmux_status: ""}
+    state = refresh_waiting_status(state)
     schedule_countdown_start(state)
     {:ok, state}
   end
@@ -155,13 +154,15 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info(:start_countdown, state) do
-    state = %{state | phase: :gentle}
+    state = %{state | phase: :gentle, original_tmux_status: fresh_original_status()}
     tick()
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:late_start, state) do
+    state = %{state | original_tmux_status: fresh_original_status()}
+
     case effective_mode(state) do
       :severance ->
         handle_shutdown(state)
@@ -229,16 +230,17 @@ defmodule Severance.Countdown do
       past_shutdown?(state.shutdown_time) ->
         Logger.info("Started after shutdown time.")
         send(self(), :late_start)
+        {:noreply, state}
 
       ms_until_countdown_start(state.shutdown_time) <= 0 ->
         send(self(), :start_countdown)
+        {:noreply, state}
 
       true ->
-        refresh_waiting_status(state)
+        state = refresh_waiting_status(state)
         Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
+        {:noreply, state}
     end
-
-    {:noreply, state}
   end
 
   @impl true
@@ -247,8 +249,12 @@ defmodule Severance.Countdown do
   end
 
   @impl true
-  def terminate(reason, _state) do
+  def terminate(reason, state) do
     if normal_shutdown?(reason) do
+      if state.phase != :done and state.original_tmux_status do
+        Tmux.set_status_right(state.original_tmux_status)
+      end
+
       log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
       ActivityLog.log_stopped(log_file)
     end
@@ -312,10 +318,16 @@ defmodule Severance.Countdown do
     minutes_left = minutes_remaining(state.shutdown_time)
 
     if minutes_left > 0 do
-      Tmux.set_status_right(Tmux.countdown_status(minutes_left, :waiting, state.original_tmux_status))
+      base = fresh_original_status()
+      Tmux.set_status_right(Tmux.countdown_status(minutes_left, :waiting, base))
+      %{state | original_tmux_status: base}
+    else
+      state
     end
+  end
 
-    :ok
+  defp fresh_original_status do
+    Tmux.strip_sev_prefix(Tmux.capture_status_right())
   end
 
   defp minutes_remaining(shutdown_time) do

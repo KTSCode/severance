@@ -5,6 +5,27 @@ defmodule Severance.CountdownTest do
 
   alias Severance.Countdown
 
+  defmodule RecordingSystem do
+    @moduledoc false
+    @behaviour Severance.System
+
+    @impl true
+    def notify(_title, _message, _sound), do: :ok
+
+    @impl true
+    def shutdown_machine, do: :ok
+
+    @impl true
+    def tmux_cmd(args) do
+      case Application.get_env(:severance, :tmux_recorder) do
+        nil -> :ok
+        pid when is_pid(pid) -> send(pid, {:tmux_cmd, args})
+      end
+
+      {"", 0}
+    end
+  end
+
   @frozen_now ~N[2026-04-09 10:00:00]
 
   setup do
@@ -231,6 +252,101 @@ defmodule Severance.CountdownTest do
         assert state.original_tmux_status == ""
       end)
     end
+
+    test "survives init when tmux command fails" do
+      # This simulates the daemon starting at login before any tmux server exists.
+      # capture_status_right must not crash the GenServer.
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      original_adapter = Application.get_env(:severance, :system_adapter)
+      Application.put_env(:severance, :system_adapter, Severance.TmuxTest.FailingSystem)
+
+      on_exit(fn ->
+        if original_adapter do
+          Application.put_env(:severance, :system_adapter, original_adapter)
+        else
+          Application.delete_env(:severance, :system_adapter)
+        end
+      end)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        assert Process.alive?(pid)
+        state = :sys.get_state(pid)
+        assert state.phase == :waiting
+        assert state.original_tmux_status == ""
+      end)
+    end
+  end
+
+  describe "terminate cleanup" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "severance_term_#{System.unique_integer([:positive])}")
+      log_file = Path.join(dir, "activity.log")
+      Application.put_env(:severance, :log_file, log_file)
+
+      original_adapter = Application.get_env(:severance, :system_adapter)
+      Application.put_env(:severance, :system_adapter, Severance.CountdownTest.RecordingSystem)
+      Application.put_env(:severance, :tmux_recorder, self())
+
+      on_exit(fn ->
+        Application.delete_env(:severance, :log_file)
+        Application.delete_env(:severance, :activity_log_started_at)
+        Application.delete_env(:severance, :tmux_recorder)
+
+        if original_adapter do
+          Application.put_env(:severance, :system_adapter, original_adapter)
+        else
+          Application.delete_env(:severance, :system_adapter)
+        end
+
+        File.rm_rf!(dir)
+      end)
+
+      %{log_file: log_file}
+    end
+
+    test "restores original status-right when stopped during waiting phase" do
+      Application.put_env(:severance, :activity_log_started_at, @frozen_now)
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | original_tmux_status: "MY-ORIGINAL"}
+        end)
+
+        GenServer.stop(pid)
+        Process.sleep(50)
+
+        assert_received {:tmux_cmd, ["set-option", "-g", "status-right", "MY-ORIGINAL"]}
+      end)
+    end
+
+    test "does not touch tmux when terminating after handle_shutdown already restored" do
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | original_tmux_status: "MY-ORIGINAL", phase: :done}
+        end)
+
+        # Drain any pending tmux_cmd messages from init
+        drain_tmux()
+
+        GenServer.stop(pid)
+        Process.sleep(50)
+
+        refute_received {:tmux_cmd, ["set-option", "-g", "status-right", "MY-ORIGINAL"]}
+      end)
+    end
   end
 
   describe "check_countdown_start poll" do
@@ -345,6 +461,14 @@ defmodule Severance.CountdownTest do
       Process.sleep(50)
 
       refute File.exists?(log_file)
+    end
+  end
+
+  defp drain_tmux do
+    receive do
+      {:tmux_cmd, _} -> drain_tmux()
+    after
+      0 -> :ok
     end
   end
 end
