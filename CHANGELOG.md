@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Tmux status bar now always shows time until shutdown. Outside the escalation window it displays a cyan `sev Xh`/`sev Xm` prefix; the last 30 minutes keep the existing yellow → red blinking escalation but use the shorter `sev` label instead of `SHUTDOWN:`
+
 ## [0.13.0] -- 2026-04-17
 
 ### Added

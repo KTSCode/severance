@@ -122,7 +122,9 @@ defmodule Severance.Countdown do
 
   @impl true
   def init({shutdown_time, mode}) do
-    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode}
+    original_status = Tmux.capture_status_right()
+    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode, original_tmux_status: original_status}
+    refresh_waiting_status(state)
     schedule_countdown_start(state)
     {:ok, state}
   end
@@ -153,17 +155,13 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info(:start_countdown, state) do
-    original_status = Tmux.capture_status_right()
-    state = %{state | original_tmux_status: original_status, phase: :gentle}
+    state = %{state | phase: :gentle}
     tick()
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:late_start, state) do
-    original_status = Tmux.capture_status_right()
-    state = %{state | original_tmux_status: original_status}
-
     case effective_mode(state) do
       :severance ->
         handle_shutdown(state)
@@ -174,7 +172,7 @@ defmodule Severance.Countdown do
           Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
           {:noreply, state}
         else
-          Tmux.set_status_right(original_status)
+          Tmux.set_status_right(state.original_tmux_status)
           {:noreply, %{state | phase: :done}}
         end
     end
@@ -236,6 +234,7 @@ defmodule Severance.Countdown do
         send(self(), :start_countdown)
 
       true ->
+        refresh_waiting_status(state)
         Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
     end
 
@@ -307,6 +306,16 @@ defmodule Severance.Countdown do
     else
       state.mode
     end
+  end
+
+  defp refresh_waiting_status(state) do
+    minutes_left = minutes_remaining(state.shutdown_time)
+
+    if minutes_left > 0 do
+      Tmux.set_status_right(Tmux.countdown_status(minutes_left, :waiting, state.original_tmux_status))
+    end
+
+    :ok
   end
 
   defp minutes_remaining(shutdown_time) do

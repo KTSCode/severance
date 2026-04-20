@@ -24,20 +24,38 @@ defmodule Severance.Tmux do
 
   @doc """
   Builds the countdown status string for a given phase.
-  Prepends a colored prefix to the original status.
+  Prepends a colored `sev` prefix with the time remaining to the
+  original status.
+
+  The `:waiting` phase uses cyan and is shown while Severance is idle
+  outside the escalation window. Other phases follow the color pattern
+  in the README.
   """
-  @spec countdown_status(non_neg_integer(), :gentle | :aggressive | :final, String.t()) ::
+  @spec countdown_status(
+          non_neg_integer(),
+          :waiting | :gentle | :aggressive | :final,
           String.t()
+        ) :: String.t()
   def countdown_status(minutes_left, phase, original_status) do
     {color, extra} =
       case phase do
+        :waiting -> {"colour51", ""}
         :gentle -> {"colour226", ""}
         :aggressive -> {"colour196", ",blink"}
         :final -> {"colour196", ",blink"}
       end
 
-    "#[fg=#{color},bold#{extra}] SHUTDOWN:#{minutes_left}m #[default]#{original_status}"
+    "#[fg=#{color},bold#{extra}] sev #{format_remaining(minutes_left)} #[default]#{original_status}"
   end
+
+  @doc """
+  Formats the time remaining until shutdown as a short tmux-friendly
+  string. Returns whole hours (e.g. `"10h"`) when at or above one hour,
+  otherwise minutes (e.g. `"45m"`). Partial hours round down.
+  """
+  @spec format_remaining(non_neg_integer()) :: String.t()
+  def format_remaining(minutes) when minutes >= 60, do: "#{div(minutes, 60)}h"
+  def format_remaining(minutes), do: "#{minutes}m"
 
   @doc """
   Queries tmux for all panes and returns those with no activity

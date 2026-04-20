@@ -202,6 +202,37 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "waiting phase status updates" do
+    test "captures the original tmux status on init" do
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        state = :sys.get_state(pid)
+        # Test adapter returns empty string for show-option
+        assert state.original_tmux_status == ""
+      end)
+    end
+
+    test "keeps state in waiting phase while polling" do
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        send(pid, :check_countdown_start)
+        Process.sleep(50)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :waiting
+        assert state.original_tmux_status == ""
+      end)
+    end
+  end
+
   describe "check_countdown_start poll" do
     test "stays in waiting when countdown start is in the future" do
       capture_log(fn ->
