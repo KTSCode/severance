@@ -4,13 +4,41 @@ defmodule Severance.Tmux do
   stale pane detection.
   """
 
+  # Matches the exact banner prefix emitted by `countdown_status/3`.
+  # Anchored to the start of the string and restricted to the exact
+  # (color, flag, time-format) combinations produced by that function
+  # so unrelated user widgets that merely look banner-shaped (e.g.
+  # `#[fg=colour39,bold] sev:prod #[default] ...`) are left alone.
+  @sev_prefix_regex ~r/\A#\[fg=(?:colour51,bold|colour226,bold|colour196,bold,blink)\] sev:(?:\d+h\d+m|\d+h|\d+m) #\[default\]/
+
   @doc """
   Reads the current tmux global `status-right` value.
+
+  Returns `:error` when tmux is unavailable (e.g. no server has been
+  started yet). Severance runs as a LaunchAgent that boots before the
+  user opens a tmux session, so callers must distinguish "no tmux
+  server" from "tmux server with an empty status-right" instead of
+  treating both as the empty string.
   """
-  @spec capture_status_right() :: String.t()
+  @spec capture_status_right() :: {:ok, String.t()} | :error
   def capture_status_right do
-    {output, 0} = system().tmux_cmd(["show-option", "-gv", "status-right"])
-    String.trim(output)
+    case system().tmux_cmd(["show-option", "-gv", "status-right"]) do
+      {output, 0} -> {:ok, String.trim(output)}
+      _ -> :error
+    end
+  end
+
+  @doc """
+  Removes the Severance `sev:` banner prefix from a captured
+  `status-right` value.
+
+  Only strips when the string begins with the exact banner pattern
+  produced by `countdown_status/3`. User widgets that merely contain
+  the substring `sev:` are left untouched.
+  """
+  @spec strip_sev_prefix(String.t()) :: String.t()
+  def strip_sev_prefix(status) do
+    Regex.replace(@sev_prefix_regex, status, "")
   end
 
   @doc """
@@ -24,19 +52,47 @@ defmodule Severance.Tmux do
 
   @doc """
   Builds the countdown status string for a given phase.
-  Prepends a colored prefix to the original status.
+  Prepends a colored `sev` prefix with the time remaining to the
+  original status.
+
+  The `:waiting` phase uses cyan and is shown while Severance is idle
+  outside the escalation window. Other phases follow the color pattern
+  in the README.
   """
-  @spec countdown_status(non_neg_integer(), :gentle | :aggressive | :final, String.t()) ::
+  @spec countdown_status(
+          non_neg_integer(),
+          :waiting | :gentle | :aggressive | :final,
           String.t()
+        ) :: String.t()
   def countdown_status(minutes_left, phase, original_status) do
     {color, extra} =
       case phase do
+        :waiting -> {"colour51", ""}
         :gentle -> {"colour226", ""}
         :aggressive -> {"colour196", ",blink"}
         :final -> {"colour196", ",blink"}
       end
 
-    "#[fg=#{color},bold#{extra}] SHUTDOWN:#{minutes_left}m #[default]#{original_status}"
+    "#[fg=#{color},bold#{extra}] sev:#{format_remaining(minutes_left)} #[default]#{original_status}"
+  end
+
+  @doc """
+  Formats the time remaining until shutdown as a short tmux-friendly
+  string. Combines hours and minutes when both are nonzero
+  (e.g. `"5h12m"`), drops minutes on exact hour boundaries
+  (e.g. `"2h"`), and shows minutes only when under one hour
+  (e.g. `"45m"`).
+  """
+  @spec format_remaining(non_neg_integer()) :: String.t()
+  def format_remaining(minutes) do
+    hours = div(minutes, 60)
+    mins = rem(minutes, 60)
+
+    cond do
+      hours == 0 -> "#{mins}m"
+      mins == 0 -> "#{hours}h"
+      true -> "#{hours}h#{mins}m"
+    end
   end
 
   @doc """

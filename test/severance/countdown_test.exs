@@ -5,6 +5,37 @@ defmodule Severance.CountdownTest do
 
   alias Severance.Countdown
 
+  defmodule RecordingSystem do
+    @moduledoc false
+    @behaviour Severance.System
+
+    @impl true
+    def notify(_title, _message, _sound), do: :ok
+
+    @impl true
+    def shutdown_machine, do: :ok
+
+    @impl true
+    def tmux_cmd(["show-option", "-gv", "status-right"] = args) do
+      record(args)
+      value = Application.get_env(:severance, :tmux_status_right, "")
+      {value, 0}
+    end
+
+    @impl true
+    def tmux_cmd(args) do
+      record(args)
+      {"", 0}
+    end
+
+    defp record(args) do
+      case Application.get_env(:severance, :tmux_recorder) do
+        nil -> :ok
+        pid when is_pid(pid) -> send(pid, {:tmux_cmd, args})
+      end
+    end
+  end
+
   @frozen_now ~N[2026-04-09 10:00:00]
 
   setup do
@@ -202,6 +233,287 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "waiting phase status updates" do
+    test "captures the original tmux status on init" do
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        state = :sys.get_state(pid)
+        # Test adapter returns empty string for show-option
+        assert state.original_tmux_status == ""
+      end)
+    end
+
+    test "keeps state in waiting phase while polling" do
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        send(pid, :check_countdown_start)
+        Process.sleep(50)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :waiting
+        assert state.original_tmux_status == ""
+      end)
+    end
+
+    test "survives init when tmux command fails and leaves original unset" do
+      # Daemon starts at login before any tmux server exists. capture must
+      # not crash the GenServer, and original_tmux_status must stay nil
+      # so a later restore does not wipe the user's real status-right.
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      original_adapter = Application.get_env(:severance, :system_adapter)
+      Application.put_env(:severance, :system_adapter, Severance.TmuxTest.FailingSystem)
+
+      on_exit(fn ->
+        if original_adapter do
+          Application.put_env(:severance, :system_adapter, original_adapter)
+        else
+          Application.delete_env(:severance, :system_adapter)
+        end
+      end)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        assert Process.alive?(pid)
+        state = :sys.get_state(pid)
+        assert state.phase == :waiting
+        assert state.original_tmux_status == nil
+      end)
+    end
+  end
+
+  describe "active phase status refresh" do
+    setup do
+      original_adapter = Application.get_env(:severance, :system_adapter)
+      Application.put_env(:severance, :system_adapter, Severance.CountdownTest.RecordingSystem)
+      Application.put_env(:severance, :tmux_recorder, self())
+
+      on_exit(fn ->
+        Application.delete_env(:severance, :tmux_recorder)
+
+        if original_adapter do
+          Application.put_env(:severance, :system_adapter, original_adapter)
+        else
+          Application.delete_env(:severance, :system_adapter)
+        end
+      end)
+
+      :ok
+    end
+
+    test "refresh_status updates tmux status during gentle phase with current minutes" do
+      future = @frozen_now |> NaiveDateTime.add(25 * 60) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn s ->
+          %{s | phase: :gentle, original_tmux_status: "orig"}
+        end)
+
+        drain_tmux()
+        send(pid, :refresh_status)
+        Process.sleep(50)
+
+        assert_received {:tmux_cmd, ["set-option", "-g", "status-right", status]}
+        assert status =~ "sev:25m"
+      end)
+    end
+
+    test "refresh_status uses derived phase color, not stale state phase" do
+      # State still says :gentle from the last tick, but minutes_left has
+      # crossed into :aggressive. The refreshed banner must reflect the
+      # current phase (red+blink), not the stale gentle color.
+      future = @frozen_now |> NaiveDateTime.add(12 * 60) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn s ->
+          %{s | phase: :gentle, original_tmux_status: ""}
+        end)
+
+        drain_tmux()
+        send(pid, :refresh_status)
+        Process.sleep(50)
+
+        assert_received {:tmux_cmd, ["set-option", "-g", "status-right", status]}
+        assert status =~ "colour196"
+        assert status =~ "sev:12m"
+      end)
+    end
+
+    test "refresh_status skips tmux update when minutes_left has reached shutdown" do
+      future = @frozen_now |> NaiveDateTime.add(30) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn s ->
+          %{s | phase: :final, original_tmux_status: ""}
+        end)
+
+        drain_tmux()
+        send(pid, :refresh_status)
+        Process.sleep(50)
+
+        refute_received {:tmux_cmd, ["set-option" | _]}
+      end)
+    end
+
+    test "refresh_status is a no-op during waiting phase" do
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        drain_tmux()
+        send(pid, :refresh_status)
+        Process.sleep(50)
+
+        refute_received {:tmux_cmd, ["set-option" | _]}
+      end)
+    end
+
+    test "refresh_status re-captures status-right so external edits survive the minute refresh" do
+      # If another tmux plugin or the user rewrites status-right during the
+      # countdown, the minute refresh must read the current value (and
+      # strip our own banner from it) before rewriting. Otherwise we clobber
+      # their update with whatever original_tmux_status was captured earlier.
+      future = @frozen_now |> NaiveDateTime.add(25 * 60) |> NaiveDateTime.to_time()
+
+      Application.put_env(:severance, :tmux_status_right, "EXTERNAL-UPDATE")
+      on_exit(fn -> Application.delete_env(:severance, :tmux_status_right) end)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn s ->
+          %{s | phase: :gentle, original_tmux_status: "STALE"}
+        end)
+
+        drain_tmux()
+        send(pid, :refresh_status)
+        Process.sleep(50)
+
+        assert_received {:tmux_cmd, ["show-option", "-gv", "status-right"]}
+        assert_received {:tmux_cmd, ["set-option", "-g", "status-right", new_status]}
+        assert new_status =~ "EXTERNAL-UPDATE"
+        refute new_status =~ "STALE"
+      end)
+    end
+
+    test "refresh_status reschedules itself during an active phase" do
+      # Override the refresh interval so the test does not have to wait a
+      # real minute between refresh cycles.
+      Application.put_env(:severance, :status_refresh_ms, 50)
+      on_exit(fn -> Application.delete_env(:severance, :status_refresh_ms) end)
+
+      future = @frozen_now |> NaiveDateTime.add(25 * 60) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn s ->
+          %{s | phase: :gentle, original_tmux_status: ""}
+        end)
+
+        drain_tmux()
+        send(pid, :refresh_status)
+        Process.sleep(200)
+
+        # First fire plus at least one self-reschedule should produce
+        # multiple status updates.
+        refresh_count = count_tmux_refreshes()
+        assert refresh_count >= 2
+      end)
+    end
+  end
+
+  describe "terminate cleanup" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "severance_term_#{System.unique_integer([:positive])}")
+      log_file = Path.join(dir, "activity.log")
+      Application.put_env(:severance, :log_file, log_file)
+
+      original_adapter = Application.get_env(:severance, :system_adapter)
+      Application.put_env(:severance, :system_adapter, Severance.CountdownTest.RecordingSystem)
+      Application.put_env(:severance, :tmux_recorder, self())
+
+      on_exit(fn ->
+        Application.delete_env(:severance, :log_file)
+        Application.delete_env(:severance, :activity_log_started_at)
+        Application.delete_env(:severance, :tmux_recorder)
+
+        if original_adapter do
+          Application.put_env(:severance, :system_adapter, original_adapter)
+        else
+          Application.delete_env(:severance, :system_adapter)
+        end
+
+        File.rm_rf!(dir)
+      end)
+
+      %{log_file: log_file}
+    end
+
+    test "restores original status-right when stopped during waiting phase" do
+      Application.put_env(:severance, :activity_log_started_at, @frozen_now)
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | original_tmux_status: "MY-ORIGINAL"}
+        end)
+
+        GenServer.stop(pid)
+        Process.sleep(50)
+
+        assert_received {:tmux_cmd, ["set-option", "-g", "status-right", "MY-ORIGINAL"]}
+      end)
+    end
+
+    test "does not touch tmux when terminating after handle_shutdown already restored" do
+      future = @frozen_now |> NaiveDateTime.add(4 * 3600) |> NaiveDateTime.to_time()
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: future})
+        Process.sleep(50)
+
+        :sys.replace_state(pid, fn state ->
+          %{state | original_tmux_status: "MY-ORIGINAL", phase: :done}
+        end)
+
+        # Drain any pending tmux_cmd messages from init
+        drain_tmux()
+
+        GenServer.stop(pid)
+        Process.sleep(50)
+
+        refute_received {:tmux_cmd, ["set-option", "-g", "status-right", "MY-ORIGINAL"]}
+      end)
+    end
+  end
+
   describe "check_countdown_start poll" do
     test "stays in waiting when countdown start is in the future" do
       capture_log(fn ->
@@ -314,6 +626,23 @@ defmodule Severance.CountdownTest do
       Process.sleep(50)
 
       refute File.exists?(log_file)
+    end
+  end
+
+  defp drain_tmux do
+    receive do
+      {:tmux_cmd, _} -> drain_tmux()
+    after
+      20 -> :ok
+    end
+  end
+
+  defp count_tmux_refreshes(count \\ 0) do
+    receive do
+      {:tmux_cmd, ["set-option", "-g", "status-right", _]} ->
+        count_tmux_refreshes(count + 1)
+    after
+      20 -> count
     end
   end
 end

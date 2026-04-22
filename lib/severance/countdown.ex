@@ -5,7 +5,10 @@ defmodule Severance.Countdown do
   Phases: waiting -> gentle -> aggressive -> final -> shutdown/overtime -> done
 
   Sleeps until T-30 before the configured shutdown time, then ticks
-  through phases with escalating notifications and tmux status updates.
+  through phases with escalating notifications. A separate one-minute
+  `:refresh_status` loop keeps the tmux status bar in sync with the
+  current minutes remaining independent of the notification cadence,
+  so the bar never displays a stale value between ticks.
   On weekends, hard shutdown is disabled regardless of mode.
   """
 
@@ -24,7 +27,10 @@ defmodule Severance.Countdown do
   @overtime_burst_count 12
   @stale_threshold_minutes 15
   @wait_poll_ms 60_000
+  @status_refresh_ms 60_000
   @shutdown_retry_ms 60_000
+
+  @active_phases [:gentle, :aggressive, :final]
 
   @type t :: %__MODULE__{
           shutdown_time: Time.t() | nil,
@@ -123,6 +129,7 @@ defmodule Severance.Countdown do
   @impl true
   def init({shutdown_time, mode}) do
     state = %__MODULE__{shutdown_time: shutdown_time, mode: mode}
+    state = refresh_waiting_status(state)
     schedule_countdown_start(state)
     {:ok, state}
   end
@@ -153,16 +160,15 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info(:start_countdown, state) do
-    original_status = Tmux.capture_status_right()
-    state = %{state | original_tmux_status: original_status, phase: :gentle}
+    state = %{maybe_refresh_original(state) | phase: :gentle}
     tick()
+    schedule_status_refresh()
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:late_start, state) do
-    original_status = Tmux.capture_status_right()
-    state = %{state | original_tmux_status: original_status}
+    state = maybe_refresh_original(state)
 
     case effective_mode(state) do
       :severance ->
@@ -174,7 +180,7 @@ defmodule Severance.Countdown do
           Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
           {:noreply, state}
         else
-          Tmux.set_status_right(original_status)
+          restore_original(state.original_tmux_status)
           {:noreply, %{state | phase: :done}}
         end
     end
@@ -184,7 +190,7 @@ defmodule Severance.Countdown do
   def handle_info(:tick, state) do
     minutes_left = minutes_remaining(state.shutdown_time)
     phase = phase_for_remaining(minutes_left)
-    state = %{state | phase: phase}
+    state = %{maybe_refresh_original(state) | phase: phase}
 
     case phase do
       :shutdown ->
@@ -193,8 +199,7 @@ defmodule Severance.Countdown do
 
       _ ->
         Notifier.send_countdown(minutes_left, effective_mode(state), phase)
-
-        Tmux.set_status_right(Tmux.countdown_status(minutes_left, phase, state.original_tmux_status))
+        apply_countdown_status(state, minutes_left, phase)
 
         if phase == :aggressive and minutes_left == 15 do
           send_stale_pane_warnings()
@@ -214,7 +219,7 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info({:overtime_burst, 0}, state) do
-    Tmux.set_status_right(state.original_tmux_status)
+    restore_original(state.original_tmux_status)
     {:noreply, %{state | phase: :done}}
   end
 
@@ -226,20 +231,31 @@ defmodule Severance.Countdown do
   end
 
   @impl true
+  def handle_info(:refresh_status, state) do
+    if state.phase in @active_phases do
+      refresh_active_status(state)
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
   def handle_info(:check_countdown_start, state) do
     cond do
       past_shutdown?(state.shutdown_time) ->
         Logger.info("Started after shutdown time.")
         send(self(), :late_start)
+        {:noreply, state}
 
       ms_until_countdown_start(state.shutdown_time) <= 0 ->
         send(self(), :start_countdown)
+        {:noreply, state}
 
       true ->
+        state = refresh_waiting_status(state)
         Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
+        {:noreply, state}
     end
-
-    {:noreply, state}
   end
 
   @impl true
@@ -248,8 +264,12 @@ defmodule Severance.Countdown do
   end
 
   @impl true
-  def terminate(reason, _state) do
+  def terminate(reason, state) do
     if normal_shutdown?(reason) do
+      if state.phase != :done do
+        restore_original(state.original_tmux_status)
+      end
+
       log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
       ActivityLog.log_stopped(log_file)
     end
@@ -279,6 +299,27 @@ defmodule Severance.Countdown do
     Process.send_after(self(), :tick, tick_interval_ms(phase))
   end
 
+  defp refresh_active_status(state) do
+    state = maybe_refresh_original(state)
+    minutes_left = minutes_remaining(state.shutdown_time)
+    display_phase = phase_for_remaining(minutes_left)
+
+    if display_phase != :shutdown do
+      apply_countdown_status(state, minutes_left, display_phase)
+    end
+
+    schedule_status_refresh()
+    {:noreply, state}
+  end
+
+  defp schedule_status_refresh do
+    Process.send_after(self(), :refresh_status, status_refresh_ms())
+  end
+
+  defp status_refresh_ms do
+    Application.get_env(:severance, :status_refresh_ms, @status_refresh_ms)
+  end
+
   defp tick do
     send(self(), :tick)
     :ok
@@ -288,7 +329,7 @@ defmodule Severance.Countdown do
     case effective_mode(state) do
       :severance ->
         Notifier.send_countdown(0, :severance, :final)
-        Tmux.set_status_right(state.original_tmux_status)
+        restore_original(state.original_tmux_status)
         Severance.System.adapter().shutdown_machine()
         Process.send_after(self(), :retry_shutdown, @shutdown_retry_ms)
 
@@ -296,7 +337,7 @@ defmodule Severance.Countdown do
         if Application.get_env(:severance, :overtime_notifications, true) do
           Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
         else
-          Tmux.set_status_right(state.original_tmux_status)
+          restore_original(state.original_tmux_status)
         end
     end
   end
@@ -308,6 +349,33 @@ defmodule Severance.Countdown do
       state.mode
     end
   end
+
+  defp refresh_waiting_status(state) do
+    minutes_left = minutes_remaining(state.shutdown_time)
+    state = maybe_refresh_original(state)
+
+    if minutes_left > 0 do
+      apply_countdown_status(state, minutes_left, :waiting)
+    end
+
+    state
+  end
+
+  defp maybe_refresh_original(state) do
+    case Tmux.capture_status_right() do
+      {:ok, raw} -> %{state | original_tmux_status: Tmux.strip_sev_prefix(raw)}
+      :error -> state
+    end
+  end
+
+  defp apply_countdown_status(%{original_tmux_status: nil}, _minutes_left, _phase), do: :ok
+
+  defp apply_countdown_status(state, minutes_left, phase) do
+    Tmux.set_status_right(Tmux.countdown_status(minutes_left, phase, state.original_tmux_status))
+  end
+
+  defp restore_original(nil), do: :ok
+  defp restore_original(status), do: Tmux.set_status_right(status)
 
   defp minutes_remaining(shutdown_time) do
     now = NaiveDateTime.to_time(local_now())
