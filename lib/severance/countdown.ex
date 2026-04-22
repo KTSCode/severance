@@ -5,7 +5,10 @@ defmodule Severance.Countdown do
   Phases: waiting -> gentle -> aggressive -> final -> shutdown/overtime -> done
 
   Sleeps until T-30 before the configured shutdown time, then ticks
-  through phases with escalating notifications and tmux status updates.
+  through phases with escalating notifications. A separate one-minute
+  `:refresh_status` loop keeps the tmux status bar in sync with the
+  current minutes remaining independent of the notification cadence,
+  so the bar never displays a stale value between ticks.
   On weekends, hard shutdown is disabled regardless of mode.
   """
 
@@ -24,7 +27,10 @@ defmodule Severance.Countdown do
   @overtime_burst_count 12
   @stale_threshold_minutes 15
   @wait_poll_ms 60_000
+  @status_refresh_ms 60_000
   @shutdown_retry_ms 60_000
+
+  @active_phases [:gentle, :aggressive, :final]
 
   @type t :: %__MODULE__{
           shutdown_time: Time.t() | nil,
@@ -156,6 +162,7 @@ defmodule Severance.Countdown do
   def handle_info(:start_countdown, state) do
     state = %{maybe_refresh_original(state) | phase: :gentle}
     tick()
+    schedule_status_refresh()
     {:noreply, state}
   end
 
@@ -224,6 +231,15 @@ defmodule Severance.Countdown do
   end
 
   @impl true
+  def handle_info(:refresh_status, state) do
+    if state.phase in @active_phases do
+      refresh_active_status(state)
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
   def handle_info(:check_countdown_start, state) do
     cond do
       past_shutdown?(state.shutdown_time) ->
@@ -281,6 +297,27 @@ defmodule Severance.Countdown do
 
   defp schedule_tick(phase) do
     Process.send_after(self(), :tick, tick_interval_ms(phase))
+  end
+
+  defp refresh_active_status(state) do
+    state = maybe_refresh_original(state)
+    minutes_left = minutes_remaining(state.shutdown_time)
+    display_phase = phase_for_remaining(minutes_left)
+
+    if display_phase != :shutdown do
+      apply_countdown_status(state, minutes_left, display_phase)
+    end
+
+    schedule_status_refresh()
+    {:noreply, state}
+  end
+
+  defp schedule_status_refresh do
+    Process.send_after(self(), :refresh_status, status_refresh_ms())
+  end
+
+  defp status_refresh_ms do
+    Application.get_env(:severance, :status_refresh_ms, @status_refresh_ms)
   end
 
   defp tick do
