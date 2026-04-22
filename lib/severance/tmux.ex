@@ -5,10 +5,11 @@ defmodule Severance.Tmux do
   """
 
   # Matches the exact banner prefix emitted by `countdown_status/3`.
-  # Anchored to the start of the string so unrelated user widgets
-  # whose text happens to contain `sev:` are not mistaken for the
-  # daemon's own banner.
-  @sev_prefix_regex ~r/\A#\[fg=colour\d+,bold(?:,blink)?\] sev:\S+ #\[default\]/
+  # Anchored to the start of the string and restricted to the exact
+  # (color, flag, time-format) combinations produced by that function
+  # so unrelated user widgets that merely look banner-shaped (e.g.
+  # `#[fg=colour39,bold] sev:prod #[default] ...`) are left alone.
+  @sev_prefix_regex ~r/\A#\[fg=(?:colour51,bold|colour226,bold|colour196,bold,blink)\] sev:(?:\d+h\d+m|\d+h|\d+m) #\[default\]/
 
   @doc """
   Reads the current tmux global `status-right` value.

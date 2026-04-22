@@ -153,6 +153,29 @@ defmodule Severance.TmuxTest do
       assert Tmux.strip_sev_prefix(raw) == raw
     end
 
+    test "leaves a leading user widget with sev: prefix in a non-severance color untouched" do
+      # User widget uses its own numeric color (not one Severance emits).
+      # The shape is identical to Severance's banner, so a loose match would
+      # clobber it. The strict match must leave it alone.
+      raw = "#[fg=colour39,bold] sev:prod #[default] | %H:%M"
+      assert Tmux.strip_sev_prefix(raw) == raw
+    end
+
+    test "leaves a leading sev banner with a non-severance time format untouched" do
+      # countdown_status only ever emits format_remaining output (e.g. "25m",
+      # "1h", "5h12m"). A widget that looks like a banner but carries
+      # arbitrary text must not be stripped.
+      raw = "#[fg=colour51,bold] sev:custom #[default]original"
+      assert Tmux.strip_sev_prefix(raw) == raw
+    end
+
+    test "leaves a banner whose bold+blink flag does not match its color untouched" do
+      # Severance only ever pairs ,blink with colour196. A colour51,bold,blink
+      # banner is not something countdown_status emits.
+      raw = "#[fg=colour51,bold,blink] sev:5m #[default]original"
+      assert Tmux.strip_sev_prefix(raw) == raw
+    end
+
     test "only strips at the start of the string" do
       raw = "leading #[fg=colour51,bold] sev:5h12m #[default]original"
       assert Tmux.strip_sev_prefix(raw) == raw
