@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.14.0] -- 2026-05-19
+
 ### Changed
 
 - LaunchAgent now restarts the daemon on abnormal exits (`KeepAlive = { Crashed = true }`) so a mid-session crash no longer leaves you without a countdown until the next login
