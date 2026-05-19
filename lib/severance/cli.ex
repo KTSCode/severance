@@ -131,7 +131,8 @@ defmodule Severance.CLI do
   def await_daemon_ready(attempts_left \\ @readiness_max_attempts)
 
   def await_daemon_ready(0) do
-    {:error, "daemon did not start — check /tmp/severance.err for details"}
+    log_dir = Path.join(System.user_home!(), "Library/Logs")
+    {:error, "daemon did not start — check #{log_dir}/severance.err for details"}
   end
 
   def await_daemon_ready(attempts_left) do
@@ -165,7 +166,8 @@ defmodule Severance.CLI do
 
     escaped_path = shell_escape(binary_path)
     arg_str = Enum.join(args, " ")
-    "#{escaped_path} #{arg_str} </dev/null >>/tmp/severance.log 2>>/tmp/severance.err &"
+    log_dir = Path.join(System.user_home!(), "Library/Logs")
+    "#{escaped_path} #{arg_str} </dev/null >>#{log_dir}/severance.log 2>>#{log_dir}/severance.err &"
   end
 
   @doc """

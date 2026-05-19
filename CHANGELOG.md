@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- LaunchAgent now restarts the daemon on abnormal exits (`KeepAlive = { Crashed = true }`) so a mid-session crash no longer leaves you without a countdown until the next login
+- Daemon logs moved from `/tmp/severance.{log,err}` to `~/Library/Logs/severance.{log,err}` so they survive macOS `/tmp` cleanup
+
 ## [0.13.0] -- 2026-04-17
 
 ### Added

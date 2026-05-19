@@ -19,13 +19,21 @@ defmodule Severance.InitTest do
       assert plist =~ "<key>KeepAlive</key>"
     end
 
-    test "contains log paths" do
+    test "KeepAlive uses a Crashed dict so launchd restarts only on abnormal exit" do
       plist = Init.plist_contents("/usr/local/bin/sev")
+
+      assert plist =~ ~r{<key>KeepAlive</key>\s*<dict>\s*<key>Crashed</key>\s*<true/>\s*</dict>}
+    end
+
+    test "log paths live under the user's Library/Logs, not /tmp" do
+      plist = Init.plist_contents("/usr/local/bin/sev")
+      home = System.user_home!()
 
       assert plist =~ "<key>StandardOutPath</key>"
       assert plist =~ "<key>StandardErrorPath</key>"
-      assert plist =~ "severance.log"
-      assert plist =~ "severance.err"
+      assert plist =~ "#{home}/Library/Logs/severance.log"
+      assert plist =~ "#{home}/Library/Logs/severance.err"
+      refute plist =~ "/tmp/severance"
     end
   end
 

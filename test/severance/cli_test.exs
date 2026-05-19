@@ -99,6 +99,15 @@ defmodule Severance.CLITest do
       assert cmd =~ "</dev/null"
     end
 
+    test "redirects logs under the user's Library/Logs, not /tmp" do
+      cmd = CLI.build_daemon_cmd("/usr/local/bin/sev", [])
+      home = System.user_home!()
+
+      assert cmd =~ ">>#{home}/Library/Logs/severance.log"
+      assert cmd =~ "2>>#{home}/Library/Logs/severance.err"
+      refute cmd =~ "/tmp/severance"
+    end
+
     test "includes --shutdown-time when provided" do
       cmd = CLI.build_daemon_cmd("/usr/local/bin/sev", shutdown_time: ~T[16:00:00])
       assert cmd =~ "--daemon"

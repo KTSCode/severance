@@ -82,6 +82,8 @@ defmodule Severance.Init do
   """
   @spec plist_contents(String.t()) :: String.t()
   def plist_contents(binary_path) do
+    log_dir = Path.join(System.user_home!(), "Library/Logs")
+
     """
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -98,11 +100,14 @@ defmodule Severance.Init do
       <key>RunAtLoad</key>
       <true/>
       <key>KeepAlive</key>
-      <false/>
+      <dict>
+        <key>Crashed</key>
+        <true/>
+      </dict>
       <key>StandardOutPath</key>
-      <string>/tmp/severance.log</string>
+      <string>#{log_dir}/severance.log</string>
       <key>StandardErrorPath</key>
-      <string>/tmp/severance.err</string>
+      <string>#{log_dir}/severance.err</string>
     </dict>
     </plist>
     """
