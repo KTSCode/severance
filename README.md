@@ -233,6 +233,9 @@ Small, well-understood changes go straight to code. For anything larger:
     - when it gets to less than an hour go to minutes: sev 45m
   - it should still follow the same pattern for the last half hour changing the color 
   - the default color should be cyan until it changes 
+- [ ] Add [CLIMate](https://hexdocs.pm/cli_mate/readme.html) and update application to use it in order to simplify code
+- [ ] Add `sev help` that give full usage instructions
+- [ ] add `sev help --agent` that give usage instructions designed for LLM Agents include full config explanation
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
