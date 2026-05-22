@@ -11,7 +11,8 @@ defmodule Severance.Config do
   @default_config %{
     shutdown_time: "17:00",
     overtime_notifications: true,
-    log_file: "~/.local/state/severance/activity.log"
+    log_file: "~/.local/state/severance/activity.log",
+    publishers: %{}
   }
 
   @doc """
@@ -61,11 +62,29 @@ defmodule Severance.Config do
   """
   @spec generate_contents(map()) :: String.t()
   def generate_contents(config) do
+    generate_contents(config, [])
+  end
+
+  @doc """
+  Generates file contents with optional shape selection.
+
+  Pass `with_tmux: true` to emit the default tmux publisher inline.
+  """
+  @spec generate_contents(map(), keyword()) :: String.t()
+  def generate_contents(config, opts) do
+    publishers_block =
+      if Keyword.get(opts, :with_tmux, false) do
+        tmux_publishers_block()
+      else
+        empty_publishers_block()
+      end
+
     """
     %{
       shutdown_time: #{inspect(config.shutdown_time)},
       overtime_notifications: #{inspect(config.overtime_notifications)},
-      log_file: #{inspect(config.log_file)}
+      log_file: #{inspect(config.log_file)},
+    #{publishers_block}
     }
     """
   end
@@ -74,13 +93,47 @@ defmodule Severance.Config do
   Writes the default config file to the given directory (or the default).
 
   Creates the directory if it doesn't exist. Idempotent — overwrites
-  any existing file.
+  any existing file. Pass `with_tmux: true` to emit the default tmux publisher.
   """
-  @spec write_defaults(String.t()) :: :ok
-  def write_defaults(dir \\ config_dir()) do
+  @spec write_defaults(String.t(), keyword()) :: :ok
+  def write_defaults(dir \\ config_dir(), opts \\ []) do
     File.mkdir_p!(dir)
     path = Path.join(dir, "config.exs")
-    File.write!(path, generate_contents(@default_config))
+    File.write!(path, generate_contents(@default_config, opts))
     :ok
+  end
+
+  defp empty_publishers_block do
+    String.trim_trailing("""
+      # Publishers run on the daemon and push status updates to a sink
+      # (tmux user var, polybar file, dbus, etc). Add entries here keyed
+      # by an atom of your choice. See docs/configuration.md for the
+      # full publisher contract. Run `sev init --with-tmux` to regenerate
+      # with a default tmux publisher.
+      publishers: %{}
+    """)
+  end
+
+  defp tmux_publishers_block do
+    String.trim_trailing("""
+      # Publishers run on the daemon and push status updates to a sink
+      # (tmux user var, polybar file, dbus, etc). Add your own entries.
+      # See docs/configuration.md for the full publisher contract.
+      publishers: %{
+        # Severance.StatusPublisher.Tmux.publisher/2 builds a publisher
+        # that writes the formatted string to the tmux user variable
+        # `@sev_countdown` once per minute. Reference it from tmux.conf:
+        #   set -ag status-right "\#{@sev_countdown}"
+        # Run `sev init` to print the exact paste-block for your config.
+        tmux_countdown:
+          Severance.StatusPublisher.Tmux.publisher("countdown", fn status ->
+            # color_for_phase/2 picks a color from a 3-element list
+            # ordered [waiting, gentle, final]. Pass your own list to
+            # override.
+            color = Severance.StatusPublisher.Tmux.Format.color_for_phase(status.phase)
+            "#[fg=\#{color},bold] sev:\#{status.minutes_remaining}m #[default]"
+          end)
+      }
+    """)
   end
 end

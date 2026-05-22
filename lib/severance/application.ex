@@ -148,6 +148,7 @@ defmodule Severance.Application do
           time = parse_time_string(file_config.shutdown_time, compiled_time)
           ot = Map.get(file_config, :overtime_notifications, overtime_notifications)
           lf = Map.get(file_config, :log_file, compiled_log_file)
+          Application.put_env(:severance, :publishers, Map.get(file_config, :publishers, %{}))
           {time, ot, Path.expand(lf)}
 
         {:error, :not_found} ->
@@ -193,7 +194,10 @@ defmodule Severance.Application do
 
     children =
       if start_children do
-        [{Severance.Countdown, shutdown_time: config.shutdown_time}]
+        [
+          {Severance.Countdown, shutdown_time: config.shutdown_time},
+          Severance.StatusPublisher.Supervisor
+        ]
       else
         []
       end
