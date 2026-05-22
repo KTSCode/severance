@@ -45,9 +45,9 @@ defmodule Severance.Application do
     System.halt(if result == :ok, do: 0, else: 1)
   end
 
-  defp dispatch(:status) do
+  defp dispatch({:status, opts}) do
     Node.stop()
-    CLI.run_status()
+    CLI.run_status(opts)
     System.halt(0)
   end
 

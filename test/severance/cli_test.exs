@@ -37,8 +37,8 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["version"]) == :version
     end
 
-    test "status arg returns :status" do
-      assert CLI.parse_args(["status"]) == :status
+    test "status arg returns {:status, %{publisher_name: nil, teardown?: false}}" do
+      assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
     end
 
     test "log arg returns :log" do
@@ -285,8 +285,147 @@ defmodule Severance.CLITest do
     end
   end
 
-  describe "run_status/0" do
+  describe "parse_args/1 status flags" do
+    test "status with no flags returns {:status, %{publisher_name: nil, teardown?: false}}" do
+      assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
+    end
+
+    test "status --tmux-countdown returns publisher_name: :tmux_countdown" do
+      assert CLI.parse_args(["status", "--tmux-countdown"]) ==
+               {:status, %{publisher_name: :tmux_countdown, teardown?: false}}
+    end
+
+    test "status --tmux-countdown --teardown returns publisher_name and teardown?" do
+      assert CLI.parse_args(["status", "--tmux-countdown", "--teardown"]) ==
+               {:status, %{publisher_name: :tmux_countdown, teardown?: true}}
+    end
+
+    test "status --teardown alone returns publisher_name: nil, teardown?: true" do
+      assert CLI.parse_args(["status", "--teardown"]) ==
+               {:status, %{publisher_name: nil, teardown?: true}}
+    end
+  end
+
+  describe "run_status/1" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "sev_cli_test_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      conf = Path.join(dir, "tmux.conf")
+      System.put_env("TMUX_CONF", conf)
+      on_exit(fn -> System.delete_env("TMUX_CONF") end)
+      on_exit(fn -> File.rm_rf!(dir) end)
+      on_exit(fn -> Application.delete_env(:severance, :publishers) end)
+      %{conf: conf}
+    end
+
     test "returns :ok with not-running output and update line when daemon is not running" do
+      Application.put_env(:severance, :publishers, %{})
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            assert :ok = CLI.run_status(%{})
+          end)
+        end)
+
+      assert output =~ "not running"
+      assert output =~ "Update:"
+    end
+
+    test "--teardown without publisher name prints error to stderr" do
+      Application.put_env(:severance, :publishers, %{})
+
+      err =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          assert :ok = CLI.run_status(%{publisher_name: nil, teardown?: true})
+        end)
+
+      assert err =~ "--teardown requires"
+    end
+
+    test "unknown publisher name prints error to stderr" do
+      Application.put_env(:severance, :publishers, %{})
+
+      err =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          assert :ok = CLI.run_status(%{publisher_name: :nonexistent, teardown?: false})
+        end)
+
+      assert err =~ "unknown publisher"
+    end
+
+    test "publisher with no teardown prints message to stdout" do
+      Application.put_env(:severance, :publishers, %{
+        no_td: %{fn: fn _ -> :ok end, interval_ms: 60_000}
+      })
+
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert :ok = CLI.run_status(%{publisher_name: :no_td, teardown?: true})
+        end)
+
+      assert output =~ "has no teardown"
+    end
+
+    test "wiring block silent when conf already references the var", %{conf: conf} do
+      File.write!(conf, ~s|set -ag status-right "\#{@sev_countdown}"\n|)
+
+      Application.put_env(:severance, :publishers, %{
+        tmux_countdown: %{fn: fn _ -> :ok end, tmux_var: "countdown", interval_ms: 60_000}
+      })
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            CLI.run_status(%{})
+          end)
+        end)
+
+      refute output =~ "NOT in"
+      refute output =~ "tmux:"
+    end
+
+    test "wiring block prints missing vars when conf does not reference them", %{conf: conf} do
+      File.write!(conf, "")
+
+      Application.put_env(:severance, :publishers, %{
+        tmux_countdown: %{fn: fn _ -> :ok end, tmux_var: "countdown", interval_ms: 60_000}
+      })
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            CLI.run_status(%{})
+          end)
+        end)
+
+      assert output =~ "@sev_countdown NOT in"
+    end
+
+    test "wiring block silent when no publisher has :tmux_var", %{conf: conf} do
+      File.write!(conf, "")
+
+      Application.put_env(:severance, :publishers, %{
+        file_writer: %{fn: fn _ -> :ok end, interval_ms: 60_000}
+      })
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            CLI.run_status(%{})
+          end)
+        end)
+
+      refute output =~ "tmux:"
+      refute output =~ "NOT in"
+    end
+  end
+
+  describe "run_status/0 (arity-0 backwards compat)" do
+    test "returns :ok with not-running output and update line when daemon is not running" do
+      on_exit(fn -> Application.delete_env(:severance, :publishers) end)
+      Application.put_env(:severance, :publishers, %{})
+
       {output, _log} =
         ExUnit.CaptureLog.with_log(fn ->
           ExUnit.CaptureIO.capture_io(fn ->

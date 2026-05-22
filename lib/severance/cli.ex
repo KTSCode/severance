@@ -19,6 +19,8 @@ defmodule Severance.CLI do
       sev over_time_protocol     # Activate Overtime Protocol on running daemon
   """
 
+  alias Severance.StatusPublisher.Tmux.ConfScanner
+
   @doc """
   Parses command-line arguments into an action atom.
 
@@ -52,7 +54,7 @@ defmodule Severance.CLI do
           | :daemon
           | {:daemon, keyword()}
           | :overtime
-          | :status
+          | {:status, map()}
           | :log
           | :init
           | :update
@@ -65,7 +67,19 @@ defmodule Severance.CLI do
   def parse_args(["version" | _rest]), do: :version
   def parse_args(["-v" | _rest]), do: :version
   def parse_args(["--version" | _rest]), do: :version
-  def parse_args(["status" | _rest]), do: :status
+
+  def parse_args(["status" | rest]) do
+    {opts, _, _} =
+      OptionParser.parse(rest, switches: [teardown: :boolean], allow_nonexistent_atoms: true)
+
+    publisher_name =
+      opts
+      |> Keyword.delete(:teardown)
+      |> Enum.find_value(fn {k, v} -> if v == true, do: k end)
+
+    {:status, %{publisher_name: publisher_name, teardown?: Keyword.get(opts, :teardown, false)}}
+  end
+
   def parse_args(["log" | _rest]), do: :log
   def parse_args(["otp" | _rest]), do: :overtime
   def parse_args(["overtime" | _rest]), do: :overtime
@@ -246,13 +260,37 @@ defmodule Severance.CLI do
   @doc """
   Connects to the running daemon and prints status information.
 
-  Queries the daemon for countdown status and the latest version from GitHub.
-  If the daemon is not running, prints a minimal status with the local version.
+  Accepts an optional opts map with `:publisher_name` (atom | nil) and
+  `:teardown?` (boolean). When a publisher name is given, invokes that
+  publisher once for debugging. Plain invocation prints the normal status
+  block plus optional tmux wiring and publisher error blocks.
+
+  `allow_nonexistent_atoms: true` is passed to `OptionParser` when parsing
+  `status` flags so arbitrary user-defined publisher names are accepted as
+  atoms. These atoms come from user config evaluated with `Code.eval_file/1`
+  (same trust model as the rest of the config pipeline).
 
   Returns `:ok` always — status is informational.
   """
-  @spec run_status() :: :ok
-  def run_status do
+  @spec run_status(map()) :: :ok
+  def run_status(opts \\ %{}) do
+    case opts do
+      %{publisher_name: name, teardown?: true} when not is_nil(name) ->
+        run_publisher_debug(name, :teardown)
+
+      %{publisher_name: name} when not is_nil(name) ->
+        run_publisher_debug(name, :publish)
+
+      %{teardown?: true} ->
+        IO.puts(:stderr, "--teardown requires --<publisher-name>")
+        :ok
+
+      _ ->
+        print_normal_status()
+    end
+  end
+
+  defp print_normal_status do
     daemon_result = fetch_daemon_status()
 
     update_result =
@@ -262,7 +300,104 @@ defmodule Severance.CLI do
       end
 
     IO.puts(format_status(daemon_result, update_result))
+    print_tmux_wiring_block()
+    print_publisher_errors_block(daemon_result)
     :ok
+  end
+
+  defp run_publisher_debug(name, action) do
+    publishers = local_publishers()
+
+    case Map.fetch(publishers, name) do
+      :error ->
+        IO.puts(:stderr, "unknown publisher #{name}")
+        :ok
+
+      {:ok, spec} when action == :teardown ->
+        case Map.get(spec, :teardown) do
+          nil ->
+            IO.puts("publisher #{name} has no teardown")
+
+          fun when is_function(fun, 0) ->
+            fun.()
+        end
+
+        :ok
+
+      {:ok, %{fn: fun}} ->
+        fun.(rpc_status_or_local())
+        :ok
+    end
+  end
+
+  defp local_publishers do
+    Application.get_env(:severance, :publishers, %{})
+  end
+
+  defp rpc_status_or_local do
+    case fetch_daemon_status() do
+      {:ok, status} -> status
+      _ -> %Severance.Status{mode: :severance, phase: :waiting}
+    end
+  end
+
+  defp print_tmux_wiring_block do
+    vars =
+      Enum.flat_map(local_publishers(), fn {_, spec} -> List.wrap(spec[:tmux_var]) end)
+
+    if vars != [] do
+      contents = ConfScanner.read_tmux_conf()
+
+      missing =
+        Enum.reject(vars, &ConfScanner.references?(contents, &1))
+
+      case missing do
+        [] ->
+          :ok
+
+        vars ->
+          IO.puts("\ntmux:")
+          Enum.each(vars, &IO.puts("  @sev_#{&1} NOT in ~/.tmux.conf"))
+      end
+    end
+  end
+
+  defp print_publisher_errors_block({:error, _}), do: :ok
+
+  defp print_publisher_errors_block({:ok, _}) do
+    names = Map.keys(local_publishers())
+
+    rows =
+      Enum.flat_map(names, fn name ->
+        case rpc_worker_errors(name) do
+          [] -> []
+          [{phase, reason, at} | _] -> [{name, phase, reason, at}]
+        end
+      end)
+
+    case rows do
+      [] ->
+        :ok
+
+      rows ->
+        IO.puts("\npublisher errors (current config):")
+
+        Enum.each(rows, fn {name, phase, reason, at} ->
+          IO.puts("  #{name}: #{phase} #{inspect(reason)} (last at #{Calendar.strftime(at, "%H:%M:%S")})")
+        end)
+    end
+  end
+
+  defp rpc_worker_errors(name) do
+    case with_daemon_rpc(
+           fn target ->
+             :rpc.call(target, Severance.StatusPublisher.Worker, :errors, [name])
+           end,
+           quiet: true
+         ) do
+      list when is_list(list) -> list
+      _ -> []
+    end
   end
 
   @spec fetch_daemon_status() :: {:ok, Severance.Status.t()} | {:error, term()}
