@@ -265,7 +265,7 @@ defmodule Severance.CLI do
     :ok
   end
 
-  @spec fetch_daemon_status() :: {:ok, map()} | {:error, term()}
+  @spec fetch_daemon_status() :: {:ok, Severance.Status.t()} | {:error, term()}
   defp fetch_daemon_status do
     case with_daemon_rpc(&rpc_countdown_status/1, quiet: true) do
       {:ok, _} = ok -> ok
@@ -273,7 +273,7 @@ defmodule Severance.CLI do
     end
   end
 
-  @spec rpc_countdown_status(atom()) :: {:ok, map()} | {:error, String.t()}
+  @spec rpc_countdown_status(atom()) :: {:ok, Severance.Status.t()} | {:error, String.t()}
   defp rpc_countdown_status(target) do
     case :rpc.call(target, Severance.Countdown, :status, []) do
       {:badrpc, reason} ->
@@ -286,7 +286,7 @@ defmodule Severance.CLI do
             v -> v
           end
 
-        {:ok, Map.put(status, :version, version)}
+        {:ok, %{status | version: version}}
     end
   end
 
@@ -315,7 +315,7 @@ defmodule Severance.CLI do
   an update result (`{:ok, latest_version}` or `{:error, reason}`).
   """
   @spec format_status(
-          {:ok, map()} | {:error, term()},
+          {:ok, Severance.Status.t()} | {:error, term()},
           {:ok, String.t()} | {:error, term()}
         ) :: String.t()
   def format_status(daemon_result, update_result) do

@@ -156,7 +156,7 @@ defmodule Severance.CLITest do
 
   describe "format_status/2" do
     test "formats running daemon with no update" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
@@ -176,7 +176,7 @@ defmodule Severance.CLITest do
     end
 
     test "formats running daemon with overtime active" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :overtime,
         phase: :aggressive,
@@ -192,7 +192,7 @@ defmodule Severance.CLITest do
     end
 
     test "formats running daemon with update available" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
@@ -208,7 +208,7 @@ defmodule Severance.CLITest do
     end
 
     test "shows daemon version, not CLI version, when they differ" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: "0.1.0",
         mode: :severance,
         phase: :waiting,
@@ -225,7 +225,7 @@ defmodule Severance.CLITest do
     end
 
     test "formats passed shutdown time" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :overtime,
         phase: :done,
@@ -269,7 +269,7 @@ defmodule Severance.CLITest do
     end
 
     test "formats update check failure" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,

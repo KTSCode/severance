@@ -32,16 +32,18 @@ defmodule Severance.CountdownTest do
   end
 
   describe "status/0" do
-    test "returns status map with mode, phase, shutdown_time, and minutes_remaining" do
+    test "returns %Severance.Status{} with mode, phase, shutdown_time, minutes_remaining" do
       future = @frozen_now |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
       start_supervised!({Countdown, shutdown_time: future})
 
       status = Countdown.status()
 
+      assert %Severance.Status{} = status
       assert status.mode == :severance
       assert status.phase == :waiting
       assert status.shutdown_time == future
       assert is_integer(status.minutes_remaining)
+      assert is_integer(status.seconds_remaining)
     end
 
     test "reflects overtime mode" do
@@ -52,6 +54,19 @@ defmodule Severance.CountdownTest do
       status = Countdown.status()
 
       assert status.mode == :overtime
+    end
+  end
+
+  describe "tmux isolation" do
+    test "never reads or writes tmux status-right" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        send(pid, :check_countdown_start)
+        Process.sleep(50)
+
+        refute_received {:tmux_cmd, ["show-option" | _]}
+        refute_received {:tmux_cmd, ["set-option" | _]}
+      end)
     end
   end
 
