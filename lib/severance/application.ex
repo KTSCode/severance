@@ -25,8 +25,9 @@ defmodule Severance.Application do
   end
 
   @spec dispatch(CLI.parse_args_result()) :: {:ok, pid()}
-  defp dispatch(:init) do
-    Severance.Init.run()
+  defp dispatch({:init, opts}) do
+    resolve_config([], suppress_warning: true)
+    Severance.Init.run(opts)
     System.halt(0)
   end
 

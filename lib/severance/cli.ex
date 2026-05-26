@@ -56,13 +56,17 @@ defmodule Severance.CLI do
           | :overtime
           | {:status, map()}
           | :log
-          | :init
+          | {:init, map()}
           | :update
           | :version
           | {:error, String.t()}
 
   @spec parse_args([String.t()]) :: parse_args_result()
-  def parse_args(["init" | _rest]), do: :init
+  def parse_args(["init" | rest]) do
+    with_tmux? = "--with-tmux" in rest
+    {:init, %{with_tmux?: with_tmux?}}
+  end
+
   def parse_args(["update" | _rest]), do: :update
   def parse_args(["version" | _rest]), do: :version
   def parse_args(["-v" | _rest]), do: :version

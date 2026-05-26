@@ -25,8 +25,12 @@ defmodule Severance.CLITest do
                {:start, shutdown_time: ~T[17:00:00]}
     end
 
-    test "init arg returns :init" do
-      assert CLI.parse_args(["init"]) == :init
+    test "init returns {:init, %{with_tmux?: false}}" do
+      assert CLI.parse_args(["init"]) == {:init, %{with_tmux?: false}}
+    end
+
+    test "init --with-tmux returns {:init, %{with_tmux?: true}}" do
+      assert CLI.parse_args(["init", "--with-tmux"]) == {:init, %{with_tmux?: true}}
     end
 
     test "update arg returns :update" do
