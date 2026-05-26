@@ -72,6 +72,40 @@ defmodule Severance.InitTest do
     end
   end
 
+  describe "load_publishers_env/1" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "sev_init_load_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+
+      on_exit(fn ->
+        Application.delete_env(:severance, :publishers)
+        File.rm_rf!(dir)
+      end)
+
+      Application.delete_env(:severance, :publishers)
+      %{dir: dir}
+    end
+
+    test "populates :publishers env from the config file the init flow just wrote", %{dir: dir} do
+      Severance.Config.write_defaults(dir, with_tmux: true)
+
+      assert :ok = Init.load_publishers_env(dir)
+
+      publishers = Application.get_env(:severance, :publishers, %{})
+      assert Map.has_key?(publishers, :tmux_countdown)
+      assert publishers.tmux_countdown.tmux_var == "countdown"
+    end
+
+    test "leaves :publishers env untouched when no config file exists", %{dir: dir} do
+      existing = %{kept: %{fn: fn _ -> :ok end}}
+      Application.put_env(:severance, :publishers, existing)
+
+      assert :ok = Init.load_publishers_env(dir)
+
+      assert Application.get_env(:severance, :publishers) == existing
+    end
+  end
+
   describe "plist_contents/1" do
     test "generates valid plist XML containing the given binary path" do
       plist = Init.plist_contents("/usr/local/bin/sev")

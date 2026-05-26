@@ -48,6 +48,7 @@ defmodule Severance.Application do
 
   defp dispatch({:status, opts}) do
     Node.stop()
+    resolve_config([], suppress_warning: true)
     CLI.run_status(opts)
     System.halt(0)
   end

@@ -25,10 +25,32 @@ defmodule Severance.Init do
     IO.puts("Severance init\n")
 
     create_config(opts)
+    load_publishers_env()
     create_plist()
     print_tmux_instructions()
 
     IO.puts("\nDone.")
+    :ok
+  end
+
+  @doc """
+  Reads the config file at `dir` and stores its `:publishers` map in
+  Application env. No-op when the config file is missing.
+
+  `Init.run/1` calls this between `create_config/1` and
+  `print_tmux_instructions/0` so a fresh `sev init --with-tmux` run
+  sees the publisher it just wrote.
+  """
+  @spec load_publishers_env(String.t()) :: :ok
+  def load_publishers_env(dir \\ Config.config_dir()) do
+    case Config.read(dir) do
+      {:ok, %{publishers: publishers}} ->
+        Application.put_env(:severance, :publishers, publishers)
+
+      _ ->
+        :ok
+    end
+
     :ok
   end
 
