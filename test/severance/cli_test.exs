@@ -289,6 +289,28 @@ defmodule Severance.CLITest do
     end
   end
 
+  describe "attach_version/2" do
+    test "puts version into a plain map without a :version key" do
+      pre_struct_status = %{
+        mode: :severance,
+        phase: :gentle,
+        shutdown_time: ~T[17:00:00],
+        minutes_remaining: 12
+      }
+
+      result = CLI.attach_version(pre_struct_status, "9.9.9")
+
+      assert result.version == "9.9.9"
+      assert result.mode == :severance
+    end
+
+    test "overwrites version on a Severance.Status struct" do
+      status = %Severance.Status{mode: :severance, phase: :waiting, version: "0.0.0"}
+
+      assert CLI.attach_version(status, "1.2.3").version == "1.2.3"
+    end
+  end
+
   describe "parse_args/1 status flags" do
     test "status with no flags returns {:status, %{publisher_name: nil, teardown?: false}}" do
       assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
@@ -356,6 +378,52 @@ defmodule Severance.CLITest do
         end)
 
       assert err =~ "unknown publisher"
+    end
+
+    test "publisher fn that raises does not crash the CLI" do
+      Application.put_env(:severance, :publishers, %{
+        boom: %{fn: fn _ -> raise "boom" end, interval_ms: 60_000}
+      })
+
+      {result, _err} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(:stderr, fn ->
+            assert :ok = CLI.run_status(%{publisher_name: :boom, teardown?: false})
+          end)
+        end)
+
+      assert is_binary(result)
+    end
+
+    test "publisher fn that hangs is killed via timeout" do
+      Application.put_env(:severance, :publishers, %{
+        slow: %{fn: fn _ -> Process.sleep(:infinity) end, interval_ms: 60_000}
+      })
+
+      task =
+        Task.async(fn ->
+          ExUnit.CaptureLog.with_log(fn ->
+            ExUnit.CaptureIO.capture_io(:stderr, fn ->
+              CLI.run_status(%{publisher_name: :slow, teardown?: false})
+            end)
+          end)
+        end)
+
+      assert {:ok, _} = Task.yield(task, 5_000) || Task.shutdown(task, :brutal_kill)
+    end
+
+    test "teardown fn that raises does not crash the CLI" do
+      Application.put_env(:severance, :publishers, %{
+        bad_td: %{fn: fn _ -> :ok end, teardown: fn -> raise "td boom" end, interval_ms: 60_000}
+      })
+
+      ExUnit.CaptureLog.with_log(fn ->
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            assert :ok = CLI.run_status(%{publisher_name: :bad_td, teardown?: true})
+          end)
+        end)
+      end)
     end
 
     test "publisher with no teardown prints message to stdout" do

@@ -323,15 +323,47 @@ defmodule Severance.CLI do
             IO.puts("publisher #{name} has no teardown")
 
           fun when is_function(fun, 0) ->
-            fun.()
+            report_debug_result(name, :teardown, safe_call(fun, []))
         end
 
         :ok
 
       {:ok, %{fn: fun}} ->
-        fun.(rpc_status_or_local())
+        report_debug_result(name, :publish, safe_call(fun, [rpc_status_or_local()]))
         :ok
     end
+  end
+
+  @publisher_debug_timeout 2_000
+
+  defp safe_call(fun, args) do
+    parent = self()
+    ref = make_ref()
+
+    {pid, mref} =
+      spawn_monitor(fn ->
+        send(parent, {ref, apply(fun, args)})
+      end)
+
+    receive do
+      {^ref, _value} ->
+        Process.demonitor(mref, [:flush])
+        :ok
+
+      {:DOWN, ^mref, :process, ^pid, reason} ->
+        {:error, {:crash, reason}}
+    after
+      @publisher_debug_timeout ->
+        Process.exit(pid, :kill)
+        Process.demonitor(mref, [:flush])
+        {:error, :timeout}
+    end
+  end
+
+  defp report_debug_result(_name, _phase, :ok), do: :ok
+
+  defp report_debug_result(name, phase, {:error, reason}) do
+    IO.puts(:stderr, "publisher #{name} #{phase} failed: #{inspect(reason)}")
   end
 
   defp local_publishers do
@@ -425,8 +457,14 @@ defmodule Severance.CLI do
             v -> v
           end
 
-        {:ok, %{status | version: version}}
+        {:ok, attach_version(status, version)}
     end
+  end
+
+  @doc false
+  @spec attach_version(map(), String.t()) :: map()
+  def attach_version(status, version) do
+    Map.put(status, :version, version)
   end
 
   @spec fetch_update_status() :: {:ok, String.t()} | {:error, term()}
