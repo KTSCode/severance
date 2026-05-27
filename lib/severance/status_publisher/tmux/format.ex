@@ -21,12 +21,12 @@ defmodule Severance.StatusPublisher.Tmux.Format do
   @spec color_for_phase(Severance.Status.phase(), [String.t()]) :: String.t()
   def color_for_phase(phase, colors \\ @default_colors)
 
-  def color_for_phase(:waiting, [c, _, _]), do: c
-  def color_for_phase(:gentle, [c, _, _]), do: c
-  def color_for_phase(:aggressive, [_, c, _]), do: c
-  def color_for_phase(:final, [_, _, c]), do: c
-  def color_for_phase(:shutdown, [_, _, c]), do: c
-  def color_for_phase(:done, [_, _, c]), do: c
+  def color_for_phase(:waiting, [color, _, _]), do: color
+  def color_for_phase(:gentle, [color, _, _]), do: color
+  def color_for_phase(:aggressive, [_, color, _]), do: color
+  def color_for_phase(:final, [_, _, color]), do: color
+  def color_for_phase(:shutdown, [_, _, color]), do: color
+  def color_for_phase(:done, [_, _, color]), do: color
 
   @doc """
   Returns the tmux `,blink` suffix when the given phase should blink,

@@ -33,12 +33,10 @@ defmodule Severance.StatusPublisher.Tmux.ConfScanner do
   """
   @spec references?({:ok, String.t()} | :missing | {:error, term()}, String.t()) :: boolean()
   def references?({:ok, contents}, var_name) do
-    needle = "\#{@sev_#{var_name}}"
-
     contents
     |> String.split("\n")
     |> Enum.reject(&comment_line?/1)
-    |> Enum.any?(&String.contains?(&1, needle))
+    |> Enum.any?(&String.contains?(&1, "\#{@sev_#{var_name}}"))
   end
 
   def references?(_, _), do: false
