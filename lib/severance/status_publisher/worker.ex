@@ -103,8 +103,9 @@ defmodule Severance.StatusPublisher.Worker do
     task = Task.async(fn -> fun.(Severance.Countdown.status()) end)
 
     # yield waits up to the timeout; if it returns nil the task is still
-    # running and shutdown kills it, returning {:exit, :killed} or similar.
-    case Task.yield(task, @publisher_timeout) || Task.shutdown(task) do
+    # running and shutdown kills it. Use :brutal_kill so a hung publisher
+    # can't extend the wait by the default 5s graceful-shutdown window.
+    case Task.yield(task, @publisher_timeout) || Task.shutdown(task, :brutal_kill) do
       {:ok, _} ->
         :ok
 
@@ -129,7 +130,9 @@ defmodule Severance.StatusPublisher.Worker do
       fun when is_function(fun, 0) ->
         task = Task.async(fn -> fun.() end)
 
-        case Task.yield(task, @publisher_timeout) || Task.shutdown(task) do
+        # :brutal_kill caps worst-case wait at @publisher_timeout instead
+        # of letting Task.shutdown's default 5s graceful window stack on top.
+        case Task.yield(task, @publisher_timeout) || Task.shutdown(task, :brutal_kill) do
           {:ok, _} ->
             :ok
 
