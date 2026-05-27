@@ -96,9 +96,14 @@ defmodule Severance.StatusPublisher.Worker do
   # these — outcomes are already handled in safe_invoke/safe_lifecycle.
   def handle_info({:EXIT, _pid, _reason}, state), do: {:noreply, state}
 
+  # Runs the publisher's publish function in a supervised Task, isolating
+  # crashes and enforcing @publisher_timeout. Returns :ok on success,
+  # {:error, _} on crash or timeout so the caller can record it.
   defp safe_invoke(%{fun: fun, name: name}) do
     task = Task.async(fn -> fun.(Severance.Countdown.status()) end)
 
+    # yield waits up to the timeout; if it returns nil the task is still
+    # running and shutdown kills it, returning {:exit, :killed} or similar.
     case Task.yield(task, @publisher_timeout) || Task.shutdown(task) do
       {:ok, _} ->
         :ok
@@ -113,6 +118,9 @@ defmodule Severance.StatusPublisher.Worker do
     end
   end
 
+  # Runs an optional lifecycle hook (e.g. :on_start, :on_stop) the same
+  # way as safe_invoke, but swallows failures — lifecycle errors are
+  # logged but not recorded in state. Always returns :ok-ish.
   defp safe_lifecycle(%{name: name} = state, phase) do
     case Map.get(state, phase) do
       nil ->
