@@ -1,43 +1,9 @@
-defmodule Severance.Tmux do
+defmodule Severance.StatusPublisher.Tmux.Panes do
   @moduledoc """
-  Tmux interaction helpers for status bar manipulation and
-  stale pane detection.
+  Tmux pane activity queries. Used by `Severance.Countdown` to find
+  panes that have been idle past the stale threshold so the user can
+  be nudged to close them.
   """
-
-  @doc """
-  Reads the current tmux global `status-right` value.
-  """
-  @spec capture_status_right() :: String.t()
-  def capture_status_right do
-    {output, 0} = system().tmux_cmd(["show-option", "-gv", "status-right"])
-    String.trim(output)
-  end
-
-  @doc """
-  Sets tmux global `status-right` to the given value.
-  """
-  @spec set_status_right(String.t()) :: :ok
-  def set_status_right(value) do
-    system().tmux_cmd(["set-option", "-g", "status-right", value])
-    :ok
-  end
-
-  @doc """
-  Builds the countdown status string for a given phase.
-  Prepends a colored prefix to the original status.
-  """
-  @spec countdown_status(non_neg_integer(), :gentle | :aggressive | :final, String.t()) ::
-          String.t()
-  def countdown_status(minutes_left, phase, original_status) do
-    {color, extra} =
-      case phase do
-        :gentle -> {"colour226", ""}
-        :aggressive -> {"colour196", ",blink"}
-        :final -> {"colour196", ",blink"}
-      end
-
-    "#[fg=#{color},bold#{extra}] SHUTDOWN:#{minutes_left}m #[default]#{original_status}"
-  end
 
   @doc """
   Queries tmux for all panes and returns those with no activity

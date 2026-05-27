@@ -103,7 +103,10 @@ sev init
 ```
 
 Creates `~/.config/severance/config.exs`, generates the LaunchAgent plist,
-and checks tmux readiness. Safe to re-run.
+and prepares tmux integration. Safe to re-run.
+
+Run `sev init --with-tmux` to seed a default tmux countdown publisher
+and print the `~/.tmux.conf` lines to paste.
 
 ## Usage
 
@@ -147,6 +150,13 @@ overtime is active or when starting after shutdown time.
 
 Set `log_file` to a custom path to change where the activity log is
 written. Defaults to `~/.local/state/severance/activity.log`.
+
+### Publishers
+
+Publishers push status updates to status bars (tmux, polybar, etc.).
+See [`docs/configuration.md`](docs/configuration.md) for the full
+contract. Out of the box, `sev init --with-tmux` seeds a tmux
+countdown publisher that writes `@sev_countdown` once per minute.
 
 ## Development
 
@@ -226,13 +236,6 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [x] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 - [x] Make `sev <INVALID COMMAND>` error and not start severance
-- [ ] Always update the tmux status line with how long is left before shutdown 
-  - change the text before the time from "shutdown" to "sev"
-  - examples:
-    - sev 10h
-    - when it gets to less than an hour go to minutes: sev 45m
-  - it should still follow the same pattern for the last half hour changing the color 
-  - the default color should be cyan until it changes 
 - [ ] Add [CLIMate](https://hexdocs.pm/cli_mate/readme.html) and update application to use it in order to simplify code
 - [ ] Add `sev help` that give full usage instructions
 - [ ] add `sev help --agent` that give usage instructions designed for LLM Agents include full config explanation
