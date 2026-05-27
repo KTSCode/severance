@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Configurable publisher pipeline: declare `:publishers` in config to fan daemon status out to tmux or any user-supplied sink, each supervised with timeouts and a bounded error ring
+- `sev init --with-tmux` opt-in flag that seeds the inline `tmux_countdown` publisher; default `sev init` now generates an empty `:publishers` map
+- `sev init` prints a paste-ready tmux.conf block listing missing `#{@sev_*}` references (or "tmux.conf already wired." when complete)
+- `sev status` surfaces per-publisher errors and missing tmux.conf wiring when unhealthy
+- `sev status --<publisher-name>` and `--teardown` debug flags to invoke a publisher's function or teardown once locally
+- `Severance.StatusPublisher.Tmux` builder with `set_var/2`, `clear_var/1`, and optional color/blink formatters for tmux-targeted publishers
+- Publisher contract, `%Severance.Status{}` fields, tmux helpers, and lifecycle semantics documented in `docs/configuration.md`
+
+### Changed
+
+- Countdown no longer reads, overlays, or restores the user's tmux `status-right`; tmux side effects now live in the publisher pipeline
+- `Countdown.status/0` returns a `%Severance.Status{}` struct threaded through the RPC + CLI render path
+
+### Fixed
+
+- `sev status` no longer crashes with `KeyError` when an older daemon returns a status map without `:version`
+- `sev status --<publisher>` and `--teardown` run user functions in a monitored task with a 2s timeout, so a raising or hanging publisher no longer crashes or blocks the CLI
+- `sev init --with-tmux` now resolves config before printing tmux instructions, so the paste block appears on first run
+- Publisher task shutdown uses `brutal_kill` to avoid lingering tasks during supervisor restarts
+- Publisher logs distinguish timeouts from crashes
+
 ## [0.14.0] -- 2026-05-19
 
 ### Changed
