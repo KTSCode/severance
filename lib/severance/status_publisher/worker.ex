@@ -102,10 +102,11 @@ defmodule Severance.StatusPublisher.Worker do
   defp safe_invoke(%{fun: fun, name: name}) do
     task = Task.async(fn -> fun.(Severance.Countdown.status()) end)
 
-    # yield waits up to the timeout; if it returns nil the task is still
-    # running and shutdown kills it. Use :brutal_kill so a hung publisher
-    # can't extend the wait by the default 5s graceful-shutdown window.
-    case Task.yield(task, @publisher_timeout) || Task.shutdown(task, :brutal_kill) do
+    # Split yield from shutdown so a timeout doesn't get mislabeled as a
+    # crash: collapsing them with `||` would let shutdown's {:exit, :killed}
+    # match the {:exit, reason} clause. :brutal_kill bounds the worst-case
+    # wait to @publisher_timeout instead of the default 5s graceful window.
+    case Task.yield(task, @publisher_timeout) do
       {:ok, _} ->
         :ok
 
@@ -114,6 +115,7 @@ defmodule Severance.StatusPublisher.Worker do
         {:error, {:crash, reason}}
 
       nil ->
+        Task.shutdown(task, :brutal_kill)
         Logger.warning("publisher #{name} timed out")
         {:error, :timeout}
     end
@@ -130,9 +132,9 @@ defmodule Severance.StatusPublisher.Worker do
       fun when is_function(fun, 0) ->
         task = Task.async(fn -> fun.() end)
 
-        # :brutal_kill caps worst-case wait at @publisher_timeout instead
-        # of letting Task.shutdown's default 5s graceful window stack on top.
-        case Task.yield(task, @publisher_timeout) || Task.shutdown(task, :brutal_kill) do
+        # Split yield from shutdown so timeouts don't get logged as crashes;
+        # see safe_invoke for the full rationale.
+        case Task.yield(task, @publisher_timeout) do
           {:ok, _} ->
             :ok
 
@@ -140,6 +142,7 @@ defmodule Severance.StatusPublisher.Worker do
             Logger.warning("publisher #{name} #{phase} crashed: #{inspect(reason)}")
 
           nil ->
+            Task.shutdown(task, :brutal_kill)
             Logger.warning("publisher #{name} #{phase} timed out")
         end
     end
