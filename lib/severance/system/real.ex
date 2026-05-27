@@ -64,9 +64,16 @@ defmodule Severance.System.Real do
   @impl true
   @doc """
   Runs a tmux command with the given args, returning output and exit code.
+
+  Resolves `tmux` to an absolute path via `System.find_executable/1` so the
+  call works when the daemon's PATH is missing the Homebrew bin directory
+  (the default for `launchctl`-spawned agents). Falls back to the bare
+  command name if no executable is found, preserving the prior behavior
+  for callers that have augmented PATH another way.
   """
   @spec tmux_cmd([String.t()]) :: {String.t(), non_neg_integer()}
   def tmux_cmd(args) do
-    System.cmd("tmux", args, stderr_to_stdout: true)
+    tmux = System.find_executable("tmux") || "tmux"
+    System.cmd(tmux, args, stderr_to_stdout: true)
   end
 end

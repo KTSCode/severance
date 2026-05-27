@@ -28,6 +28,32 @@ defmodule Severance.System.RealTest do
     end
   end
 
+  describe "tmux_cmd/1" do
+    test "invokes tmux via the absolute path resolved by find_executable" do
+      stub(System, :find_executable, fn "tmux" -> "/opt/homebrew/bin/tmux" end)
+
+      stub(System, :cmd, fn cmd, args, opts ->
+        assert cmd == "/opt/homebrew/bin/tmux"
+        assert args == ["set", "-gq", "@sev_x", "y"]
+        assert opts == [stderr_to_stdout: true]
+        {"", 0}
+      end)
+
+      assert Real.tmux_cmd(["set", "-gq", "@sev_x", "y"]) == {"", 0}
+    end
+
+    test "falls back to the bare command name when tmux is not on PATH" do
+      stub(System, :find_executable, fn "tmux" -> nil end)
+
+      stub(System, :cmd, fn cmd, _args, _opts ->
+        assert cmd == "tmux"
+        {"", 0}
+      end)
+
+      assert Real.tmux_cmd(["display-message", "x"]) == {"", 0}
+    end
+  end
+
   describe "shutdown_machine/0" do
     test "returns :ok on successful shutdown" do
       stub(System, :cmd, fn "osascript", ["-e", script], _opts ->
