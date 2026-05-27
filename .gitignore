@@ -20,4 +20,4 @@ severance-*.tar
 .claude/settings.local.json
 
 # Riptide artifacts (cloud-synced)
-.humanlayer/tasks/
+.humanlayer/
