@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `sev init --with-tmux` now resolves config before printing tmux instructions, so the paste block appears on first run
 - Publisher task shutdown uses `brutal_kill` to avoid lingering tasks during supervisor restarts
 - Publisher logs distinguish timeouts from crashes
+- `sev status` renders "Shutdown:   not configured" instead of crashing when the daemon reports a nil `shutdown_time`
 
 ## [0.14.0] -- 2026-05-19
 

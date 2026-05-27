@@ -228,6 +228,22 @@ defmodule Severance.CLITest do
       refute output =~ "Severance v#{Severance.Updater.current_version()}"
     end
 
+    test "handles nil shutdown_time without crashing" do
+      daemon = %Severance.Status{
+        version: Severance.Updater.current_version(),
+        mode: :severance,
+        phase: :waiting,
+        shutdown_time: nil,
+        minutes_remaining: nil
+      }
+
+      update = {:ok, Severance.Updater.current_version()}
+
+      output = CLI.format_status({:ok, daemon}, update)
+
+      assert output =~ "Shutdown:   not configured"
+    end
+
     test "formats passed shutdown time" do
       daemon = %Severance.Status{
         version: Severance.Updater.current_version(),

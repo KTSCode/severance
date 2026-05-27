@@ -503,10 +503,15 @@ defmodule Severance.CLI do
         overtime = if daemon.mode == :overtime, do: "active", else: "inactive"
 
         shutdown =
-          if daemon.minutes_remaining <= 0 do
-            "#{format_time(daemon.shutdown_time)} (passed)"
-          else
-            "#{format_time(daemon.shutdown_time)} (#{daemon.minutes_remaining}m remaining)"
+          cond do
+            is_nil(daemon.shutdown_time) ->
+              "not configured"
+
+            daemon.minutes_remaining <= 0 ->
+              "#{format_time(daemon.shutdown_time)} (passed)"
+
+            true ->
+              "#{format_time(daemon.shutdown_time)} (#{daemon.minutes_remaining}m remaining)"
           end
 
         update = format_update(update_result, version)
