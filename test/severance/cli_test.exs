@@ -25,8 +25,12 @@ defmodule Severance.CLITest do
                {:start, shutdown_time: ~T[17:00:00]}
     end
 
-    test "init arg returns :init" do
-      assert CLI.parse_args(["init"]) == :init
+    test "init returns {:init, %{with_tmux?: false}}" do
+      assert CLI.parse_args(["init"]) == {:init, %{with_tmux?: false}}
+    end
+
+    test "init --with-tmux returns {:init, %{with_tmux?: true}}" do
+      assert CLI.parse_args(["init", "--with-tmux"]) == {:init, %{with_tmux?: true}}
     end
 
     test "update arg returns :update" do
@@ -37,8 +41,8 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["version"]) == :version
     end
 
-    test "status arg returns :status" do
-      assert CLI.parse_args(["status"]) == :status
+    test "status arg returns {:status, %{publisher_name: nil, teardown?: false}}" do
+      assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
     end
 
     test "log arg returns :log" do
@@ -156,7 +160,7 @@ defmodule Severance.CLITest do
 
   describe "format_status/2" do
     test "formats running daemon with no update" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
@@ -176,7 +180,7 @@ defmodule Severance.CLITest do
     end
 
     test "formats running daemon with overtime active" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :overtime,
         phase: :aggressive,
@@ -192,7 +196,7 @@ defmodule Severance.CLITest do
     end
 
     test "formats running daemon with update available" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
@@ -208,7 +212,7 @@ defmodule Severance.CLITest do
     end
 
     test "shows daemon version, not CLI version, when they differ" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: "0.1.0",
         mode: :severance,
         phase: :waiting,
@@ -224,8 +228,24 @@ defmodule Severance.CLITest do
       refute output =~ "Severance v#{Severance.Updater.current_version()}"
     end
 
+    test "handles nil shutdown_time without crashing" do
+      daemon = %Severance.Status{
+        version: Severance.Updater.current_version(),
+        mode: :severance,
+        phase: :waiting,
+        shutdown_time: nil,
+        minutes_remaining: nil
+      }
+
+      update = {:ok, Severance.Updater.current_version()}
+
+      output = CLI.format_status({:ok, daemon}, update)
+
+      assert output =~ "Shutdown:   not configured"
+    end
+
     test "formats passed shutdown time" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :overtime,
         phase: :done,
@@ -269,7 +289,7 @@ defmodule Severance.CLITest do
     end
 
     test "formats update check failure" do
-      daemon = %{
+      daemon = %Severance.Status{
         version: Severance.Updater.current_version(),
         mode: :severance,
         phase: :waiting,
@@ -285,8 +305,215 @@ defmodule Severance.CLITest do
     end
   end
 
-  describe "run_status/0" do
+  describe "attach_version/2" do
+    test "puts version into a plain map without a :version key" do
+      pre_struct_status = %{
+        mode: :severance,
+        phase: :gentle,
+        shutdown_time: ~T[17:00:00],
+        minutes_remaining: 12
+      }
+
+      result = CLI.attach_version(pre_struct_status, "9.9.9")
+
+      assert result.version == "9.9.9"
+      assert result.mode == :severance
+    end
+
+    test "overwrites version on a Severance.Status struct" do
+      status = %Severance.Status{mode: :severance, phase: :waiting, version: "0.0.0"}
+
+      assert CLI.attach_version(status, "1.2.3").version == "1.2.3"
+    end
+  end
+
+  describe "parse_args/1 status flags" do
+    test "status with no flags returns {:status, %{publisher_name: nil, teardown?: false}}" do
+      assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
+    end
+
+    test "status --tmux-countdown returns publisher_name: :tmux_countdown" do
+      assert CLI.parse_args(["status", "--tmux-countdown"]) ==
+               {:status, %{publisher_name: :tmux_countdown, teardown?: false}}
+    end
+
+    test "status --tmux-countdown --teardown returns publisher_name and teardown?" do
+      assert CLI.parse_args(["status", "--tmux-countdown", "--teardown"]) ==
+               {:status, %{publisher_name: :tmux_countdown, teardown?: true}}
+    end
+
+    test "status --teardown alone returns publisher_name: nil, teardown?: true" do
+      assert CLI.parse_args(["status", "--teardown"]) ==
+               {:status, %{publisher_name: nil, teardown?: true}}
+    end
+  end
+
+  describe "run_status/1" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "sev_cli_test_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      conf = Path.join(dir, "tmux.conf")
+      System.put_env("TMUX_CONF", conf)
+      on_exit(fn -> System.delete_env("TMUX_CONF") end)
+      on_exit(fn -> File.rm_rf!(dir) end)
+      on_exit(fn -> Application.delete_env(:severance, :publishers) end)
+      %{conf: conf}
+    end
+
     test "returns :ok with not-running output and update line when daemon is not running" do
+      Application.put_env(:severance, :publishers, %{})
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            assert :ok = CLI.run_status(%{})
+          end)
+        end)
+
+      assert output =~ "not running"
+      assert output =~ "Update:"
+    end
+
+    test "--teardown without publisher name prints error to stderr" do
+      Application.put_env(:severance, :publishers, %{})
+
+      err =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          assert :ok = CLI.run_status(%{publisher_name: nil, teardown?: true})
+        end)
+
+      assert err =~ "--teardown requires"
+    end
+
+    test "unknown publisher name prints error to stderr" do
+      Application.put_env(:severance, :publishers, %{})
+
+      err =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          assert :ok = CLI.run_status(%{publisher_name: :nonexistent, teardown?: false})
+        end)
+
+      assert err =~ "unknown publisher"
+    end
+
+    test "publisher fn that raises does not crash the CLI" do
+      Application.put_env(:severance, :publishers, %{
+        boom: %{fn: fn _ -> raise "boom" end, interval_ms: 60_000}
+      })
+
+      {result, _err} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(:stderr, fn ->
+            assert :ok = CLI.run_status(%{publisher_name: :boom, teardown?: false})
+          end)
+        end)
+
+      assert is_binary(result)
+    end
+
+    test "publisher fn that hangs is killed via timeout" do
+      Application.put_env(:severance, :publishers, %{
+        slow: %{fn: fn _ -> Process.sleep(:infinity) end, interval_ms: 60_000}
+      })
+
+      task =
+        Task.async(fn ->
+          ExUnit.CaptureLog.with_log(fn ->
+            ExUnit.CaptureIO.capture_io(:stderr, fn ->
+              CLI.run_status(%{publisher_name: :slow, teardown?: false})
+            end)
+          end)
+        end)
+
+      assert {:ok, _} = Task.yield(task, 5_000) || Task.shutdown(task, :brutal_kill)
+    end
+
+    test "teardown fn that raises does not crash the CLI" do
+      Application.put_env(:severance, :publishers, %{
+        bad_td: %{fn: fn _ -> :ok end, teardown: fn -> raise "td boom" end, interval_ms: 60_000}
+      })
+
+      ExUnit.CaptureLog.with_log(fn ->
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            assert :ok = CLI.run_status(%{publisher_name: :bad_td, teardown?: true})
+          end)
+        end)
+      end)
+    end
+
+    test "publisher with no teardown prints message to stdout" do
+      Application.put_env(:severance, :publishers, %{
+        no_td: %{fn: fn _ -> :ok end, interval_ms: 60_000}
+      })
+
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert :ok = CLI.run_status(%{publisher_name: :no_td, teardown?: true})
+        end)
+
+      assert output =~ "has no teardown"
+    end
+
+    test "wiring block silent when conf already references the var", %{conf: conf} do
+      File.write!(conf, ~s|set -ag status-right "\#{@sev_countdown}"\n|)
+
+      Application.put_env(:severance, :publishers, %{
+        tmux_countdown: %{fn: fn _ -> :ok end, tmux_var: "countdown", interval_ms: 60_000}
+      })
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            CLI.run_status(%{})
+          end)
+        end)
+
+      refute output =~ "NOT in"
+      refute output =~ "tmux:"
+    end
+
+    test "wiring block prints missing vars when conf does not reference them", %{conf: conf} do
+      File.write!(conf, "")
+
+      Application.put_env(:severance, :publishers, %{
+        tmux_countdown: %{fn: fn _ -> :ok end, tmux_var: "countdown", interval_ms: 60_000}
+      })
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            CLI.run_status(%{})
+          end)
+        end)
+
+      assert output =~ "@sev_countdown NOT in"
+    end
+
+    test "wiring block silent when no publisher has :tmux_var", %{conf: conf} do
+      File.write!(conf, "")
+
+      Application.put_env(:severance, :publishers, %{
+        file_writer: %{fn: fn _ -> :ok end, interval_ms: 60_000}
+      })
+
+      {output, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          ExUnit.CaptureIO.capture_io(fn ->
+            CLI.run_status(%{})
+          end)
+        end)
+
+      refute output =~ "tmux:"
+      refute output =~ "NOT in"
+    end
+  end
+
+  describe "run_status/0 (arity-0 backwards compat)" do
+    test "returns :ok with not-running output and update line when daemon is not running" do
+      on_exit(fn -> Application.delete_env(:severance, :publishers) end)
+      Application.put_env(:severance, :publishers, %{})
+
       {output, _log} =
         ExUnit.CaptureLog.with_log(fn ->
           ExUnit.CaptureIO.capture_io(fn ->

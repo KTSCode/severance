@@ -25,8 +25,9 @@ defmodule Severance.Application do
   end
 
   @spec dispatch(CLI.parse_args_result()) :: {:ok, pid()}
-  defp dispatch(:init) do
-    Severance.Init.run()
+  defp dispatch({:init, opts}) do
+    resolve_config([], suppress_warning: true)
+    Severance.Init.run(opts)
     System.halt(0)
   end
 
@@ -45,9 +46,10 @@ defmodule Severance.Application do
     System.halt(if result == :ok, do: 0, else: 1)
   end
 
-  defp dispatch(:status) do
+  defp dispatch({:status, opts}) do
     Node.stop()
-    CLI.run_status()
+    resolve_config([], suppress_warning: true)
+    CLI.run_status(opts)
     System.halt(0)
   end
 
@@ -148,6 +150,7 @@ defmodule Severance.Application do
           time = parse_time_string(file_config.shutdown_time, compiled_time)
           ot = Map.get(file_config, :overtime_notifications, overtime_notifications)
           lf = Map.get(file_config, :log_file, compiled_log_file)
+          Application.put_env(:severance, :publishers, Map.get(file_config, :publishers, %{}))
           {time, ot, Path.expand(lf)}
 
         {:error, :not_found} ->
@@ -193,7 +196,10 @@ defmodule Severance.Application do
 
     children =
       if start_children do
-        [{Severance.Countdown, shutdown_time: config.shutdown_time}]
+        [
+          {Severance.Countdown, shutdown_time: config.shutdown_time},
+          Severance.StatusPublisher.Supervisor
+        ]
       else
         []
       end

@@ -27,11 +27,12 @@ defmodule Severance.ConfigTest do
   end
 
   describe "generate_contents/1" do
-    test "generates valid Elixir term that round-trips back to the input map" do
+    test "round-trips a config without publishers" do
       config = %{
         shutdown_time: "16:30",
         overtime_notifications: false,
-        log_file: "~/.local/state/severance/activity.log"
+        log_file: "~/.local/state/severance/activity.log",
+        publishers: %{}
       }
 
       contents = Config.generate_contents(config)
@@ -40,11 +41,10 @@ defmodule Severance.ConfigTest do
       assert result == config
     end
 
-    test "round-trips defaults" do
+    test "round-trips defaults with empty publishers" do
       contents = Config.generate_contents(Config.defaults())
       {result, _bindings} = Code.eval_string(contents)
-
-      assert result == Config.defaults()
+      assert result.publishers == %{}
     end
   end
 

@@ -13,7 +13,7 @@ defmodule Severance.Countdown do
 
   alias Severance.ActivityLog
   alias Severance.Notifier
-  alias Severance.Tmux
+  alias Severance.StatusPublisher.Tmux.Panes
 
   require Logger
 
@@ -28,14 +28,12 @@ defmodule Severance.Countdown do
 
   @type t :: %__MODULE__{
           shutdown_time: Time.t() | nil,
-          original_tmux_status: String.t() | nil,
           mode: :severance | :overtime,
           phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done
         }
 
   defstruct [
     :shutdown_time,
-    :original_tmux_status,
     mode: :severance,
     phase: :waiting
   ]
@@ -72,14 +70,10 @@ defmodule Severance.Countdown do
   @doc """
   Returns status information for the running daemon.
 
-  Includes mode, phase, configured shutdown time, and minutes remaining.
+  Includes mode, phase, configured shutdown time, minutes remaining,
+  and seconds remaining.
   """
-  @spec status() :: %{
-          mode: :severance | :overtime,
-          phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done,
-          shutdown_time: Time.t(),
-          minutes_remaining: integer()
-        }
+  @spec status() :: Severance.Status.t()
   def status do
     GenServer.call(__MODULE__, :status)
   end
@@ -141,11 +135,15 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_call(:status, _from, state) do
-    status = %{
+    minutes = minutes_remaining(state.shutdown_time)
+
+    status = %Severance.Status{
       mode: state.mode,
       phase: state.phase,
       shutdown_time: state.shutdown_time,
-      minutes_remaining: minutes_remaining(state.shutdown_time)
+      minutes_remaining: minutes,
+      seconds_remaining: seconds_remaining(state.shutdown_time),
+      log_path: Application.get_env(:severance, :log_file)
     }
 
     {:reply, status, state}
@@ -153,17 +151,13 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info(:start_countdown, state) do
-    original_status = Tmux.capture_status_right()
-    state = %{state | original_tmux_status: original_status, phase: :gentle}
+    state = %{state | phase: :gentle}
     tick()
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:late_start, state) do
-    original_status = Tmux.capture_status_right()
-    state = %{state | original_tmux_status: original_status}
-
     case effective_mode(state) do
       :severance ->
         handle_shutdown(state)
@@ -174,7 +168,6 @@ defmodule Severance.Countdown do
           Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
           {:noreply, state}
         else
-          Tmux.set_status_right(original_status)
           {:noreply, %{state | phase: :done}}
         end
     end
@@ -194,8 +187,6 @@ defmodule Severance.Countdown do
       _ ->
         Notifier.send_countdown(minutes_left, effective_mode(state), phase)
 
-        Tmux.set_status_right(Tmux.countdown_status(minutes_left, phase, state.original_tmux_status))
-
         if phase == :aggressive and minutes_left == 15 do
           send_stale_pane_warnings()
         end
@@ -214,7 +205,6 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info({:overtime_burst, 0}, state) do
-    Tmux.set_status_right(state.original_tmux_status)
     {:noreply, %{state | phase: :done}}
   end
 
@@ -288,15 +278,12 @@ defmodule Severance.Countdown do
     case effective_mode(state) do
       :severance ->
         Notifier.send_countdown(0, :severance, :final)
-        Tmux.set_status_right(state.original_tmux_status)
         Severance.System.adapter().shutdown_machine()
         Process.send_after(self(), :retry_shutdown, @shutdown_retry_ms)
 
       :overtime ->
         if Application.get_env(:severance, :overtime_notifications, true) do
           Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
-        else
-          Tmux.set_status_right(state.original_tmux_status)
         end
     end
   end
@@ -312,6 +299,13 @@ defmodule Severance.Countdown do
   defp minutes_remaining(shutdown_time) do
     now = NaiveDateTime.to_time(local_now())
     Time.diff(shutdown_time, now, :minute)
+  end
+
+  defp seconds_remaining(nil), do: nil
+
+  defp seconds_remaining(shutdown_time) do
+    now = NaiveDateTime.to_time(local_now())
+    Time.diff(shutdown_time, now, :second)
   end
 
   defp ms_until_countdown_start(shutdown_time) do
@@ -334,7 +328,7 @@ defmodule Severance.Countdown do
 
   defp send_stale_pane_warnings do
     @stale_threshold_minutes
-    |> Tmux.stale_panes()
+    |> Panes.stale_panes()
     |> Enum.each(&Notifier.send_stale_pane(&1, @stale_threshold_minutes))
   end
 end
