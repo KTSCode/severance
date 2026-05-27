@@ -137,6 +137,11 @@ defmodule Severance.Init do
   def plist_contents(binary_path) do
     log_dir = Path.join(System.user_home!(), "Library/Logs")
 
+    # launchd starts agents with an empty PATH. Publishers shell out to
+    # `tmux` (and other tools), so seed PATH with the common Homebrew and
+    # system bin directories or every publisher tick crashes with :enoent.
+    path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
     """
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -150,6 +155,11 @@ defmodule Severance.Init do
         <string>#{binary_path}</string>
         <string>--daemon</string>
       </array>
+      <key>EnvironmentVariables</key>
+      <dict>
+        <key>PATH</key>
+        <string>#{path}</string>
+      </dict>
       <key>RunAtLoad</key>
       <true/>
       <key>KeepAlive</key>

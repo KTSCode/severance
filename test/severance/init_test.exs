@@ -138,6 +138,14 @@ defmodule Severance.InitTest do
       assert plist =~ "#{home}/Library/Logs/severance.err"
       refute plist =~ "/tmp/severance"
     end
+
+    test "EnvironmentVariables sets a PATH that finds Homebrew tmux" do
+      plist = Init.plist_contents("/usr/local/bin/sev")
+
+      assert plist =~ "<key>EnvironmentVariables</key>"
+      assert plist =~ ~r{<key>PATH</key>\s*<string>[^<]*/opt/homebrew/bin[^<]*</string>}
+      assert plist =~ ~r{<key>PATH</key>\s*<string>[^<]*/usr/local/bin[^<]*</string>}
+    end
   end
 
   describe "detect_binary_path/0" do
