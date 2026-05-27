@@ -233,9 +233,9 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Address [this comment](https://github.com/KTSCode/severance/pull/11#discussion_r3041310901) from a closed PR
 - [x] Replace DIY `mix tag` with `mix_version` -- see `docs/plans/replace_tag_with_mix_version.md`
 - [x] Make `sev <INVALID COMMAND>` error and not start severance
+- [x] Fix daemon `tmux` invocation under LaunchAgent — `Init.plist_contents/1` must emit `EnvironmentVariables` with a usable `PATH` (include `/opt/homebrew/bin`, `/usr/local/bin`), and/or `Severance.System.Real.tmux_cmd/1` should resolve tmux via `System.find_executable/1`. Daemon launched by `launchctl kickstart` inherits launchd's empty PATH, so `System.cmd("tmux", ...)` crashes with `:enoent` every publisher tick.
 - [ ] Add [CLIMate](https://hexdocs.pm/cli_mate/readme.html) and update application to use it in order to simplify code
 - [ ] Add `sev help` that give full usage instructions
 - [ ] add `sev help --agent` that give usage instructions designed for LLM Agents include full config explanation
