@@ -66,6 +66,7 @@ defmodule Severance.CLI do
           | {:init, map()}
           | :update
           | :version
+          | :help
           | {:error, String.t()}
 
   @doc """
@@ -100,6 +101,16 @@ defmodule Severance.CLI do
     argv |> normalize_argv() |> Mate.parse(@command) |> to_result()
   end
 
+  @doc """
+  Returns the CliMate-generated usage block for the `sev` command.
+  """
+  @spec usage() :: String.t()
+  def usage do
+    @command
+    |> Mate.format_usage(ansi_enabled: false)
+    |> IO.iodata_to_binary()
+  end
+
   @doc false
   @spec cast_shutdown_time(String.t()) :: {:ok, Time.t()} | {:error, String.t()}
   def cast_shutdown_time(time_str) do
@@ -121,6 +132,8 @@ defmodule Severance.CLI do
       true -> ["start" | argv]
     end
   end
+
+  defp to_result({:ok, %{options: %{help: true}}}), do: :help
 
   defp to_result({:ok, %{path: [:version]}}), do: :version
   defp to_result({:ok, %{path: [:update]}}), do: :update

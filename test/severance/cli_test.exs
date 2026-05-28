@@ -91,6 +91,20 @@ defmodule Severance.CLITest do
     test "invalid --shutdown-time with out-of-range hours returns error tuple" do
       assert {:error, _msg} = CLI.parse_args(["--shutdown-time", "25:00"])
     end
+
+    test "--help returns :help" do
+      assert CLI.parse_args(["--help"]) == :help
+    end
+
+    test "subcommand --help returns :help" do
+      assert CLI.parse_args(["status", "--help"]) == :help
+    end
+  end
+
+  describe "usage/0" do
+    test "returns a usage string mentioning the binary name" do
+      assert CLI.usage() =~ "sev"
+    end
   end
 
   describe "build_daemon_cmd/1" do

@@ -41,6 +41,11 @@ defmodule Severance.Application do
     System.halt(0)
   end
 
+  defp dispatch(:help) do
+    IO.puts(CLI.usage())
+    System.halt(0)
+  end
+
   defp dispatch(:overtime) do
     result = CLI.run_overtime()
     System.halt(if result == :ok, do: 0, else: 1)
