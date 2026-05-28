@@ -55,50 +55,39 @@ defmodule Severance.CLI do
     ]
   ]
 
-  @type parse_args_result ::
-          :start
-          | {:start, keyword()}
-          | :daemon
-          | {:daemon, keyword()}
-          | :overtime
-          | {:status, map()}
-          | :log
-          | {:init, map()}
-          | :update
-          | :version
-          | :help
-          | {:error, String.t()}
+  @type parse_args_result :: Mate.parsed() | :help | {:error, String.t()}
 
   @doc """
-  Parses command-line arguments into an action.
+  Parses command-line arguments into a CliMate parsed map, `:help`, or an error.
 
-  Returns `:start` for no args or the `start` subcommand.
-  Returns `{:start, opts}` when options like `--shutdown-time` are provided.
-  Returns `:daemon` or `{:daemon, opts}` for the internal `--daemon` flag.
-  Returns `:overtime`, `{:status, opts}`, `{:init, opts}`, `:log`,
-  `:update`, or `:version` for their respective subcommands.
+  Returns a `CliMate.CLI.parsed()` map with `:path`, `:options`, and `:arguments` keys
+  on success. The `:path` is a single-element list identifying the matched subcommand,
+  e.g. `[:start]`, `[:status]`, `[:otp]`.
+
+  Returns `:help` when `--help` is passed (at any level).
   Returns `{:error, message}` for unrecognized commands or invalid options.
 
   ## Examples
 
-      iex> Severance.CLI.parse_args([])
-      :start
+      iex> Severance.CLI.parse_args(["otp"]).path
+      [:otp]
 
-      iex> Severance.CLI.parse_args(["start"])
-      :start
+      iex> Severance.CLI.parse_args([]).path
+      [:start]
 
-      iex> Severance.CLI.parse_args(["--daemon"])
-      :daemon
+      iex> Severance.CLI.parse_args(["status", "tmux_countdown"]).arguments.publisher
+      "tmux_countdown"
 
-      iex> Severance.CLI.parse_args(["otp"])
-      :overtime
-
-      iex> Severance.CLI.parse_args(["something-else"])
-      {:error, "Unknown command: something-else"}
+      iex> match?({:error, _}, Severance.CLI.parse_args(["something-else"]))
+      true
   """
   @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(argv) do
-    argv |> normalize_argv() |> Mate.parse(@command) |> to_result()
+    case argv |> normalize_argv() |> Mate.parse(@command) do
+      {:ok, %{options: %{help: true}}} -> :help
+      {:ok, parsed} -> parsed
+      {:error, reason} -> {:error, format_error(reason)}
+    end
   end
 
   @doc """
@@ -132,48 +121,6 @@ defmodule Severance.CLI do
       true -> ["start" | argv]
     end
   end
-
-  defp to_result({:ok, %{options: %{help: true}}}), do: :help
-
-  defp to_result({:ok, %{path: [:version]}}), do: :version
-  defp to_result({:ok, %{path: [:update]}}), do: :update
-  defp to_result({:ok, %{path: [:log]}}), do: :log
-
-  defp to_result({:ok, %{path: [sub]}}) when sub in [:otp, :overtime, :over_time_protocol] do
-    :overtime
-  end
-
-  defp to_result({:ok, %{path: [:init], options: opts}}) do
-    {:init, %{with_tmux?: Map.get(opts, :with_tmux, false)}}
-  end
-
-  defp to_result({:ok, %{path: [:status], options: opts, arguments: args}}) do
-    {:status,
-     %{
-       publisher_name: publisher_atom(Map.get(args, :publisher)),
-       teardown?: Map.get(opts, :teardown, false)
-     }}
-  end
-
-  defp to_result({:ok, %{path: [:start], options: opts}}) do
-    keyword =
-      case Map.get(opts, :shutdown_time) do
-        nil -> []
-        time -> [shutdown_time: time]
-      end
-
-    case {Map.get(opts, :daemon, false), keyword} do
-      {true, []} -> :daemon
-      {true, kw} -> {:daemon, kw}
-      {false, []} -> :start
-      {false, kw} -> {:start, kw}
-    end
-  end
-
-  defp to_result({:error, reason}), do: {:error, format_error(reason)}
-
-  defp publisher_atom(nil), do: nil
-  defp publisher_atom(str) when is_binary(str), do: String.to_atom(str)
 
   defp format_error({:unknown_subcommand, sub}), do: "Unknown command: #{sub}"
   defp format_error({:extra_argument, v}), do: "Unknown command: #{v}"
@@ -339,10 +286,11 @@ defmodule Severance.CLI do
   publisher once for debugging. Plain invocation prints the normal status
   block plus optional tmux wiring and publisher error blocks.
 
-  `allow_nonexistent_atoms: true` is passed to `OptionParser` when parsing
-  `status` flags so arbitrary user-defined publisher names are accepted as
-  atoms. These atoms come from user config evaluated with `Code.eval_file/1`
-  (same trust model as the rest of the config pipeline).
+  The `:publisher_name` atom is created upstream in `Severance.Application`
+  from the CliMate-parsed positional argument via `String.to_atom/1`. Arbitrary
+  user-defined publisher names are accepted because they come from user config
+  evaluated with `Code.eval_file/1` (same trust model as the rest of the config
+  pipeline).
 
   Returns `:ok` always — status is informational.
   """
