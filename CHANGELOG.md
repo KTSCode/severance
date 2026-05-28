@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - CLI argument parsing now uses [CliMate](https://hexdocs.pm/cli_mate), replacing the hand-rolled `OptionParser` clauses
 - `sev status <publisher>` debug invocation switched from a dynamic `--<publisher-name>` flag to a positional argument (`--teardown` still toggles teardown mode)
+- `sev <subcommand>` now rejects unexpected trailing arguments (e.g. `sev start stop`) instead of silently ignoring them
 
 ### Added
 
