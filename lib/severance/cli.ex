@@ -2,33 +2,80 @@ defmodule Severance.CLI do
   @moduledoc """
   Handles CLI argument parsing and the Overtime Protocol RPC connection.
 
+  Parsing is delegated to [CliMate](https://hexdocs.pm/cli_mate). The command
+  tree lives in the `@command` module attribute.
+
   ## Usage
 
-      sev                        # Start the daemon in the background
-      sev start                  # Start the daemon in the background
-      sev --daemon               # Run the daemon in the foreground (internal)
-      sev init                   # Set up config, plist, and tmux
-      sev update                 # Update to latest release
-      sev version                # Print current version
-      sev -v                     # Print current version
-      sev status                 # Show daemon status and version info
-      sev log                    # Print the activity log
-      sev --shutdown-time HH:MM  # Start with custom shutdown time
-      sev otp                    # Activate Overtime Protocol on running daemon
-      sev overtime               # Activate Overtime Protocol on running daemon
-      sev over_time_protocol     # Activate Overtime Protocol on running daemon
+      sev                              # Start the daemon in the background
+      sev start                        # Start the daemon in the background
+      sev --daemon                     # Run the daemon in the foreground (internal)
+      sev init [--with-tmux]           # Set up config, plist, and tmux
+      sev update                       # Update to latest release
+      sev version                      # Print current version
+      sev -v                           # Print current version
+      sev status                       # Show daemon status and version info
+      sev status <publisher>           # Invoke a publisher once for debugging
+      sev status <publisher> --teardown # Run a publisher's teardown
+      sev log                          # Print the activity log
+      sev --shutdown-time HH:MM        # Start with custom shutdown time
+      sev otp                          # Activate Overtime Protocol on running daemon
+      sev overtime                     # Activate Overtime Protocol on running daemon
+      sev over_time_protocol           # Activate Overtime Protocol on running daemon
   """
 
+  alias CliMate.CLI, as: Mate
   alias Severance.StatusPublisher.Tmux.ConfScanner
 
+  @subcommand_names ~w(start init update version status log otp overtime over_time_protocol)
+
+  @command [
+    name: "sev",
+    options: [
+      daemon: [type: :boolean, default: false, doc: "Run daemon in foreground (internal)"],
+      shutdown_time: [
+        type: :string,
+        cast: &__MODULE__.cast_shutdown_time/1,
+        doc: "Override shutdown time (HH:MM)"
+      ]
+    ],
+    subcommands: [
+      start: [options: []],
+      init: [options: [with_tmux: [type: :boolean, default: false, doc: "Seed tmux publisher"]]],
+      update: [options: []],
+      version: [options: []],
+      status: [
+        options: [teardown: [type: :boolean, default: false, doc: "Tear down publisher"]],
+        arguments: [publisher: [required: false]]
+      ],
+      log: [options: []],
+      otp: [options: []],
+      overtime: [options: []],
+      over_time_protocol: [options: []]
+    ]
+  ]
+
+  @type parse_args_result ::
+          :start
+          | {:start, keyword()}
+          | :daemon
+          | {:daemon, keyword()}
+          | :overtime
+          | {:status, map()}
+          | :log
+          | {:init, map()}
+          | :update
+          | :version
+          | {:error, String.t()}
+
   @doc """
-  Parses command-line arguments into an action atom.
+  Parses command-line arguments into an action.
 
   Returns `:start` for no args or the `start` subcommand.
   Returns `{:start, opts}` when options like `--shutdown-time` are provided.
   Returns `:daemon` or `{:daemon, opts}` for the internal `--daemon` flag.
-  Returns `:overtime`, `:status`, `:init`, `:update`, or
-  `:version` for their respective subcommands.
+  Returns `:overtime`, `{:status, opts}`, `{:init, opts}`, `:log`,
+  `:update`, or `:version` for their respective subcommands.
   Returns `{:error, message}` for unrecognized commands or invalid options.
 
   ## Examples
@@ -48,72 +95,82 @@ defmodule Severance.CLI do
       iex> Severance.CLI.parse_args(["something-else"])
       {:error, "Unknown command: something-else"}
   """
-  @type parse_args_result ::
-          :start
-          | {:start, keyword()}
-          | :daemon
-          | {:daemon, keyword()}
-          | :overtime
-          | {:status, map()}
-          | :log
-          | {:init, map()}
-          | :update
-          | :version
-          | {:error, String.t()}
-
   @spec parse_args([String.t()]) :: parse_args_result()
-  def parse_args(["init" | rest]) do
-    with_tmux? = "--with-tmux" in rest
-    {:init, %{with_tmux?: with_tmux?}}
+  def parse_args(argv) do
+    argv |> normalize_argv() |> Mate.parse(@command) |> to_result()
   end
 
-  def parse_args(["update" | _rest]), do: :update
-  def parse_args(["version" | _rest]), do: :version
-  def parse_args(["-v" | _rest]), do: :version
-  def parse_args(["--version" | _rest]), do: :version
-
-  def parse_args(["status" | rest]) do
-    {opts, _, _} =
-      OptionParser.parse(rest, switches: [teardown: :boolean], allow_nonexistent_atoms: true)
-
-    publisher_name =
-      opts
-      |> Keyword.delete(:teardown)
-      |> Enum.find_value(fn {k, v} -> if v == true, do: k end)
-
-    {:status, %{publisher_name: publisher_name, teardown?: Keyword.get(opts, :teardown, false)}}
-  end
-
-  def parse_args(["log" | _rest]), do: :log
-  def parse_args(["otp" | _rest]), do: :overtime
-  def parse_args(["overtime" | _rest]), do: :overtime
-  def parse_args(["over_time_protocol" | _rest]), do: :overtime
-  def parse_args(["start"]), do: :start
-  def parse_args(["start", "--shutdown-time" | _] = args), do: parse_args(tl(args))
-  def parse_args(["start" | _rest]), do: :start
-
-  def parse_args(["--daemon" | rest]) do
-    case parse_args(rest) do
-      :start -> :daemon
-      {:start, opts} -> {:daemon, opts}
-      other -> other
-    end
-  end
-
-  def parse_args(["--shutdown-time", time_str | _rest]) do
+  @doc false
+  @spec cast_shutdown_time(String.t()) :: {:ok, Time.t()} | {:error, String.t()}
+  def cast_shutdown_time(time_str) do
     padded = if String.length(time_str) == 5, do: time_str <> ":00", else: time_str
 
     case Time.from_iso8601(padded) do
       {:ok, time} ->
-        {:start, shutdown_time: time}
+        {:ok, time}
 
       {:error, _reason} ->
         {:error, "Invalid shutdown time: #{time_str}. Expected HH:MM format (e.g. 17:00)."}
     end
   end
 
-  def parse_args([]), do: :start
-  def parse_args([cmd | _rest]), do: {:error, "Unknown command: #{cmd}"}
+  defp normalize_argv(argv) do
+    cond do
+      "--version" in argv or "-v" in argv -> ["version"]
+      Enum.any?(argv, &(&1 in @subcommand_names)) -> argv
+      true -> ["start" | argv]
+    end
+  end
+
+  defp to_result({:ok, %{path: [:version]}}), do: :version
+  defp to_result({:ok, %{path: [:update]}}), do: :update
+  defp to_result({:ok, %{path: [:log]}}), do: :log
+
+  defp to_result({:ok, %{path: [sub]}}) when sub in [:otp, :overtime, :over_time_protocol] do
+    :overtime
+  end
+
+  defp to_result({:ok, %{path: [:init], options: opts}}) do
+    {:init, %{with_tmux?: Map.get(opts, :with_tmux, false)}}
+  end
+
+  defp to_result({:ok, %{path: [:status], options: opts, arguments: args}}) do
+    {:status,
+     %{
+       publisher_name: publisher_atom(Map.get(args, :publisher)),
+       teardown?: Map.get(opts, :teardown, false)
+     }}
+  end
+
+  defp to_result({:ok, %{path: [:start], options: opts}}) do
+    keyword =
+      case Map.get(opts, :shutdown_time) do
+        nil -> []
+        time -> [shutdown_time: time]
+      end
+
+    case {Map.get(opts, :daemon, false), keyword} do
+      {true, []} -> :daemon
+      {true, kw} -> {:daemon, kw}
+      {false, []} -> :start
+      {false, kw} -> {:start, kw}
+    end
+  end
+
+  defp to_result({:error, reason}), do: {:error, format_error(reason)}
+
+  defp publisher_atom(nil), do: nil
+  defp publisher_atom(str) when is_binary(str), do: String.to_atom(str)
+
+  defp format_error({:unknown_subcommand, sub}), do: "Unknown command: #{sub}"
+  defp format_error({:extra_argument, v}), do: "Unknown command: #{v}"
+  defp format_error({:option_cast, _key, msg}) when is_binary(msg), do: msg
+  defp format_error({:option_cast, key, reason}), do: "Invalid #{key}: #{inspect(reason)}"
+  defp format_error({:invalid, [{flag, _} | _]}), do: "Invalid option: #{flag}"
+  defp format_error({:argument_type, key, type}), do: "Invalid #{key}: expected #{type}"
+  defp format_error({:missing_argument, key}), do: "Missing argument: #{key}"
+  defp format_error(:missing_subcommand), do: "Missing subcommand"
+  defp format_error(other), do: inspect(other)
 
   @doc """
   Starts the daemon as a detached background process.

@@ -66,10 +66,8 @@ defmodule Severance.CLITest do
                {:start, shutdown_time: ~T[16:00:00]}
     end
 
-    test "start with trailing subcommand ignores it" do
-      assert CLI.parse_args(["start", "stop"]) == :start
-      assert CLI.parse_args(["start", "otp"]) == :start
-      assert CLI.parse_args(["start", "update"]) == :start
+    test "start with trailing unknown arg returns error" do
+      assert {:error, _msg} = CLI.parse_args(["start", "stop"])
     end
 
     test "--daemon returns :daemon" do
@@ -332,13 +330,13 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
     end
 
-    test "status --tmux-countdown returns publisher_name: :tmux_countdown" do
-      assert CLI.parse_args(["status", "--tmux-countdown"]) ==
+    test "status with publisher name returns publisher_name: :tmux_countdown" do
+      assert CLI.parse_args(["status", "tmux_countdown"]) ==
                {:status, %{publisher_name: :tmux_countdown, teardown?: false}}
     end
 
-    test "status --tmux-countdown --teardown returns publisher_name and teardown?" do
-      assert CLI.parse_args(["status", "--tmux-countdown", "--teardown"]) ==
+    test "status with publisher and --teardown returns publisher_name and teardown?" do
+      assert CLI.parse_args(["status", "tmux_countdown", "--teardown"]) ==
                {:status, %{publisher_name: :tmux_countdown, teardown?: true}}
     end
 

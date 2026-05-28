@@ -179,9 +179,9 @@ publisher errors (current config):
 
 Debug invocations:
 
-- `sev status --<publisher-name>` — invokes the publisher fn once and
+- `sev status <publisher-name>` — invokes the publisher fn once and
   returns immediately. Useful for testing your formatter.
-- `sev status --<publisher-name> --teardown` — invokes the teardown fn.
+- `sev status <publisher-name> --teardown` — invokes the teardown fn.
   Use to manually clear a stale tmux variable.
 - `sev status --teardown` (no name) — prints an error; a name is required.
 

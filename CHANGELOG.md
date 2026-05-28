@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- CLI argument parsing now uses [CliMate](https://hexdocs.pm/cli_mate), replacing the hand-rolled `OptionParser` clauses
+- `sev status <publisher>` debug invocation switched from a dynamic `--<publisher-name>` flag to a positional argument (`--teardown` still toggles teardown mode)
+
 ### Added
 
 - Fix daemon `tmux` invocation under LaunchAgent — `Init.plist_contents/1` must emit `EnvironmentVariables` with a usable `PATH` (include `/opt/homebrew/bin`, `/usr/local/bin`), and/or `Severance.System.Real.tmux_cmd/1` should resolve tmux via `System.find_executable/1`. Daemon launched by `launchctl kickstart` inherits launchd's empty PATH, so `System.cmd("tmux", ...)` crashes with `:enoent` every publisher tick.
