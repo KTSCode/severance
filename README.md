@@ -237,7 +237,7 @@ Small, well-understood changes go straight to code. For anything larger:
 - [x] Make `sev <INVALID COMMAND>` error and not start severance
 - [x] Fix daemon `tmux` invocation under LaunchAgent — `Init.plist_contents/1` must emit `EnvironmentVariables` with a usable `PATH` (include `/opt/homebrew/bin`, `/usr/local/bin`), and/or `Severance.System.Real.tmux_cmd/1` should resolve tmux via `System.find_executable/1`. Daemon launched by `launchctl kickstart` inherits launchd's empty PATH, so `System.cmd("tmux", ...)` crashes with `:enoent` every publisher tick.
 - [ ] Add [CLIMate](https://hexdocs.pm/cli_mate/readme.html) and update application to use it in order to simplify code
-- [ ] Add `sev help` that give full usage instructions
+- [ ] Add `sev help` that gives full usage instructions, including per-subcommand usage — `sev <cmd> --help` (e.g. `sev status --help`) currently collapses to `:help` and prints only top-level usage, omitting subcommand-specific args/flags (status's positional publisher arg, `--teardown`). CliMate's `parse/2` discards the resolved subcommand on `--help`, so this needs `sev help <cmd>` or per-subcommand usage rendering.
 - [ ] add `sev help --agent` that give usage instructions designed for LLM Agents include full config explanation
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
