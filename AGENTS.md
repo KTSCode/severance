@@ -12,7 +12,7 @@ Shared project conventions for all AI coding agents.
 - `mix format` — format code
 
 ## Stack
-- Elixir 1.19+ / OTP 28+
+- Elixir 1.20+ / OTP 29+
 - macOS only (uses `osascript` for notifications and shutdown)
 - tmux (status bar integration and stale pane detection)
 

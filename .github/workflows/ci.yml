@@ -13,18 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
+        id: beam
         with:
-          otp-version: "28.2"
-          elixir-version: "1.19.4"
+          otp-version: "29.0.1"
+          elixir-version: "1.20.0"
       - uses: actions/cache@v4
         with:
           path: |
             deps
             _build
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
       - uses: actions/cache@v4
         with:
           path: priv/plts
-          key: plt-${{ hashFiles('mix.lock') }}
+          key: plt-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
       - run: mix deps.get
       - run: mix quality
