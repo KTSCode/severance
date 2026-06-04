@@ -24,38 +24,9 @@ defmodule Severance.Application do
     end
   end
 
-  @spec dispatch(CLI.parse_args_result()) :: {:ok, pid()}
-  defp dispatch({:init, opts}) do
-    resolve_config([], suppress_warning: true)
-    Severance.Init.run(opts)
-    System.halt(0)
-  end
-
-  defp dispatch(:update) do
-    result = Severance.Updater.run()
-    System.halt(if result == :ok, do: 0, else: 1)
-  end
-
-  defp dispatch(:version) do
-    IO.puts(Severance.Updater.current_version())
-    System.halt(0)
-  end
-
-  defp dispatch(:overtime) do
-    result = CLI.run_overtime()
-    System.halt(if result == :ok, do: 0, else: 1)
-  end
-
-  defp dispatch({:status, opts}) do
-    Node.stop()
-    resolve_config([], suppress_warning: true)
-    CLI.run_status(opts)
-    System.halt(0)
-  end
-
-  defp dispatch(:log) do
-    config = resolve_config([], suppress_warning: true)
-    CLI.run_log(config.log_file)
+  @spec dispatch(CLI.parse_args_result()) :: {:ok, pid()} | no_return()
+  defp dispatch({:help, path}) do
+    IO.puts(CLI.usage(path))
     System.halt(0)
   end
 
@@ -64,16 +35,70 @@ defmodule Severance.Application do
     System.halt(1)
   end
 
-  defp dispatch(:start) do
-    if burrito?(), do: start_or_notify([]), else: start_daemon()
+  defp dispatch(%{path: [:version]}) do
+    IO.puts(Severance.Updater.current_version())
+    System.halt(0)
   end
 
-  defp dispatch({:start, opts}) do
-    if burrito?(), do: start_or_notify(opts), else: start_daemon(opts)
+  defp dispatch(%{path: [:update]}) do
+    result = Severance.Updater.run()
+    System.halt(if result == :ok, do: 0, else: 1)
   end
 
-  defp dispatch(:daemon), do: start_daemon()
-  defp dispatch({:daemon, opts}), do: start_daemon(opts)
+  defp dispatch(%{path: [:log]}) do
+    config = resolve_config([], suppress_warning: true)
+    CLI.run_log(config.log_file)
+    System.halt(0)
+  end
+
+  defp dispatch(%{path: [sub]}) when sub in [:otp, :overtime, :over_time_protocol] do
+    result = CLI.run_overtime()
+    System.halt(if result == :ok, do: 0, else: 1)
+  end
+
+  defp dispatch(%{path: [:init], options: opts}) do
+    resolve_config([], suppress_warning: true)
+    Severance.Init.run(%{with_tmux?: opts.with_tmux})
+    System.halt(0)
+  end
+
+  defp dispatch(%{path: [:status], options: opts, arguments: args}) do
+    Node.stop()
+    resolve_config([], suppress_warning: true)
+
+    # The publisher name is a positional CLI arg matched against user-authored
+    # config (loaded via Code.eval_file/1), so converting it to an atom is
+    # trusted input — the same trust model as the rest of the config pipeline.
+    publisher_name =
+      case Map.get(args, :publisher) do
+        nil -> nil
+        name -> String.to_atom(name)
+      end
+
+    CLI.run_status(%{publisher_name: publisher_name, teardown?: opts.teardown})
+    System.halt(0)
+  end
+
+  defp dispatch(%{path: [:start], options: opts}) do
+    kw = start_keyword(opts)
+
+    # --daemon runs the supervision tree in this (foreground) process. Without it,
+    # a packaged Burrito binary spawns a detached background daemon, while dev/test
+    # starts the tree inline.
+    cond do
+      opts.daemon -> start_daemon(kw)
+      burrito?() -> start_or_notify(kw)
+      true -> start_daemon(kw)
+    end
+  end
+
+  @spec start_keyword(map()) :: keyword()
+  defp start_keyword(opts) do
+    case Map.get(opts, :shutdown_time) do
+      nil -> []
+      time -> [shutdown_time: time]
+    end
+  end
 
   @spec start_or_notify(keyword()) :: no_return()
   defp start_or_notify(opts) do

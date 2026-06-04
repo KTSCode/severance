@@ -2,118 +2,153 @@ defmodule Severance.CLI do
   @moduledoc """
   Handles CLI argument parsing and the Overtime Protocol RPC connection.
 
+  Parsing is delegated to [CliMate](https://hexdocs.pm/cli_mate). The command
+  tree lives in the `@command` module attribute.
+
   ## Usage
 
-      sev                        # Start the daemon in the background
-      sev start                  # Start the daemon in the background
-      sev --daemon               # Run the daemon in the foreground (internal)
-      sev init                   # Set up config, plist, and tmux
-      sev update                 # Update to latest release
-      sev version                # Print current version
-      sev -v                     # Print current version
-      sev status                 # Show daemon status and version info
-      sev log                    # Print the activity log
-      sev --shutdown-time HH:MM  # Start with custom shutdown time
-      sev otp                    # Activate Overtime Protocol on running daemon
-      sev overtime               # Activate Overtime Protocol on running daemon
-      sev over_time_protocol     # Activate Overtime Protocol on running daemon
+      sev                              # Start the daemon in the background
+      sev start                        # Start the daemon in the background
+      sev --daemon                     # Run the daemon in the foreground (internal)
+      sev init [--with-tmux]           # Set up config, plist, and tmux
+      sev update                       # Update to latest release
+      sev version                      # Print current version
+      sev -v                           # Print current version
+      sev status                       # Show daemon status and version info
+      sev status <publisher>           # Invoke a publisher once for debugging
+      sev status <publisher> --teardown # Run a publisher's teardown
+      sev log                          # Print the activity log
+      sev --shutdown-time HH:MM        # Start with custom shutdown time
+      sev otp                          # Activate Overtime Protocol on running daemon
+      sev overtime                     # Activate Overtime Protocol on running daemon
+      sev over_time_protocol           # Activate Overtime Protocol on running daemon
   """
 
+  alias CliMate.CLI, as: Mate
   alias Severance.StatusPublisher.Tmux.ConfScanner
 
-  @doc """
-  Parses command-line arguments into an action atom.
+  @subcommand_names ~w(start init update version status log otp overtime over_time_protocol)
 
-  Returns `:start` for no args or the `start` subcommand.
-  Returns `{:start, opts}` when options like `--shutdown-time` are provided.
-  Returns `:daemon` or `{:daemon, opts}` for the internal `--daemon` flag.
-  Returns `:overtime`, `:status`, `:init`, `:update`, or
-  `:version` for their respective subcommands.
+  @command [
+    name: "sev",
+    options: [
+      daemon: [type: :boolean, default: false, doc: "Run daemon in foreground (internal)"],
+      shutdown_time: [
+        type: :string,
+        cast: &__MODULE__.cast_shutdown_time/1,
+        doc: "Override shutdown time (HH:MM)"
+      ]
+    ],
+    subcommands: [
+      start: [options: []],
+      init: [options: [with_tmux: [type: :boolean, default: false, doc: "Seed tmux publisher"]]],
+      update: [options: []],
+      version: [options: []],
+      status: [
+        options: [teardown: [type: :boolean, default: false, doc: "Tear down publisher"]],
+        arguments: [publisher: [required: false]]
+      ],
+      log: [options: []],
+      otp: [options: []],
+      overtime: [options: []],
+      over_time_protocol: [options: []]
+    ]
+  ]
+
+  @type parse_args_result :: Mate.parsed() | {:help, [atom()]} | {:error, String.t()}
+
+  @doc """
+  Parses command-line arguments into a CliMate parsed map, `:help`, or an error.
+
+  Returns a `CliMate.CLI.parsed()` map with `:path`, `:options`, and `:arguments` keys
+  on success. The `:path` is a single-element list identifying the matched subcommand,
+  e.g. `[:start]`, `[:status]`, `[:otp]`.
+
+  Returns `{:help, path}` when `--help` is passed. The `path` carries the
+  resolved subcommand (e.g. `[:status]`), or `[]` for top-level help, so the
+  caller can render subcommand-specific usage.
   Returns `{:error, message}` for unrecognized commands or invalid options.
 
   ## Examples
 
-      iex> Severance.CLI.parse_args([])
-      :start
+      iex> Severance.CLI.parse_args(["otp"]).path
+      [:otp]
 
-      iex> Severance.CLI.parse_args(["start"])
-      :start
+      iex> Severance.CLI.parse_args([]).path
+      [:start]
 
-      iex> Severance.CLI.parse_args(["--daemon"])
-      :daemon
+      iex> Severance.CLI.parse_args(["status", "tmux_countdown"]).arguments.publisher
+      "tmux_countdown"
 
-      iex> Severance.CLI.parse_args(["otp"])
-      :overtime
-
-      iex> Severance.CLI.parse_args(["something-else"])
-      {:error, "Unknown command: something-else"}
+      iex> match?({:error, _}, Severance.CLI.parse_args(["something-else"]))
+      true
   """
-  @type parse_args_result ::
-          :start
-          | {:start, keyword()}
-          | :daemon
-          | {:daemon, keyword()}
-          | :overtime
-          | {:status, map()}
-          | :log
-          | {:init, map()}
-          | :update
-          | :version
-          | {:error, String.t()}
-
   @spec parse_args([String.t()]) :: parse_args_result()
-  def parse_args(["init" | rest]) do
-    with_tmux? = "--with-tmux" in rest
-    {:init, %{with_tmux?: with_tmux?}}
-  end
-
-  def parse_args(["update" | _rest]), do: :update
-  def parse_args(["version" | _rest]), do: :version
-  def parse_args(["-v" | _rest]), do: :version
-  def parse_args(["--version" | _rest]), do: :version
-
-  def parse_args(["status" | rest]) do
-    {opts, _, _} =
-      OptionParser.parse(rest, switches: [teardown: :boolean], allow_nonexistent_atoms: true)
-
-    publisher_name =
-      opts
-      |> Keyword.delete(:teardown)
-      |> Enum.find_value(fn {k, v} -> if v == true, do: k end)
-
-    {:status, %{publisher_name: publisher_name, teardown?: Keyword.get(opts, :teardown, false)}}
-  end
-
-  def parse_args(["log" | _rest]), do: :log
-  def parse_args(["otp" | _rest]), do: :overtime
-  def parse_args(["overtime" | _rest]), do: :overtime
-  def parse_args(["over_time_protocol" | _rest]), do: :overtime
-  def parse_args(["start"]), do: :start
-  def parse_args(["start", "--shutdown-time" | _] = args), do: parse_args(tl(args))
-  def parse_args(["start" | _rest]), do: :start
-
-  def parse_args(["--daemon" | rest]) do
-    case parse_args(rest) do
-      :start -> :daemon
-      {:start, opts} -> {:daemon, opts}
-      other -> other
+  def parse_args(argv) do
+    case argv |> normalize_argv() |> Mate.parse(@command) do
+      {:ok, %{options: %{help: true}, path: path}} -> {:help, path}
+      {:ok, parsed} -> parsed
+      {:error, reason} -> {:error, format_error(reason)}
     end
   end
 
-  def parse_args(["--shutdown-time", time_str | _rest]) do
+  @doc """
+  Returns the CliMate-generated usage block for the `sev` command or a subcommand.
+
+  With an empty path (the default) the top-level usage is returned. A path
+  identifying a subcommand, e.g. `[:status]`, returns that subcommand's usage,
+  including its positional arguments and options.
+  """
+  @spec usage([atom()]) :: String.t()
+  def usage(path \\ [])
+
+  def usage([]) do
+    @command
+    |> Mate.format_usage(ansi_enabled: false)
+    |> IO.iodata_to_binary()
+  end
+
+  def usage([sub | _]) do
+    spec = @command |> Keyword.fetch!(:subcommands) |> Keyword.fetch!(sub)
+
+    [name: "#{@command[:name]} #{sub}"]
+    |> Keyword.merge(spec)
+    |> Mate.format_usage(ansi_enabled: false)
+    |> IO.iodata_to_binary()
+  end
+
+  @doc false
+  @spec cast_shutdown_time(String.t()) :: {:ok, Time.t()} | {:error, String.t()}
+  def cast_shutdown_time(time_str) do
     padded = if String.length(time_str) == 5, do: time_str <> ":00", else: time_str
 
     case Time.from_iso8601(padded) do
       {:ok, time} ->
-        {:start, shutdown_time: time}
+        {:ok, time}
 
       {:error, _reason} ->
         {:error, "Invalid shutdown time: #{time_str}. Expected HH:MM format (e.g. 17:00)."}
     end
   end
 
-  def parse_args([]), do: :start
-  def parse_args([cmd | _rest]), do: {:error, "Unknown command: #{cmd}"}
+  defp normalize_argv(argv) do
+    cond do
+      "--version" in argv or "-v" in argv -> ["version"]
+      "--help" in argv -> argv
+      Enum.any?(argv, &(&1 in @subcommand_names)) -> argv
+      true -> ["start" | argv]
+    end
+  end
+
+  defp format_error({:unknown_subcommand, sub}), do: "Unknown command: #{sub}"
+  defp format_error({:extra_argument, v}), do: "Unknown command: #{v}"
+  defp format_error({:option_cast, _key, msg}) when is_binary(msg), do: msg
+  defp format_error({:option_cast, key, reason}), do: "Invalid #{key}: #{inspect(reason)}"
+  defp format_error({:invalid, [{flag, _} | _]}), do: "Invalid option: #{flag}"
+  defp format_error({:argument_type, key, type}), do: "Invalid #{key}: expected #{type}"
+  defp format_error({:missing_argument, key}), do: "Missing argument: #{key}"
+  defp format_error(:missing_subcommand), do: "Missing subcommand"
+  defp format_error(other), do: inspect(other)
 
   @doc """
   Starts the daemon as a detached background process.
@@ -269,10 +304,11 @@ defmodule Severance.CLI do
   publisher once for debugging. Plain invocation prints the normal status
   block plus optional tmux wiring and publisher error blocks.
 
-  `allow_nonexistent_atoms: true` is passed to `OptionParser` when parsing
-  `status` flags so arbitrary user-defined publisher names are accepted as
-  atoms. These atoms come from user config evaluated with `Code.eval_file/1`
-  (same trust model as the rest of the config pipeline).
+  The `:publisher_name` atom is created upstream in `Severance.Application`
+  from the CliMate-parsed positional argument via `String.to_atom/1`. Arbitrary
+  user-defined publisher names are accepted because they come from user config
+  evaluated with `Code.eval_file/1` (same trust model as the rest of the config
+  pipeline).
 
   Returns `:ok` always — status is informational.
   """

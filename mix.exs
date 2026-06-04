@@ -38,6 +38,7 @@ defmodule Severance.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.1", only: :dev},
       {:burrito, "~> 1.5"},
+      {:cli_mate, "~> 0.10"},
       {:doctor, "~> 0.22", only: :dev},
       {:ex_quality, "~> 0.6", only: :dev},
       {:excoveralls, "~> 0.18", only: :test},

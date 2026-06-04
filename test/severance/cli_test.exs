@@ -4,81 +4,91 @@ defmodule Severance.CLITest do
   alias Severance.CLI
 
   describe "parse_args/1" do
-    test "empty args returns :start" do
-      assert CLI.parse_args([]) == :start
+    test "empty args returns parsed map with path [:start] and daemon false" do
+      assert %{path: [:start], options: opts} = CLI.parse_args([])
+      assert opts.daemon == false
     end
 
-    test "otp arg returns :overtime" do
-      assert CLI.parse_args(["otp"]) == :overtime
+    test "start arg returns path [:start]" do
+      assert %{path: [:start]} = CLI.parse_args(["start"])
     end
 
-    test "overtime arg returns :overtime" do
-      assert CLI.parse_args(["overtime"]) == :overtime
+    test "--daemon returns path [:start] with daemon true" do
+      assert %{path: [:start], options: opts} = CLI.parse_args(["--daemon"])
+      assert opts.daemon == true
     end
 
-    test "over_time_protocol arg returns :overtime" do
-      assert CLI.parse_args(["over_time_protocol"]) == :overtime
+    test "--daemon with --shutdown-time returns daemon true and shutdown_time" do
+      assert %{path: [:start], options: opts} =
+               CLI.parse_args(["--daemon", "--shutdown-time", "16:00"])
+
+      assert opts.daemon == true
+      assert opts.shutdown_time == ~T[16:00:00]
     end
 
-    test "shutdown-time flag returns start with custom time" do
-      assert CLI.parse_args(["--shutdown-time", "17:00"]) ==
-               {:start, shutdown_time: ~T[17:00:00]}
+    test "shutdown-time flag returns path [:start] with shutdown_time" do
+      assert %{path: [:start], options: opts} = CLI.parse_args(["--shutdown-time", "17:00"])
+      assert opts.shutdown_time == ~T[17:00:00]
     end
 
-    test "init returns {:init, %{with_tmux?: false}}" do
-      assert CLI.parse_args(["init"]) == {:init, %{with_tmux?: false}}
+    test "start with --shutdown-time returns path [:start] and shutdown_time" do
+      assert %{path: [:start], options: opts} =
+               CLI.parse_args(["start", "--shutdown-time", "16:00"])
+
+      assert opts.shutdown_time == ~T[16:00:00]
     end
 
-    test "init --with-tmux returns {:init, %{with_tmux?: true}}" do
-      assert CLI.parse_args(["init", "--with-tmux"]) == {:init, %{with_tmux?: true}}
+    test "init returns path [:init] with with_tmux false" do
+      assert %{path: [:init], options: opts} = CLI.parse_args(["init"])
+      assert opts.with_tmux == false
     end
 
-    test "update arg returns :update" do
-      assert CLI.parse_args(["update"]) == :update
+    test "init --with-tmux returns path [:init] with with_tmux true" do
+      assert %{path: [:init], options: opts} = CLI.parse_args(["init", "--with-tmux"])
+      assert opts.with_tmux == true
     end
 
-    test "version arg returns :version" do
-      assert CLI.parse_args(["version"]) == :version
+    test "update arg returns path [:update]" do
+      assert %{path: [:update]} = CLI.parse_args(["update"])
     end
 
-    test "status arg returns {:status, %{publisher_name: nil, teardown?: false}}" do
-      assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
+    test "version arg returns path [:version]" do
+      assert %{path: [:version]} = CLI.parse_args(["version"])
     end
 
-    test "log arg returns :log" do
-      assert CLI.parse_args(["log"]) == :log
+    test "-v flag returns path [:version]" do
+      assert %{path: [:version]} = CLI.parse_args(["-v"])
     end
 
-    test "-v flag returns :version" do
-      assert CLI.parse_args(["-v"]) == :version
+    test "--version flag returns path [:version]" do
+      assert %{path: [:version]} = CLI.parse_args(["--version"])
     end
 
-    test "--version flag returns :version" do
-      assert CLI.parse_args(["--version"]) == :version
+    test "log arg returns path [:log]" do
+      assert %{path: [:log]} = CLI.parse_args(["log"])
     end
 
-    test "start arg returns :start" do
-      assert CLI.parse_args(["start"]) == :start
+    test "otp arg returns path [:otp]" do
+      assert %{path: [:otp]} = CLI.parse_args(["otp"])
     end
 
-    test "start with --shutdown-time returns start with opts" do
-      assert CLI.parse_args(["start", "--shutdown-time", "16:00"]) ==
-               {:start, shutdown_time: ~T[16:00:00]}
+    test "overtime arg returns path [:overtime]" do
+      assert %{path: [:overtime]} = CLI.parse_args(["overtime"])
     end
 
-    test "start with trailing subcommand ignores it" do
-      assert CLI.parse_args(["start", "stop"]) == :start
-      assert CLI.parse_args(["start", "otp"]) == :start
-      assert CLI.parse_args(["start", "update"]) == :start
+    test "over_time_protocol arg returns path [:over_time_protocol]" do
+      assert %{path: [:over_time_protocol]} = CLI.parse_args(["over_time_protocol"])
     end
 
-    test "--daemon returns :daemon" do
-      assert CLI.parse_args(["--daemon"]) == :daemon
+    test "status arg returns path [:status] with teardown false and no publisher key" do
+      parsed = CLI.parse_args(["status"])
+      assert %{path: [:status], options: opts} = parsed
+      assert opts.teardown == false
+      refute Map.has_key?(parsed.arguments, :publisher)
     end
 
-    test "--daemon with --shutdown-time returns daemon with opts" do
-      assert CLI.parse_args(["--daemon", "--shutdown-time", "16:00"]) ==
-               {:daemon, shutdown_time: ~T[16:00:00]}
+    test "start with trailing unknown arg returns error" do
+      assert {:error, _msg} = CLI.parse_args(["start", "stop"])
     end
 
     test "unknown command returns error tuple" do
@@ -92,6 +102,62 @@ defmodule Severance.CLITest do
 
     test "invalid --shutdown-time with out-of-range hours returns error tuple" do
       assert {:error, _msg} = CLI.parse_args(["--shutdown-time", "25:00"])
+    end
+
+    test "--help returns help with empty path" do
+      assert CLI.parse_args(["--help"]) == {:help, []}
+    end
+
+    test "subcommand --help preserves the subcommand path" do
+      assert CLI.parse_args(["status", "--help"]) == {:help, [:status]}
+    end
+  end
+
+  describe "parse_args/1 status flags" do
+    test "status with no flags returns path [:status] with teardown false and no publisher key" do
+      parsed = CLI.parse_args(["status"])
+      assert %{path: [:status], options: opts} = parsed
+      assert opts.teardown == false
+      refute Map.has_key?(parsed.arguments, :publisher)
+    end
+
+    test "status with publisher name returns publisher string and teardown false" do
+      assert %{path: [:status], options: opts, arguments: args} =
+               CLI.parse_args(["status", "tmux_countdown"])
+
+      assert args.publisher == "tmux_countdown"
+      assert opts.teardown == false
+    end
+
+    test "status with publisher and --teardown returns publisher string and teardown true" do
+      assert %{path: [:status], options: opts, arguments: args} =
+               CLI.parse_args(["status", "tmux_countdown", "--teardown"])
+
+      assert args.publisher == "tmux_countdown"
+      assert opts.teardown == true
+    end
+
+    test "status --teardown alone returns teardown true and no publisher key" do
+      parsed = CLI.parse_args(["status", "--teardown"])
+      assert %{path: [:status], options: opts} = parsed
+      assert opts.teardown == true
+      refute Map.has_key?(parsed.arguments, :publisher)
+    end
+  end
+
+  describe "usage/1" do
+    test "returns a usage string mentioning the binary name" do
+      assert CLI.usage() =~ "sev"
+    end
+
+    test "subcommand usage names the subcommand" do
+      assert CLI.usage([:status]) =~ "sev status"
+    end
+
+    test "status usage shows the publisher argument and --teardown option" do
+      usage = CLI.usage([:status])
+      assert usage =~ "publisher"
+      assert usage =~ "teardown"
     end
   end
 
@@ -324,27 +390,6 @@ defmodule Severance.CLITest do
       status = %Severance.Status{mode: :severance, phase: :waiting, version: "0.0.0"}
 
       assert CLI.attach_version(status, "1.2.3").version == "1.2.3"
-    end
-  end
-
-  describe "parse_args/1 status flags" do
-    test "status with no flags returns {:status, %{publisher_name: nil, teardown?: false}}" do
-      assert CLI.parse_args(["status"]) == {:status, %{publisher_name: nil, teardown?: false}}
-    end
-
-    test "status --tmux-countdown returns publisher_name: :tmux_countdown" do
-      assert CLI.parse_args(["status", "--tmux-countdown"]) ==
-               {:status, %{publisher_name: :tmux_countdown, teardown?: false}}
-    end
-
-    test "status --tmux-countdown --teardown returns publisher_name and teardown?" do
-      assert CLI.parse_args(["status", "--tmux-countdown", "--teardown"]) ==
-               {:status, %{publisher_name: :tmux_countdown, teardown?: true}}
-    end
-
-    test "status --teardown alone returns publisher_name: nil, teardown?: true" do
-      assert CLI.parse_args(["status", "--teardown"]) ==
-               {:status, %{publisher_name: nil, teardown?: true}}
     end
   end
 
