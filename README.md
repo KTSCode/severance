@@ -117,6 +117,7 @@ sev otp        # activate overtime protocol
 sev log        # print the activity log
 sev update     # update to latest release
 sev version    # print current version
+sev help       # print top-level usage (alias for sev --help)
 ```
 
 ### Start at login

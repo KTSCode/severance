@@ -108,6 +108,10 @@ defmodule Severance.CLITest do
       assert CLI.parse_args(["--help"]) == {:help, []}
     end
 
+    test "help arg returns help with empty path, aliasing top-level usage" do
+      assert CLI.parse_args(["help"]) == {:help, []}
+    end
+
     test "subcommand --help preserves the subcommand path" do
       assert CLI.parse_args(["status", "--help"]) == {:help, [:status]}
     end
