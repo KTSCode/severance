@@ -5,7 +5,7 @@ defmodule Severance.MixProject do
     [
       app: :severance,
       version: "0.16.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
