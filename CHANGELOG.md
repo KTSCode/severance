@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Update elixir verison to 1.20 with the latest OTP
+- Update elixir verison to 1.20 with the latest OTP
 
 ## [0.16.0] -- 2026-06-04
 
