@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.16.0] -- 2026-06-04
+
 ### Changed
 
 - CLI argument parsing now uses [CliMate](https://hexdocs.pm/cli_mate), replacing the hand-rolled `OptionParser` clauses
