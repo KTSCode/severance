@@ -8,7 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `sev help` prints top-level usage, aliasing `sev --help`
 - Update elixir verison to 1.20 with the latest OTP
+- Add a `sev help` subcommand as an alias for top-level usage (per-subcommand usage via `sev <cmd> --help`, e.g. `sev status --help`, now renders that command's args/flags)
 
 ## [0.16.0] -- 2026-06-04
 

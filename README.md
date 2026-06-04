@@ -117,6 +117,7 @@ sev otp        # activate overtime protocol
 sev log        # print the activity log
 sev update     # update to latest release
 sev version    # print current version
+sev help       # print top-level usage (alias for sev --help)
 ```
 
 ### Start at login
@@ -233,10 +234,9 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Fix daemon `tmux` invocation under LaunchAgent — `Init.plist_contents/1` must emit `EnvironmentVariables` with a usable `PATH` (include `/opt/homebrew/bin`, `/usr/local/bin`), and/or `Severance.System.Real.tmux_cmd/1` should resolve tmux via `System.find_executable/1`. Daemon launched by `launchctl kickstart` inherits launchd's empty PATH, so `System.cmd("tmux", ...)` crashes with `:enoent` every publisher tick.
 - [x] Add [CLIMate](https://hexdocs.pm/cli_mate/readme.html) and update application to use it in order to simplify code
 - [x] Update elixir verison to 1.20 with the latest OTP
-- [ ] Add a `sev help` subcommand as an alias for top-level usage (per-subcommand usage via `sev <cmd> --help`, e.g. `sev status --help`, now renders that command's args/flags)
+- [x] Add a `sev help` subcommand as an alias for top-level usage (per-subcommand usage via `sev <cmd> --help`, e.g. `sev status --help`, now renders that command's args/flags)
 - [ ] add `sev help --agent` that give usage instructions designed for LLM Agents include full config explanation
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 

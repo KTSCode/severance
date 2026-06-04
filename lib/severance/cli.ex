@@ -22,12 +22,14 @@ defmodule Severance.CLI do
       sev otp                          # Activate Overtime Protocol on running daemon
       sev overtime                     # Activate Overtime Protocol on running daemon
       sev over_time_protocol           # Activate Overtime Protocol on running daemon
+      sev help                         # Print top-level usage (alias for sev --help)
+      sev <cmd> --help                 # Print usage for a subcommand (e.g. sev status --help)
   """
 
   alias CliMate.CLI, as: Mate
   alias Severance.StatusPublisher.Tmux.ConfScanner
 
-  @subcommand_names ~w(start init update version status log otp overtime over_time_protocol)
+  @subcommand_names ~w(start init update version status log otp overtime over_time_protocol help)
 
   @command [
     name: "sev",
@@ -51,7 +53,8 @@ defmodule Severance.CLI do
       log: [options: []],
       otp: [options: []],
       overtime: [options: []],
-      over_time_protocol: [options: []]
+      over_time_protocol: [options: []],
+      help: [options: []]
     ]
   ]
 
@@ -66,7 +69,8 @@ defmodule Severance.CLI do
 
   Returns `{:help, path}` when `--help` is passed. The `path` carries the
   resolved subcommand (e.g. `[:status]`), or `[]` for top-level help, so the
-  caller can render subcommand-specific usage.
+  caller can render subcommand-specific usage. The `help` subcommand resolves
+  to top-level help (`{:help, []}`), an alias for `sev --help`.
   Returns `{:error, message}` for unrecognized commands or invalid options.
 
   ## Examples
@@ -82,11 +86,15 @@ defmodule Severance.CLI do
 
       iex> match?({:error, _}, Severance.CLI.parse_args(["something-else"]))
       true
+
+      iex> Severance.CLI.parse_args(["help"])
+      {:help, []}
   """
   @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(argv) do
     case argv |> normalize_argv() |> Mate.parse(@command) do
       {:ok, %{options: %{help: true}, path: path}} -> {:help, path}
+      {:ok, %{path: [:help]}} -> {:help, []}
       {:ok, parsed} -> parsed
       {:error, reason} -> {:error, format_error(reason)}
     end
