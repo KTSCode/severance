@@ -55,7 +55,7 @@ defmodule Severance.CLI do
     ]
   ]
 
-  @type parse_args_result :: Mate.parsed() | :help | {:error, String.t()}
+  @type parse_args_result :: Mate.parsed() | {:help, [atom()]} | {:error, String.t()}
 
   @doc """
   Parses command-line arguments into a CliMate parsed map, `:help`, or an error.
@@ -64,7 +64,9 @@ defmodule Severance.CLI do
   on success. The `:path` is a single-element list identifying the matched subcommand,
   e.g. `[:start]`, `[:status]`, `[:otp]`.
 
-  Returns `:help` when `--help` is passed (at any level).
+  Returns `{:help, path}` when `--help` is passed. The `path` carries the
+  resolved subcommand (e.g. `[:status]`), or `[]` for top-level help, so the
+  caller can render subcommand-specific usage.
   Returns `{:error, message}` for unrecognized commands or invalid options.
 
   ## Examples
@@ -84,18 +86,33 @@ defmodule Severance.CLI do
   @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(argv) do
     case argv |> normalize_argv() |> Mate.parse(@command) do
-      {:ok, %{options: %{help: true}}} -> :help
+      {:ok, %{options: %{help: true}, path: path}} -> {:help, path}
       {:ok, parsed} -> parsed
       {:error, reason} -> {:error, format_error(reason)}
     end
   end
 
   @doc """
-  Returns the CliMate-generated usage block for the `sev` command.
+  Returns the CliMate-generated usage block for the `sev` command or a subcommand.
+
+  With an empty path (the default) the top-level usage is returned. A path
+  identifying a subcommand, e.g. `[:status]`, returns that subcommand's usage,
+  including its positional arguments and options.
   """
-  @spec usage() :: String.t()
-  def usage do
+  @spec usage([atom()]) :: String.t()
+  def usage(path \\ [])
+
+  def usage([]) do
     @command
+    |> Mate.format_usage(ansi_enabled: false)
+    |> IO.iodata_to_binary()
+  end
+
+  def usage([sub | _]) do
+    spec = @command |> Keyword.fetch!(:subcommands) |> Keyword.fetch!(sub)
+
+    [name: "#{@command[:name]} #{sub}"]
+    |> Keyword.merge(spec)
     |> Mate.format_usage(ansi_enabled: false)
     |> IO.iodata_to_binary()
   end
@@ -117,6 +134,7 @@ defmodule Severance.CLI do
   defp normalize_argv(argv) do
     cond do
       "--version" in argv or "-v" in argv -> ["version"]
+      "--help" in argv -> argv
       Enum.any?(argv, &(&1 in @subcommand_names)) -> argv
       true -> ["start" | argv]
     end

@@ -104,12 +104,12 @@ defmodule Severance.CLITest do
       assert {:error, _msg} = CLI.parse_args(["--shutdown-time", "25:00"])
     end
 
-    test "--help returns :help" do
-      assert CLI.parse_args(["--help"]) == :help
+    test "--help returns help with empty path" do
+      assert CLI.parse_args(["--help"]) == {:help, []}
     end
 
-    test "subcommand --help returns :help" do
-      assert CLI.parse_args(["status", "--help"]) == :help
+    test "subcommand --help preserves the subcommand path" do
+      assert CLI.parse_args(["status", "--help"]) == {:help, [:status]}
     end
   end
 
@@ -145,9 +145,19 @@ defmodule Severance.CLITest do
     end
   end
 
-  describe "usage/0" do
+  describe "usage/1" do
     test "returns a usage string mentioning the binary name" do
       assert CLI.usage() =~ "sev"
+    end
+
+    test "subcommand usage names the subcommand" do
+      assert CLI.usage([:status]) =~ "sev status"
+    end
+
+    test "status usage shows the publisher argument and --teardown option" do
+      usage = CLI.usage([:status])
+      assert usage =~ "publisher"
+      assert usage =~ "teardown"
     end
   end
 
