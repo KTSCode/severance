@@ -62,7 +62,8 @@ For anything larger:
   ```
 
 ## Changelog
-- Update `CHANGELOG.md` under `## [Unreleased]` when a branch introduces user-facing changes
+- Do not edit `CHANGELOG.md` during TODO work — `mix todo --done` adds the `## [Unreleased]` entry automatically from the TODO text
+- For changes made outside the `mix todo` flow, add the entry by hand
 - Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format
 - Use subsections: `### Added`, `### Changed`, `### Fixed`, `### Removed`
 - Write entries from the user's perspective, not the developer's

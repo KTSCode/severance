@@ -484,6 +484,25 @@ defmodule Mix.Tasks.TodoTest do
 
       assert new_entry_idx > unreleased_added_idx
     end
+
+    test "does not insert a duplicate entry already present under Unreleased" do
+      changelog = "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- New feature\n"
+
+      result = Todo.add_changelog_entry(changelog, "New feature")
+      count = result |> String.split("\n") |> Enum.count(&(&1 == "- New feature"))
+
+      assert count == 1
+    end
+
+    test "still inserts when the same text exists only in a versioned section" do
+      changelog =
+        "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Existing\n\n## [1.0.0]\n\n### Added\n\n- New feature\n"
+
+      result = Todo.add_changelog_entry(changelog, "New feature")
+      count = result |> String.split("\n") |> Enum.count(&(&1 == "- New feature"))
+
+      assert count == 2
+    end
   end
 
   describe "build_prompt/2" do
@@ -516,6 +535,11 @@ defmodule Mix.Tasks.TodoTest do
     test "references AGENTS.md for conventions" do
       result = Todo.build_prompt("Fix bug", "# Readme")
       assert result =~ "AGENTS.md"
+    end
+
+    test "instructs not to edit CHANGELOG since mix todo --done owns it" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "Do not edit `CHANGELOG.md`"
     end
 
     test "does not reference individual quality steps" do

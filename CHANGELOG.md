@@ -10,7 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `sev help` prints top-level usage, aliasing `sev --help`
 - Update elixir verison to 1.20 with the latest OTP
-- Add a `sev help` subcommand as an alias for top-level usage (per-subcommand usage via `sev <cmd> --help`, e.g. `sev status --help`, now renders that command's args/flags)
+
+### Changed
+
+- `mix todo --done` no longer duplicates the CHANGELOG entry — it skips inserting when the entry already exists under `[Unreleased]`, and agents now leave `CHANGELOG.md` to the tool during TODO work
 
 ## [0.16.0] -- 2026-06-04
 

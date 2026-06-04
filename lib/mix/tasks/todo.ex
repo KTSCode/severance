@@ -140,10 +140,18 @@ defmodule Mix.Tasks.Todo do
   @doc """
   Inserts an entry under `## [Unreleased]` / `### Added` in an existing
   CHANGELOG. Creates the sections if missing.
+
+  Returns the changelog unchanged when the entry already exists under
+  `## [Unreleased]`, so re-running `mix todo --done` is idempotent. Only
+  the `[Unreleased]` section is checked, so an identical line in a released
+  version does not block a fresh entry.
   """
   @spec add_changelog_entry(String.t(), String.t()) :: String.t()
   def add_changelog_entry(changelog, entry) do
     cond do
+      entry_present?(changelog, entry) ->
+        changelog
+
       has_unreleased_added?(changelog) ->
         insert_under_added(changelog, entry)
 
@@ -153,6 +161,14 @@ defmodule Mix.Tasks.Todo do
       true ->
         insert_unreleased_section(changelog, entry)
     end
+  end
+
+  defp entry_present?(changelog, entry) do
+    has_unreleased?(changelog) and
+      changelog
+      |> unreleased_section()
+      |> String.split("\n")
+      |> Enum.any?(&(&1 == "- #{entry}"))
   end
 
   @doc """
@@ -179,9 +195,11 @@ defmodule Mix.Tasks.Todo do
        Choose a concise, descriptive branch name (e.g., `todo/add-user-auth`).
     2. Read AGENTS.md and the codebase to understand conventions and patterns.
     3. Follow TDD: write a failing test first, then implement until it passes.
-    4. Commit your changes. Quality checks run automatically on commit.
-    5. Push your branch and open a PR with `gh pr create`.
-    6. Stop and wait for review. When told to finalize, run `mix todo --done`.
+    4. Do not edit `CHANGELOG.md` — the `[Unreleased]` entry is added
+       automatically when the work is finalized.
+    5. Commit your changes. Quality checks run automatically on commit.
+    6. Push your branch and open a PR with `gh pr create`.
+    7. Stop and wait for review. When told to finalize, run `mix todo --done`.
     """
   end
 
