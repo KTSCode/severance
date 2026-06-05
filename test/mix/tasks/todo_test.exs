@@ -175,6 +175,40 @@ defmodule Mix.Tasks.TodoTest do
     end
   end
 
+  describe "check_todo_in_readme/3" do
+    test "rewrites the matched line to the replacement text and checks it" do
+      readme = "## TODO\n- [ ] Original task\n- [ ] Other\n"
+
+      assert {:ok, result} =
+               Todo.check_todo_in_readme(readme, "Original task", "Accurate description")
+
+      assert result =~ "- [x] Accurate description"
+      refute result =~ "Original task"
+      assert result =~ "- [ ] Other"
+    end
+
+    test "is idempotent when the line is already rewritten and checked" do
+      readme = "## TODO\n- [x] Accurate description\n"
+
+      assert {:ok, ^readme} =
+               Todo.check_todo_in_readme(readme, "Original task", "Accurate description")
+    end
+
+    test "treats a line checked under the original text as already finalized" do
+      readme = "## TODO\n- [x] Original task\n"
+
+      assert {:ok, ^readme} =
+               Todo.check_todo_in_readme(readme, "Original task", "Accurate description")
+    end
+
+    test "returns error when neither original nor replacement line exists" do
+      readme = "## TODO\n- [ ] Some other item\n"
+
+      assert {:error, :not_found} =
+               Todo.check_todo_in_readme(readme, "Original task", "Accurate description")
+    end
+  end
+
   describe "prune_checked_todos/1" do
     test "removes topmost checked when more than 3 checked exist" do
       readme = """
@@ -542,6 +576,11 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "Do not edit `CHANGELOG.md`"
     end
 
+    test "instructs to finalize with a quoted description argument" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ ~s|mix todo --done "|
+    end
+
     test "does not reference individual quality steps" do
       result = Todo.build_prompt("Fix bug", "# Readme")
       refute result =~ "Run `mix format`"
@@ -598,6 +637,16 @@ defmodule Mix.Tasks.TodoTest do
     test "indicates PR was merged" do
       result = Todo.build_done_prompt("Add auth", "https://github.com/org/repo/pull/42")
       assert result =~ "merged"
+    end
+  end
+
+  describe "nothing_to_commit?/1" do
+    test "true when git reports a clean tree" do
+      assert Todo.nothing_to_commit?("nothing to commit, working tree clean")
+    end
+
+    test "false for a normal commit confirmation" do
+      refute Todo.nothing_to_commit?("[main abc1234] Complete TODO: do the thing")
     end
   end
 end

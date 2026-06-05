@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- `mix todo --done` no longer duplicates the CHANGELOG entry — it skips inserting when the entry already exists under `[Unreleased]`, and agents now leave `CHANGELOG.md` to the tool during TODO work
+- `mix todo --done "<description>"` now takes an optional description that rewrites the item's TODO line and becomes the `[Unreleased]` CHANGELOG entry, replacing the verbatim TODO text
+- `mix todo --done` is now idempotent and fails gracefully — re-running skips an already-checked TODO, a duplicate changelog entry, an empty commit, and an already-merged PR
 
 ## [0.16.0] -- 2026-06-04
 
