@@ -25,6 +25,11 @@ defmodule Severance.Application do
   end
 
   @spec dispatch(CLI.parse_args_result()) :: {:ok, pid()} | no_return()
+  defp dispatch({:help, :agent}) do
+    IO.puts(CLI.agent_usage())
+    System.halt(0)
+  end
+
   defp dispatch({:help, path}) do
     IO.puts(CLI.usage(path))
     System.halt(0)

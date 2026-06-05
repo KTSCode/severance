@@ -165,6 +165,77 @@ defmodule Severance.CLITest do
     end
   end
 
+  describe "parse_args/1 agent help" do
+    test "help --agent returns {:help, :agent}" do
+      assert CLI.parse_args(["help", "--agent"]) == {:help, :agent}
+    end
+
+    test "help without --agent still returns top-level help" do
+      assert CLI.parse_args(["help"]) == {:help, []}
+    end
+  end
+
+  describe "agent_usage/0" do
+    test "embeds the generated command usage so it can't drift from the spec" do
+      # The command list is sourced from usage/0, not hand-maintained, so
+      # adding or renaming a subcommand updates the agent reference for free.
+      assert CLI.agent_usage() =~ CLI.usage()
+    end
+
+    test "explains config resolution precedence and sources" do
+      usage = CLI.agent_usage()
+      assert usage =~ "~/.config/severance/config.exs"
+      assert usage =~ "SEVERANCE_SHUTDOWN_TIME"
+      assert usage =~ "--shutdown-time"
+    end
+
+    test "documents every config key with its real compiled default" do
+      # Sourced from Config.defaults/0: a new key (or changed default) shows
+      # up in the reference, and this fails if the doc is ever hardcoded and
+      # diverges from the actual defaults.
+      usage = CLI.agent_usage()
+
+      for {key, default} <- Severance.Config.defaults() do
+        assert usage =~ to_string(key)
+        assert usage =~ inspect(default)
+      end
+    end
+
+    test "documents the publisher spec contract" do
+      usage = CLI.agent_usage()
+      assert usage =~ ":fn"
+      assert usage =~ ":interval_ms"
+      assert usage =~ ":tmux_var"
+      assert usage =~ ":setup"
+      assert usage =~ ":teardown"
+    end
+
+    test "documents every Severance.Status field handed to publishers" do
+      # Sourced from the struct, so a new field can't silently drop out.
+      usage = CLI.agent_usage()
+      fields = %Severance.Status{} |> Map.from_struct() |> Map.keys()
+
+      for field <- fields do
+        assert usage =~ ":#{field}"
+      end
+    end
+
+    test "provides task-oriented workflow recipes" do
+      usage = CLI.agent_usage()
+      assert usage =~ "Workflow recipes"
+      assert usage =~ "Set a custom shutdown time"
+      assert usage =~ "Keep working past shutdown"
+      assert usage =~ "Add a status-bar publisher"
+    end
+
+    test "explains the :fn must write the tmux var, not :tmux_var itself" do
+      usage = CLI.agent_usage()
+      # The fn performs the write via set_var/2; tmux_var alone writes nothing.
+      assert usage =~ "set_var"
+      refute usage =~ "the worker writes output to the tmux user variable"
+    end
+  end
+
   describe "build_daemon_cmd/1" do
     test "builds command with no opts" do
       cmd = CLI.build_daemon_cmd("/usr/local/bin/sev", [])

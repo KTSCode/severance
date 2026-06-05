@@ -108,6 +108,27 @@ and prepares tmux integration. Safe to re-run.
 Run `sev init --with-tmux` to seed a default tmux countdown publisher
 and print the `~/.tmux.conf` lines to paste.
 
+## Setup with an AI coding agent
+
+Severance ships a self-contained, machine-readable reference built for LLM
+agents (Claude Code, Codex, Cursor, etc.):
+
+```bash
+sev help --agent
+```
+
+It documents every command, the config resolution order, all config keys
+with their defaults, the publisher contract, the `Severance.Status` fields,
+and task-oriented setup recipes — enough for an agent to configure Severance
+in one shot. Point your agent at it, for example:
+
+> Run `sev help --agent`, then set Severance up for me: create the config,
+> set the shutdown time to 17:00, and wire the tmux countdown publisher.
+
+The config file is evaluated as Elixir — code, not inert data. Only let an
+agent edit `~/.config/severance/config.exs` in a directory you control, and
+review any publisher functions it writes before starting the daemon.
+
 ## Usage
 
 ```bash
@@ -118,6 +139,7 @@ sev log        # print the activity log
 sev update     # update to latest release
 sev version    # print current version
 sev help       # print top-level usage (alias for sev --help)
+sev help --agent # print the machine-readable reference for LLM agents
 ```
 
 ### Start at login
@@ -234,10 +256,9 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Add [CLIMate](https://hexdocs.pm/cli_mate/readme.html) and update application to use it in order to simplify code
 - [x] Update elixir verison to 1.20 with the latest OTP
 - [x] Add a `sev help` subcommand as an alias for top-level usage (per-subcommand usage via `sev <cmd> --help`, e.g. `sev status --help`, now renders that command's args/flags)
-- [ ] add `sev help --agent` that give usage instructions designed for LLM Agents include full config explanation
+- [x] Add `sev help --agent`, a machine-readable usage reference for LLM agents covering all commands, configuration keys and defaults, the publisher contract, and task-oriented setup recipes
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine

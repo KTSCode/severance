@@ -97,9 +97,18 @@ empty string otherwise. Append to a tmux format attribute string:
 
 ## `:tmux_var` semantics and the tmux.conf paste block
 
-When a publisher spec includes `:tmux_var`, the worker writes its output
-to the tmux user variable `@sev_<var>`. To display it, add a reference
-to your `~/.tmux.conf`:
+Writing to a tmux user variable is the publisher `:fn`'s job — `:tmux_var`
+does not trigger it. The `:fn` performs the write by calling
+`Severance.StatusPublisher.Tmux.set_var/2` (the `publisher/2` builder wires
+this for you); a bare `:fn` that only returns a string writes nothing.
+
+`:tmux_var` is metadata: `sev init` and `sev status` read it to detect
+whether `~/.tmux.conf` already references `@sev_<var>` and surface the
+paste block / wiring warning when it doesn't. It causes no write on its own.
+
+A publisher that writes `@sev_<var>` should declare a matching `:tmux_var`
+so that wiring detection works. To display the value, add a reference to
+your `~/.tmux.conf`:
 
 ```
 set -g status-right-length 80
