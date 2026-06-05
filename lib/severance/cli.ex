@@ -158,23 +158,11 @@ defmodule Severance.CLI do
 
     ## Commands
 
-      sev                  Start the daemon in the background (default)
-      sev start            Same as `sev`
-      sev init             Create config + LaunchAgent plist; safe to re-run
-      sev init --with-tmux Also seed a default tmux countdown publisher
-      sev status           Show daemon status, shutdown time, and update state
-      sev status <pub>     Invoke publisher <pub> once (debug its formatter)
-      sev status <pub> --teardown  Invoke publisher <pub>'s teardown fn
-      sev log              Print the activity log
-      sev otp              Activate the Overtime Protocol on the running daemon
-      sev update           Update the binary to the latest GitHub release
-      sev version          Print the current version (also `sev -v`)
-      sev help             Print top-level usage
-      sev help --agent     Print this reference
-      sev <cmd> --help     Print usage for one subcommand
-
-    `otp`, `overtime`, and `over_time_protocol` are aliases. Overtime cancels
-    today's shutdown and instead fires a 60-second notification burst.
+    #{usage()}
+    Bare `sev` (or `sev start`) starts the daemon; `sev <cmd> --help` prints
+    one command's flags. `otp`, `overtime`, and `over_time_protocol` are
+    aliases for the Overtime Protocol, which cancels today's shutdown and
+    fires a 60-second notification burst instead.
 
     ## Configuration resolution
 
@@ -189,24 +177,19 @@ defmodule Severance.CLI do
 
     `~/.config/severance/config.exs` is NOT inert data — it is evaluated as
     Elixir via `Code.eval_file/1` with full process privileges. Only edit it
-    if you control the directory. The file must evaluate to a single map:
+    if you control the directory. The file must evaluate to a single map.
+    These are the compiled defaults (each key may be overridden):
 
-        %{
-          shutdown_time: "17:00",
-          overtime_notifications: true,
-          log_file: "~/.local/state/severance/activity.log",
-          publishers: %{}
-        }
+    #{indent(inspect(Severance.Config.defaults(), pretty: true))}
 
-    Top-level keys:
+    Key semantics:
 
       shutdown_time           String "HH:MM". When the machine powers off.
       overtime_notifications  Boolean. When false, suppresses the notification
                               burst during overtime or when starting after the
-                              shutdown time. Default true.
+                              shutdown time.
       log_file                String path (~ is expanded) for the activity log.
-                              Default ~/.local/state/severance/activity.log.
-      publishers              Map of publisher specs (see below). Default %{}.
+      publishers              Map of publisher specs (see below).
 
     ## Publisher spec contract
 
@@ -252,14 +235,7 @@ defmodule Severance.CLI do
 
     ## Severance.Status fields passed to every :fn
 
-      :mode               :severance | :overtime
-      :phase              :waiting | :gentle | :aggressive | :final | :shutdown | :done
-      :shutdown_time      Time.t() | nil
-      :minutes_remaining  integer() | nil  (negative once past shutdown)
-      :seconds_remaining  integer() | nil
-      :version            String.t() | nil
-      :update_available?  boolean() | nil
-      :log_path           String.t() | nil
+    #{status_fields_block()}
 
     ## Workflow recipes
 
@@ -301,6 +277,39 @@ defmodule Severance.CLI do
 
     See docs/configuration.md for the complete publisher and tmux reference.
     """
+  end
+
+  # One-line type/description per Severance.Status field. Field names are
+  # not listed here — they are read from the struct so a new field cannot
+  # silently drop out of the agent reference. A field without an entry
+  # still renders (with no description).
+  @status_field_docs %{
+    mode: ":severance | :overtime",
+    phase: ":waiting | :gentle | :aggressive | :final | :shutdown | :done",
+    shutdown_time: "Time.t() | nil",
+    minutes_remaining: "integer() | nil  (negative once past shutdown)",
+    seconds_remaining: "integer() | nil",
+    version: "String.t() | nil",
+    update_available?: "boolean() | nil",
+    log_path: "String.t() | nil"
+  }
+
+  @spec status_fields_block() :: String.t()
+  defp status_fields_block do
+    %Severance.Status{}
+    |> Map.from_struct()
+    |> Map.keys()
+    |> Enum.sort()
+    |> Enum.map_join("\n", fn field ->
+      "      :#{field}  #{Map.get(@status_field_docs, field, "")}"
+    end)
+  end
+
+  @spec indent(String.t()) :: String.t()
+  defp indent(text) do
+    text
+    |> String.split("\n")
+    |> Enum.map_join("\n", &("    " <> &1))
   end
 
   @doc false

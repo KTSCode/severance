@@ -176,11 +176,10 @@ defmodule Severance.CLITest do
   end
 
   describe "agent_usage/0" do
-    test "lists the subcommands an agent can invoke" do
-      usage = CLI.agent_usage()
-      assert usage =~ "sev otp"
-      assert usage =~ "sev status"
-      assert usage =~ "sev log"
+    test "embeds the generated command usage so it can't drift from the spec" do
+      # The command list is sourced from usage/0, not hand-maintained, so
+      # adding or renaming a subcommand updates the agent reference for free.
+      assert CLI.agent_usage() =~ CLI.usage()
     end
 
     test "explains config resolution precedence and sources" do
@@ -190,12 +189,16 @@ defmodule Severance.CLITest do
       assert usage =~ "--shutdown-time"
     end
 
-    test "documents every top-level config key" do
+    test "documents every config key with its real compiled default" do
+      # Sourced from Config.defaults/0: a new key (or changed default) shows
+      # up in the reference, and this fails if the doc is ever hardcoded and
+      # diverges from the actual defaults.
       usage = CLI.agent_usage()
-      assert usage =~ "shutdown_time"
-      assert usage =~ "overtime_notifications"
-      assert usage =~ "log_file"
-      assert usage =~ "publishers"
+
+      for {key, default} <- Severance.Config.defaults() do
+        assert usage =~ to_string(key)
+        assert usage =~ inspect(default)
+      end
     end
 
     test "documents the publisher spec contract" do
@@ -207,11 +210,14 @@ defmodule Severance.CLITest do
       assert usage =~ ":teardown"
     end
 
-    test "documents the Severance.Status fields passed to publishers" do
+    test "documents every Severance.Status field handed to publishers" do
+      # Sourced from the struct, so a new field can't silently drop out.
       usage = CLI.agent_usage()
-      assert usage =~ ":phase"
-      assert usage =~ "minutes_remaining"
-      assert usage =~ "seconds_remaining"
+      fields = %Severance.Status{} |> Map.from_struct() |> Map.keys()
+
+      for field <- fields do
+        assert usage =~ ":#{field}"
+      end
     end
 
     test "provides task-oriented workflow recipes" do
