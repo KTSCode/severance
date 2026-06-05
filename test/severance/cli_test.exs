@@ -221,6 +221,13 @@ defmodule Severance.CLITest do
       assert usage =~ "Keep working past shutdown"
       assert usage =~ "Add a status-bar publisher"
     end
+
+    test "explains the :fn must write the tmux var, not :tmux_var itself" do
+      usage = CLI.agent_usage()
+      # The fn performs the write via set_var/2; tmux_var alone writes nothing.
+      assert usage =~ "set_var"
+      refute usage =~ "the worker writes output to the tmux user variable"
+    end
   end
 
   describe "build_daemon_cmd/1" do

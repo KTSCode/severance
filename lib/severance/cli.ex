@@ -223,13 +223,22 @@ defmodule Severance.CLI do
     prior crash) then :setup; :fn fires every :interval_ms. On clean shutdown
     :teardown runs again. A SIGKILL skips :teardown — the next start clears it.
 
-    When :tmux_var is set, the worker writes output to the tmux user variable
-    `@sev_<var>`. Reference it from ~/.tmux.conf, e.g.:
+    Writing to tmux is the :fn's job — it is NOT automatic. The :fn must call
+    `Severance.StatusPublisher.Tmux.set_var("countdown", str)` to write the
+    user variable `@sev_countdown`, and :teardown should call `clear_var/1`.
+    A bare :fn that only returns a string writes nothing. The `publisher/2`
+    builder wires this for you:
+
+        Severance.StatusPublisher.Tmux.publisher("countdown", fn status -> ... end)
+
+    returns a complete spec whose :fn calls set_var/2, :teardown calls
+    clear_var/1, plus :tmux_var and :interval_ms.
+
+    :tmux_var itself is only metadata: `sev status` uses it to check whether
+    ~/.tmux.conf references `@sev_<var>` and warns if not. It triggers no
+    write on its own. Reference the variable from ~/.tmux.conf, e.g.:
 
         set -ag status-right "\#{@sev_countdown}"
-
-    Builder helper: `Severance.StatusPublisher.Tmux.publisher("countdown", fn status -> ... end)`
-    returns a complete spec wiring :fn, :teardown, :tmux_var, and :interval_ms.
 
     Example file-writing publisher:
 
@@ -275,9 +284,10 @@ defmodule Severance.CLI do
       - Set overtime_notifications: false in config to silence that burst.
 
     Add a status-bar publisher (tmux):
-      1. Add an entry under publishers in config with :tmux_var set, e.g.
-         use Severance.StatusPublisher.Tmux.publisher/2 (see Publisher
-         spec contract above).
+      1. Add a publisher whose :fn actually writes the tmux var — easiest is
+         the Severance.StatusPublisher.Tmux.publisher/2 builder, whose :fn
+         calls set_var/2 for you. A bare :fn that only returns a string (or
+         only sets :tmux_var) writes nothing. See Publisher spec contract.
       2. sev init                 (prints the exact ~/.tmux.conf paste block
          for any tmux_var not yet referenced)
       3. Paste the line into ~/.tmux.conf, then: tmux source-file ~/.tmux.conf
