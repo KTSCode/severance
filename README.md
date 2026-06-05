@@ -256,10 +256,9 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Add [CLIMate](https://hexdocs.pm/cli_mate/readme.html) and update application to use it in order to simplify code
 - [x] Update elixir verison to 1.20 with the latest OTP
 - [x] Add a `sev help` subcommand as an alias for top-level usage (per-subcommand usage via `sev <cmd> --help`, e.g. `sev status --help`, now renders that command's args/flags)
-- [ ] add `sev help --agent` that give usage instructions designed for LLM Agents include full config explanation
+- [x] Add `sev help --agent`, a machine-readable usage reference for LLM agents covering all commands, configuration keys and defaults, the publisher contract, and task-oriented setup recipes
 - [ ] Add `sev upgrade` as an alias for `sev update`
 - [ ] figure out how to get around "<APP> interrupted shutdown" Dialog 
 - [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine

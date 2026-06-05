@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `sev help` prints top-level usage, aliasing `sev --help`
 - Update elixir verison to 1.20 with the latest OTP
+- Add `sev help --agent`, a machine-readable usage reference for LLM agents covering all commands, configuration keys and defaults, the publisher contract, and task-oriented setup recipes
 
 ### Changed
 
