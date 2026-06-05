@@ -108,6 +108,27 @@ and prepares tmux integration. Safe to re-run.
 Run `sev init --with-tmux` to seed a default tmux countdown publisher
 and print the `~/.tmux.conf` lines to paste.
 
+## Setup with an AI coding agent
+
+Severance ships a self-contained, machine-readable reference built for LLM
+agents (Claude Code, Codex, Cursor, etc.):
+
+```bash
+sev help --agent
+```
+
+It documents every command, the config resolution order, all config keys
+with their defaults, the publisher contract, the `Severance.Status` fields,
+and task-oriented setup recipes — enough for an agent to configure Severance
+in one shot. Point your agent at it, for example:
+
+> Run `sev help --agent`, then set Severance up for me: create the config,
+> set the shutdown time to 17:00, and wire the tmux countdown publisher.
+
+The config file is evaluated as Elixir — code, not inert data. Only let an
+agent edit `~/.config/severance/config.exs` in a directory you control, and
+review any publisher functions it writes before starting the daemon.
+
 ## Usage
 
 ```bash
@@ -118,6 +139,7 @@ sev log        # print the activity log
 sev update     # update to latest release
 sev version    # print current version
 sev help       # print top-level usage (alias for sev --help)
+sev help --agent # print the machine-readable reference for LLM agents
 ```
 
 ### Start at login
