@@ -62,7 +62,9 @@ For anything larger:
   ```
 
 ## Changelog
-- Update `CHANGELOG.md` under `## [Unreleased]` when a branch introduces user-facing changes
+- Do not edit `CHANGELOG.md` during TODO work — finalize with `mix todo --done "<accurate description>"`. That description rewrites the item's TODO line in README.md and becomes the `## [Unreleased]` entry
+- `mix todo --done` is idempotent and safe to re-run: it skips an already-checked TODO, a duplicate changelog entry, an empty commit, and an already-merged PR
+- For changes made outside the `mix todo` flow, add the entry by hand
 - Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format
 - Use subsections: `### Added`, `### Changed`, `### Fixed`, `### Removed`
 - Write entries from the user's perspective, not the developer's

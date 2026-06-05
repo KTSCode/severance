@@ -56,12 +56,21 @@ defmodule Mix.Tasks.Todo do
   end
 
   @doc """
-  Replaces the first `- [ ]` line matching `text` with `- [x]` in the README.
+  Checks off the first `- [ ]` line matching `match_text` within the
+  `## TODO` section, rewriting it to `- [x] replacement_text`.
 
-  Only matches lines within the `## TODO` section.
+  When `replacement_text` is omitted the matched text is reused, so the line
+  is simply checked in place. Passing a different replacement lets the caller
+  rewrite the item to an accurate description while still locating it by its
+  original text.
+
+  Idempotent: if the matched line is already checked — under either the
+  original text or the replacement — the README is returned unchanged.
   """
-  @spec check_todo_in_readme(String.t(), String.t()) :: {:ok, String.t()} | {:error, :not_found}
-  def check_todo_in_readme(readme, text) do
+  @spec check_todo_in_readme(String.t(), String.t(), String.t() | nil) ::
+          {:ok, String.t()} | {:error, :not_found}
+  def check_todo_in_readme(readme, match_text, replacement_text \\ nil) do
+    replacement = replacement_text || match_text
     lines = String.split(readme, "\n")
 
     case todo_section_range(lines) do
@@ -69,7 +78,7 @@ defmodule Mix.Tasks.Todo do
         {:error, :not_found}
 
       range ->
-        check_or_passthrough(lines, text, range, readme)
+        check_or_passthrough(lines, match_text, replacement, range, readme)
     end
   end
 
@@ -140,10 +149,18 @@ defmodule Mix.Tasks.Todo do
   @doc """
   Inserts an entry under `## [Unreleased]` / `### Added` in an existing
   CHANGELOG. Creates the sections if missing.
+
+  Returns the changelog unchanged when the entry already exists under
+  `## [Unreleased]`, so re-running `mix todo --done` is idempotent. Only
+  the `[Unreleased]` section is checked, so an identical line in a released
+  version does not block a fresh entry.
   """
   @spec add_changelog_entry(String.t(), String.t()) :: String.t()
   def add_changelog_entry(changelog, entry) do
     cond do
+      entry_present?(changelog, entry) ->
+        changelog
+
       has_unreleased_added?(changelog) ->
         insert_under_added(changelog, entry)
 
@@ -153,6 +170,14 @@ defmodule Mix.Tasks.Todo do
       true ->
         insert_unreleased_section(changelog, entry)
     end
+  end
+
+  defp entry_present?(changelog, entry) do
+    has_unreleased?(changelog) and
+      changelog
+      |> unreleased_section()
+      |> String.split("\n")
+      |> Enum.any?(&(&1 == "- #{entry}"))
   end
 
   @doc """
@@ -179,9 +204,14 @@ defmodule Mix.Tasks.Todo do
        Choose a concise, descriptive branch name (e.g., `todo/add-user-auth`).
     2. Read AGENTS.md and the codebase to understand conventions and patterns.
     3. Follow TDD: write a failing test first, then implement until it passes.
-    4. Commit your changes. Quality checks run automatically on commit.
-    5. Push your branch and open a PR with `gh pr create`.
-    6. Stop and wait for review. When told to finalize, run `mix todo --done`.
+    4. Do not edit `CHANGELOG.md` — the `[Unreleased]` entry is added
+       automatically when the work is finalized.
+    5. Commit your changes. Quality checks run automatically on commit.
+    6. Push your branch and open a PR with `gh pr create`.
+    7. Stop and wait for review. When told to finalize, run
+       `mix todo --done "<one-line description of what you built>"`. That
+       description rewrites this item's TODO line in README.md and becomes the
+       CHANGELOG entry, so make it accurate and user-facing.
     """
   end
 
@@ -200,10 +230,11 @@ defmodule Mix.Tasks.Todo do
 
   @impl Mix.Task
   def run(["--done"]), do: done()
+  def run(["--done", description]), do: done(File.cwd!(), description)
   def run([]), do: start()
 
   def run(_) do
-    Mix.shell().error("Usage: mix todo [--done]")
+    Mix.shell().error(~s|Usage: mix todo [--done ["accurate description"]]|)
     exit({:shutdown, 1})
   end
 
@@ -222,23 +253,36 @@ defmodule Mix.Tasks.Todo do
   end
 
   @doc false
-  def done(root \\ File.cwd!()) do
+  def done(root \\ File.cwd!(), description \\ nil) do
     with {:ok, todo_text} <- read_current(root),
          :ok <- check_gh_installed(),
          {:ok, readme} <- read_readme(root),
-         {:ok, checked_readme} <- check_todo_in_readme(readme, todo_text),
+         entry = finalize_entry(todo_text, description),
+         {:ok, checked_readme} <- check_todo_in_readme(readme, todo_text, entry),
          {:ok, pruned_readme} <- prune_checked_todos(checked_readme),
          :ok <- write_readme(root, pruned_readme),
-         :ok <- write_changelog(root, todo_text),
-         :ok <- git_commit(todo_text),
+         :ok <- write_changelog(root, entry),
+         :ok <- git_commit(entry),
          :ok <- git_push(),
          {:ok, pr_url} <- find_pr(),
          :ok <- merge_pr(pr_url),
          :ok <- delete_current(root) do
-      IO.write(build_done_prompt(todo_text, pr_url))
+      IO.write(build_done_prompt(entry, pr_url))
       open_pr(pr_url)
     else
       error -> handle_error(error)
+    end
+  end
+
+  # The optional description rewrites the TODO line and becomes the CHANGELOG
+  # entry. A nil or blank description falls back to the original TODO text so
+  # `mix todo --done` (no argument) keeps working.
+  defp finalize_entry(todo_text, nil), do: todo_text
+
+  defp finalize_entry(todo_text, description) do
+    case String.trim(description) do
+      "" -> todo_text
+      trimmed -> trimmed
     end
   end
 
@@ -285,15 +329,15 @@ defmodule Mix.Tasks.Todo do
     parent_idx..last//1
   end
 
-  defp replace_first_unchecked(lines, text, {start_idx, end_idx}) do
+  defp replace_first_unchecked(lines, match_text, replacement, {start_idx, end_idx}) do
     {result, replaced} =
       lines
       |> Enum.with_index()
       |> Enum.reduce({[], false}, fn {line, idx}, {acc, replaced} ->
         in_section = idx >= start_idx and idx <= end_idx
 
-        if not replaced and in_section and String.trim(line) == "- [ ] #{text}" do
-          {["- [x] #{text}" | acc], true}
+        if not replaced and in_section and String.trim(line) == "- [ ] #{match_text}" do
+          {["- [x] #{replacement}" | acc], true}
         else
           {[line | acc], replaced}
         end
@@ -306,18 +350,25 @@ defmodule Mix.Tasks.Todo do
     end
   end
 
-  defp check_or_passthrough(lines, text, range, readme) do
-    case replace_first_unchecked(lines, text, range) do
-      {:ok, _} = ok -> ok
-      {:error, :not_found} -> if already_checked?(lines, text, range), do: {:ok, readme}, else: {:error, :not_found}
+  defp check_or_passthrough(lines, match_text, replacement, range, readme) do
+    case replace_first_unchecked(lines, match_text, replacement, range) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, :not_found} ->
+        if already_finalized?(lines, match_text, replacement, range),
+          do: {:ok, readme},
+          else: {:error, :not_found}
     end
   end
 
-  defp already_checked?(lines, text, {start_idx, end_idx}) do
+  defp already_finalized?(lines, match_text, replacement, {start_idx, end_idx}) do
+    targets = Enum.uniq(["- [x] #{match_text}", "- [x] #{replacement}"])
+
     lines
     |> Enum.with_index()
     |> Enum.any?(fn {line, idx} ->
-      idx >= start_idx and idx <= end_idx and String.trim(line) == "- [x] #{text}"
+      idx >= start_idx and idx <= end_idx and String.trim(line) in targets
     end)
   end
 
@@ -513,14 +564,29 @@ defmodule Mix.Tasks.Todo do
     :ok
   end
 
-  defp git_commit(todo_text) do
+  defp git_commit(entry) do
     stderr("Committing changes...")
 
-    with {:ok, _} <- cmd("git", ["add", "README.md", "CHANGELOG.md"]),
-         {:ok, _} <- cmd("git", ["commit", "-m", "Complete TODO: #{todo_text}"]) do
-      :ok
+    with {:ok, _} <- cmd("git", ["add", "README.md", "CHANGELOG.md"]) do
+      commit_if_changes(entry)
     end
   end
+
+  # Tolerate an empty commit so a re-run after a partial failure (where the
+  # commit already landed) converges instead of erroring on "nothing to commit".
+  defp commit_if_changes(entry) do
+    case cmd("git", ["commit", "-m", "Complete TODO: #{entry}"]) do
+      {:ok, _} ->
+        :ok
+
+      {:error, {output, _code}} = error ->
+        if nothing_to_commit?(output), do: :ok, else: error
+    end
+  end
+
+  @doc false
+  @spec nothing_to_commit?(String.t()) :: boolean()
+  def nothing_to_commit?(output), do: String.contains?(output, "nothing to commit")
 
   defp git_push do
     stderr("Pushing branch...")
@@ -541,10 +607,20 @@ defmodule Mix.Tasks.Todo do
   defp merge_pr(pr_url) do
     stderr("Merging pull request...")
 
-    case cmd("gh", ["pr", "merge", pr_url, "--squash", "--delete-branch"]) do
-      {:ok, _} -> :ok
-      error -> error
+    # Skip the merge if the PR is already merged so a re-run converges instead
+    # of failing on an unmergeable, already-closed PR.
+    if pr_merged?(pr_url) do
+      :ok
+    else
+      case cmd("gh", ["pr", "merge", pr_url, "--squash", "--delete-branch"]) do
+        {:ok, _} -> :ok
+        error -> error
+      end
     end
+  end
+
+  defp pr_merged?(pr_url) do
+    match?({:ok, "MERGED"}, cmd("gh", ["pr", "view", pr_url, "--json", "state", "-q", ".state"]))
   end
 
   defp open_pr(pr_url) do
