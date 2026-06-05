@@ -45,7 +45,7 @@ defmodule Severance.Application do
     System.halt(0)
   end
 
-  defp dispatch(%{path: [:update]}) do
+  defp dispatch(%{path: [sub]}) when sub in [:update, :upgrade] do
     result = Severance.Updater.run()
     System.halt(if result == :ok, do: 0, else: 1)
   end

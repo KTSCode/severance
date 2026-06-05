@@ -137,6 +137,7 @@ sev status     # show daemon status and version info
 sev otp        # activate overtime protocol
 sev log        # print the activity log
 sev update     # update to latest release
+sev upgrade    # update to latest release (alias for sev update)
 sev version    # print current version
 sev help       # print top-level usage (alias for sev --help)
 sev help --agent # print the machine-readable reference for LLM agents

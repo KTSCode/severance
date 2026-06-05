@@ -12,6 +12,7 @@ defmodule Severance.CLI do
       sev --daemon                     # Run the daemon in the foreground (internal)
       sev init [--with-tmux]           # Set up config, plist, and tmux
       sev update                       # Update to latest release
+      sev upgrade                      # Update to latest release (alias for sev update)
       sev version                      # Print current version
       sev -v                           # Print current version
       sev status                       # Show daemon status and version info
@@ -30,7 +31,7 @@ defmodule Severance.CLI do
   alias CliMate.CLI, as: Mate
   alias Severance.StatusPublisher.Tmux.ConfScanner
 
-  @subcommand_names ~w(start init update version status log otp overtime over_time_protocol help)
+  @subcommand_names ~w(start init update upgrade version status log otp overtime over_time_protocol help)
 
   @command [
     name: "sev",
@@ -46,6 +47,7 @@ defmodule Severance.CLI do
       start: [options: []],
       init: [options: [with_tmux: [type: :boolean, default: false, doc: "Seed tmux publisher"]]],
       update: [options: []],
+      upgrade: [options: []],
       version: [options: []],
       status: [
         options: [teardown: [type: :boolean, default: false, doc: "Tear down publisher"]],
@@ -162,7 +164,8 @@ defmodule Severance.CLI do
     Bare `sev` (or `sev start`) starts the daemon; `sev <cmd> --help` prints
     one command's flags. `otp`, `overtime`, and `over_time_protocol` are
     aliases for the Overtime Protocol, which cancels today's shutdown and
-    fires a 60-second notification burst instead.
+    fires a 60-second notification burst instead. `upgrade` is an alias for
+    `update`.
 
     ## Configuration resolution
 

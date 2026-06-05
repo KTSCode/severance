@@ -52,6 +52,10 @@ defmodule Severance.CLITest do
       assert %{path: [:update]} = CLI.parse_args(["update"])
     end
 
+    test "upgrade arg returns path [:upgrade]" do
+      assert %{path: [:upgrade]} = CLI.parse_args(["upgrade"])
+    end
+
     test "version arg returns path [:version]" do
       assert %{path: [:version]} = CLI.parse_args(["version"])
     end
