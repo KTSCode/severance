@@ -23,6 +23,7 @@ defmodule Severance.CLI do
       sev overtime                     # Activate Overtime Protocol on running daemon
       sev over_time_protocol           # Activate Overtime Protocol on running daemon
       sev help                         # Print top-level usage (alias for sev --help)
+      sev help --agent                 # Print LLM-agent usage with full config reference
       sev <cmd> --help                 # Print usage for a subcommand (e.g. sev status --help)
   """
 
@@ -54,11 +55,15 @@ defmodule Severance.CLI do
       otp: [options: []],
       overtime: [options: []],
       over_time_protocol: [options: []],
-      help: [options: []]
+      help: [
+        options: [
+          agent: [type: :boolean, default: false, doc: "Print LLM-agent usage with full config reference"]
+        ]
+      ]
     ]
   ]
 
-  @type parse_args_result :: Mate.parsed() | {:help, [atom()]} | {:error, String.t()}
+  @type parse_args_result :: Mate.parsed() | {:help, [atom()] | :agent} | {:error, String.t()}
 
   @doc """
   Parses command-line arguments into a CliMate parsed map, `:help`, or an error.
@@ -71,6 +76,8 @@ defmodule Severance.CLI do
   resolved subcommand (e.g. `[:status]`), or `[]` for top-level help, so the
   caller can render subcommand-specific usage. The `help` subcommand resolves
   to top-level help (`{:help, []}`), an alias for `sev --help`.
+  Returns `{:help, :agent}` for `sev help --agent`, which renders the
+  LLM-agent usage reference instead of a subcommand path.
   Returns `{:error, message}` for unrecognized commands or invalid options.
 
   ## Examples
@@ -89,11 +96,15 @@ defmodule Severance.CLI do
 
       iex> Severance.CLI.parse_args(["help"])
       {:help, []}
+
+      iex> Severance.CLI.parse_args(["help", "--agent"])
+      {:help, :agent}
   """
   @spec parse_args([String.t()]) :: parse_args_result()
   def parse_args(argv) do
     case argv |> normalize_argv() |> Mate.parse(@command) do
       {:ok, %{options: %{help: true}, path: path}} -> {:help, path}
+      {:ok, %{path: [:help], options: %{agent: true}}} -> {:help, :agent}
       {:ok, %{path: [:help]}} -> {:help, []}
       {:ok, parsed} -> parsed
       {:error, reason} -> {:error, format_error(reason)}
@@ -123,6 +134,126 @@ defmodule Severance.CLI do
     |> Keyword.merge(spec)
     |> Mate.format_usage(ansi_enabled: false)
     |> IO.iodata_to_binary()
+  end
+
+  @doc """
+  Returns a self-contained usage reference written for LLM agents.
+
+  Unlike `usage/1`, which mirrors the terse human-facing flag listing, this
+  reference is a single document an agent can consume in one shot: the full
+  command set, the configuration resolution order, every config key, the
+  publisher spec contract, and the `Severance.Status` fields a publisher
+  receives. Rendered by `sev help --agent`.
+  """
+  @spec agent_usage() :: String.t()
+  def agent_usage do
+    """
+    # Severance — LLM agent reference
+
+    Severance is a macOS background daemon that enforces a hard daily computer
+    shutdown with escalating warnings. It runs as a LaunchAgent, starts at
+    login, and is controlled through the `sev` CLI. The CLI talks to the
+    running daemon over BEAM distribution (RPC) for live commands like
+    overtime and status.
+
+    ## Commands
+
+      sev                  Start the daemon in the background (default)
+      sev start            Same as `sev`
+      sev init             Create config + LaunchAgent plist; safe to re-run
+      sev init --with-tmux Also seed a default tmux countdown publisher
+      sev status           Show daemon status, shutdown time, and update state
+      sev status <pub>     Invoke publisher <pub> once (debug its formatter)
+      sev status <pub> --teardown  Invoke publisher <pub>'s teardown fn
+      sev log              Print the activity log
+      sev otp              Activate the Overtime Protocol on the running daemon
+      sev update           Update the binary to the latest GitHub release
+      sev version          Print the current version (also `sev -v`)
+      sev help             Print top-level usage
+      sev help --agent     Print this reference
+      sev <cmd> --help     Print usage for one subcommand
+
+    `otp`, `overtime`, and `over_time_protocol` are aliases. Overtime cancels
+    today's shutdown and instead fires a 60-second notification burst.
+
+    ## Configuration resolution
+
+    Config is layered; highest priority wins:
+
+      1. CLI flag             sev --shutdown-time 17:00
+      2. Environment variable SEVERANCE_SHUTDOWN_TIME=16:30 sev
+      3. Config file          ~/.config/severance/config.exs
+      4. Compiled defaults
+
+    ## Config file
+
+    `~/.config/severance/config.exs` is NOT inert data — it is evaluated as
+    Elixir via `Code.eval_file/1` with full process privileges. Only edit it
+    if you control the directory. The file must evaluate to a single map:
+
+        %{
+          shutdown_time: "17:00",
+          overtime_notifications: true,
+          log_file: "~/.local/state/severance/activity.log",
+          publishers: %{}
+        }
+
+    Top-level keys:
+
+      shutdown_time           String "HH:MM". When the machine powers off.
+      overtime_notifications  Boolean. When false, suppresses the notification
+                              burst during overtime or when starting after the
+                              shutdown time. Default true.
+      log_file                String path (~ is expanded) for the activity log.
+                              Default ~/.local/state/severance/activity.log.
+      publishers              Map of publisher specs (see below). Default %{}.
+
+    ## Publisher spec contract
+
+    `publishers` maps an atom key (your choice) to a spec map. Specs run on the
+    daemon and push status to a sink (tmux var, file, dbus, notification, ...).
+
+      :fn           (Severance.Status.t() -> any())   required
+      :interval_ms  non_neg_integer()                 optional, default 60_000
+      :tmux_var     String.t()                        optional
+      :setup        (-> any())                         optional
+      :teardown     (-> any())                         optional
+
+    Lifecycle: on start the worker runs :teardown (clearing stale state from a
+    prior crash) then :setup; :fn fires every :interval_ms. On clean shutdown
+    :teardown runs again. A SIGKILL skips :teardown — the next start clears it.
+
+    When :tmux_var is set, the worker writes output to the tmux user variable
+    `@sev_<var>`. Reference it from ~/.tmux.conf, e.g.:
+
+        set -ag status-right "\#{@sev_countdown}"
+
+    Builder helper: `Severance.StatusPublisher.Tmux.publisher("countdown", fn status -> ... end)`
+    returns a complete spec wiring :fn, :teardown, :tmux_var, and :interval_ms.
+
+    Example file-writing publisher:
+
+        publishers: %{
+          polybar: %{
+            fn: fn status -> File.write!("/tmp/sev", "\#{status.minutes_remaining}m") end,
+            teardown: fn -> File.rm("/tmp/sev") end,
+            interval_ms: 30_000
+          }
+        }
+
+    ## Severance.Status fields passed to every :fn
+
+      :mode               :severance | :overtime
+      :phase              :waiting | :gentle | :aggressive | :final | :shutdown | :done
+      :shutdown_time      Time.t() | nil
+      :minutes_remaining  integer() | nil  (negative once past shutdown)
+      :seconds_remaining  integer() | nil
+      :version            String.t() | nil
+      :update_available?  boolean() | nil
+      :log_path           String.t() | nil
+
+    See docs/configuration.md for the complete publisher and tmux reference.
+    """
   end
 
   @doc false

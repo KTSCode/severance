@@ -165,6 +165,56 @@ defmodule Severance.CLITest do
     end
   end
 
+  describe "parse_args/1 agent help" do
+    test "help --agent returns {:help, :agent}" do
+      assert CLI.parse_args(["help", "--agent"]) == {:help, :agent}
+    end
+
+    test "help without --agent still returns top-level help" do
+      assert CLI.parse_args(["help"]) == {:help, []}
+    end
+  end
+
+  describe "agent_usage/0" do
+    test "lists the subcommands an agent can invoke" do
+      usage = CLI.agent_usage()
+      assert usage =~ "sev otp"
+      assert usage =~ "sev status"
+      assert usage =~ "sev log"
+    end
+
+    test "explains config resolution precedence and sources" do
+      usage = CLI.agent_usage()
+      assert usage =~ "~/.config/severance/config.exs"
+      assert usage =~ "SEVERANCE_SHUTDOWN_TIME"
+      assert usage =~ "--shutdown-time"
+    end
+
+    test "documents every top-level config key" do
+      usage = CLI.agent_usage()
+      assert usage =~ "shutdown_time"
+      assert usage =~ "overtime_notifications"
+      assert usage =~ "log_file"
+      assert usage =~ "publishers"
+    end
+
+    test "documents the publisher spec contract" do
+      usage = CLI.agent_usage()
+      assert usage =~ ":fn"
+      assert usage =~ ":interval_ms"
+      assert usage =~ ":tmux_var"
+      assert usage =~ ":setup"
+      assert usage =~ ":teardown"
+    end
+
+    test "documents the Severance.Status fields passed to publishers" do
+      usage = CLI.agent_usage()
+      assert usage =~ ":phase"
+      assert usage =~ "minutes_remaining"
+      assert usage =~ "seconds_remaining"
+    end
+  end
+
   describe "build_daemon_cmd/1" do
     test "builds command with no opts" do
       cmd = CLI.build_daemon_cmd("/usr/local/bin/sev", [])
