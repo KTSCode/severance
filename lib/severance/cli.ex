@@ -252,6 +252,43 @@ defmodule Severance.CLI do
       :update_available?  boolean() | nil
       :log_path           String.t() | nil
 
+    ## Workflow recipes
+
+    Task-oriented sequences. Pick the recipe, run the steps in order.
+
+    First-time setup:
+      1. sev init                 (writes config + LaunchAgent plist)
+      2. cp rel/com.severance.daemon.plist ~/Library/LaunchAgents/
+      3. launchctl load ~/Library/LaunchAgents/com.severance.daemon.plist
+      4. sev                      (start now without waiting for next login)
+
+    Set a custom shutdown time (three ways; highest precedence wins):
+      - Persistent: edit shutdown_time in ~/.config/severance/config.exs,
+        then restart the daemon (sev stop is not exposed; relaunch the
+        LaunchAgent or reboot — or for a one-off, use a flag/env below).
+      - This launch only: SEVERANCE_SHUTDOWN_TIME=16:30 sev
+      - This launch only: sev --shutdown-time 16:30
+
+    Keep working past shutdown:
+      - sev otp                   (cancels today's shutdown; fires a
+        60-second notification burst instead, then trusts you)
+      - Set overtime_notifications: false in config to silence that burst.
+
+    Add a status-bar publisher (tmux):
+      1. Add an entry under publishers in config with :tmux_var set, e.g.
+         use Severance.StatusPublisher.Tmux.publisher/2 (see Publisher
+         spec contract above).
+      2. sev init                 (prints the exact ~/.tmux.conf paste block
+         for any tmux_var not yet referenced)
+      3. Paste the line into ~/.tmux.conf, then: tmux source-file ~/.tmux.conf
+      4. sev status <publisher>   (invoke once to verify the formatter)
+      5. sev status               (the tmux wiring block flags a missing ref)
+
+    Diagnose "it didn't shut down" or "is it running":
+      1. sev status               (running?, shutdown time, minutes remaining,
+         overtime active?, missing tmux wiring, recent publisher errors)
+      2. sev log                  (activity log: started / overtime events)
+
     See docs/configuration.md for the complete publisher and tmux reference.
     """
   end

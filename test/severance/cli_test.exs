@@ -213,6 +213,14 @@ defmodule Severance.CLITest do
       assert usage =~ "minutes_remaining"
       assert usage =~ "seconds_remaining"
     end
+
+    test "provides task-oriented workflow recipes" do
+      usage = CLI.agent_usage()
+      assert usage =~ "Workflow recipes"
+      assert usage =~ "Set a custom shutdown time"
+      assert usage =~ "Keep working past shutdown"
+      assert usage =~ "Add a status-bar publisher"
+    end
   end
 
   describe "build_daemon_cmd/1" do
