@@ -5,6 +5,8 @@ defmodule Severance.CountdownTest do
 
   alias Severance.Countdown
 
+  doctest Countdown
+
   @frozen_now ~N[2026-04-09 10:00:00]
 
   setup do
@@ -268,6 +270,64 @@ defmodule Severance.CountdownTest do
         state = :sys.get_state(pid)
         assert state.phase == :done
       end)
+    end
+  end
+
+  describe "reset_state/2" do
+    test "rolls over to a fresh waiting state when the day advances" do
+      state = %Countdown{
+        shutdown_time: ~T[17:00:00],
+        mode: :overtime,
+        phase: :done,
+        day: ~D[2026-04-09]
+      }
+
+      assert {:reset, fresh} = Countdown.reset_state(state, ~D[2026-04-10])
+      assert fresh.mode == :severance
+      assert fresh.phase == :waiting
+      assert fresh.shutdown_time == ~T[17:00:00]
+      assert fresh.day == ~D[2026-04-10]
+    end
+
+    test "leaves the session untouched when the date has not advanced" do
+      # A DST-driven early fire: the timer elapsed but the wall clock has not
+      # crossed midnight, so the session must be left untouched.
+      state = %Countdown{
+        shutdown_time: ~T[17:00:00],
+        mode: :overtime,
+        phase: :done,
+        day: ~D[2026-04-09]
+      }
+
+      assert {:wait, ^state} = Countdown.reset_state(state, ~D[2026-04-09])
+    end
+  end
+
+  describe "midnight reset" do
+    test "reschedules the countdown lifecycle on a day rollover" do
+      capture_log(fn ->
+        # Shutdown 20 minutes out puts T-30 in the past, so a fresh start
+        # transitions straight into the countdown. A stale session day makes
+        # the frozen "today" a rollover.
+        pid = start_supervised!({Countdown, shutdown_time: ~T[10:20:00], mode: :overtime})
+        Process.sleep(50)
+        :sys.replace_state(pid, fn state -> %{state | phase: :done, day: ~D[2026-04-08]} end)
+
+        send(pid, :midnight_reset)
+        Process.sleep(50)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :gentle
+        assert state.mode == :severance
+        assert state.day == ~D[2026-04-09]
+      end)
+    end
+  end
+
+  describe "ms_until_midnight/1" do
+    test "returns milliseconds until the next local midnight" do
+      assert Countdown.ms_until_midnight(~N[2026-04-09 23:00:00]) == 3_600_000
+      assert Countdown.ms_until_midnight(~N[2026-04-09 00:00:00]) == 86_400_000
     end
   end
 

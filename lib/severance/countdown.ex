@@ -29,11 +29,13 @@ defmodule Severance.Countdown do
   @type t :: %__MODULE__{
           shutdown_time: Time.t() | nil,
           mode: :severance | :overtime,
-          phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done
+          phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done,
+          day: Date.t() | nil
         }
 
   defstruct [
     :shutdown_time,
+    :day,
     mode: :severance,
     phase: :waiting
   ]
@@ -112,12 +114,55 @@ defmodule Severance.Countdown do
     Time.compare(now, shutdown_time) != :lt
   end
 
+  @doc """
+  Returns milliseconds from the given moment until the next local midnight.
+
+  ## Examples
+
+      iex> Severance.Countdown.ms_until_midnight(~N[2026-04-09 23:00:00])
+      3600000
+
+  """
+  @spec ms_until_midnight(NaiveDateTime.t()) :: non_neg_integer()
+  def ms_until_midnight(now) do
+    next_midnight =
+      now
+      |> NaiveDateTime.to_date()
+      |> Date.add(1)
+      |> NaiveDateTime.new!(~T[00:00:00])
+
+    NaiveDateTime.diff(next_midnight, now, :millisecond)
+  end
+
+  @doc """
+  Decides the next state for a midnight-reset tick at `current_day`.
+
+  Overtime is a single-day opt-out, so once the local date advances past the
+  session's day the daemon starts the new day clean: back to severance mode,
+  waiting for the configured shutdown time. The reset timer fires on monotonic
+  time while the interval to midnight is wall-clock, so a DST transition can
+  fire it before the wall clock crosses midnight; in that case the date has
+  not advanced and the session is left untouched.
+
+  Returns `{:reset, fresh_state}` on a day rollover, or `{:wait, state}` when
+  the date has not advanced yet.
+  """
+  @spec reset_state(t(), Date.t()) :: {:reset, t()} | {:wait, t()}
+  def reset_state(%__MODULE__{day: day} = state, current_day) do
+    if Date.after?(current_day, day) do
+      {:reset, %__MODULE__{shutdown_time: state.shutdown_time, day: current_day}}
+    else
+      {:wait, state}
+    end
+  end
+
   # --- GenServer Callbacks ---
 
   @impl true
   def init({shutdown_time, mode}) do
-    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode}
+    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode, day: today()}
     schedule_countdown_start(state)
+    schedule_midnight_reset()
     {:ok, state}
   end
 
@@ -233,6 +278,21 @@ defmodule Severance.Countdown do
   end
 
   @impl true
+  def handle_info(:midnight_reset, state) do
+    case reset_state(state, today()) do
+      {:reset, fresh} ->
+        Logger.info("Midnight reset — starting a fresh day.")
+        schedule_countdown_start(fresh)
+        schedule_midnight_reset()
+        {:noreply, fresh}
+
+      {:wait, state} ->
+        schedule_midnight_reset()
+        {:noreply, state}
+    end
+  end
+
+  @impl true
   def handle_info(_msg, state) do
     {:noreply, state}
   end
@@ -267,6 +327,10 @@ defmodule Severance.Countdown do
 
   defp schedule_tick(phase) do
     Process.send_after(self(), :tick, tick_interval_ms(phase))
+  end
+
+  defp schedule_midnight_reset do
+    Process.send_after(self(), :midnight_reset, ms_until_midnight(local_now()))
   end
 
   defp tick do
@@ -319,6 +383,10 @@ defmodule Severance.Countdown do
       nil -> NaiveDateTime.local_now()
       fun -> fun.()
     end
+  end
+
+  defp today do
+    NaiveDateTime.to_date(local_now())
   end
 
   defp normal_shutdown?(:normal), do: true
