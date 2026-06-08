@@ -29,11 +29,13 @@ defmodule Severance.Countdown do
   @type t :: %__MODULE__{
           shutdown_time: Time.t() | nil,
           mode: :severance | :overtime,
-          phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done
+          phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done,
+          day: Date.t() | nil
         }
 
   defstruct [
     :shutdown_time,
+    :day,
     mode: :severance,
     phase: :waiting
   ]
@@ -136,7 +138,7 @@ defmodule Severance.Countdown do
 
   @impl true
   def init({shutdown_time, mode}) do
-    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode}
+    state = %__MODULE__{shutdown_time: shutdown_time, mode: mode, day: today()}
     schedule_countdown_start(state)
     schedule_midnight_reset()
     {:ok, state}
@@ -255,14 +257,22 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info(:midnight_reset, state) do
-    Logger.info("Midnight reset — starting a fresh day.")
+    # The timer waits monotonic milliseconds, but the interval to midnight is
+    # wall-clock, so a DST transition can fire it early. Re-arming re-reads the
+    # clock; only roll the day over once the local date has actually advanced.
+    if Date.after?(today(), state.day) do
+      Logger.info("Midnight reset — starting a fresh day.")
 
-    # Overtime is a single-day opt-out, so a new day starts clean: back to
-    # severance mode, waiting for the configured shutdown time.
-    fresh = %__MODULE__{shutdown_time: state.shutdown_time}
-    schedule_countdown_start(fresh)
-    schedule_midnight_reset()
-    {:noreply, fresh}
+      # Overtime is a single-day opt-out, so a new day starts clean: back to
+      # severance mode, waiting for the configured shutdown time.
+      fresh = %__MODULE__{shutdown_time: state.shutdown_time, day: today()}
+      schedule_countdown_start(fresh)
+      schedule_midnight_reset()
+      {:noreply, fresh}
+    else
+      schedule_midnight_reset()
+      {:noreply, state}
+    end
   end
 
   @impl true
@@ -356,6 +366,10 @@ defmodule Severance.Countdown do
       nil -> NaiveDateTime.local_now()
       fun -> fun.()
     end
+  end
+
+  defp today do
+    NaiveDateTime.to_date(local_now())
   end
 
   defp normal_shutdown?(:normal), do: true
