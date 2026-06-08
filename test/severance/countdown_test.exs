@@ -5,6 +5,8 @@ defmodule Severance.CountdownTest do
 
   alias Severance.Countdown
 
+  doctest Countdown
+
   @frozen_now ~N[2026-04-09 10:00:00]
 
   setup do
@@ -268,6 +270,54 @@ defmodule Severance.CountdownTest do
         state = :sys.get_state(pid)
         assert state.phase == :done
       end)
+    end
+  end
+
+  describe "midnight reset" do
+    test "resets mode and phase to a fresh waiting state" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[17:00:00], mode: :overtime})
+        Process.sleep(20)
+
+        # Mirror the TODO scenario: overtime used, day finished, machine
+        # left on past midnight with the daemon parked in :done.
+        :sys.replace_state(pid, fn state -> %{state | phase: :done} end)
+
+        send(pid, :midnight_reset)
+        Process.sleep(50)
+
+        state = :sys.get_state(pid)
+        assert state.mode == :severance
+        assert state.phase == :waiting
+        assert state.shutdown_time == ~T[17:00:00]
+      end)
+    end
+
+    test "reschedules the countdown lifecycle so the next day enforces shutdown" do
+      capture_log(fn ->
+        # Shutdown 20 minutes out puts T-30 in the past, so a fresh start
+        # transitions straight into the countdown.
+        frozen_time = NaiveDateTime.to_time(@frozen_now)
+        active_time = Time.add(frozen_time, 20, :minute)
+
+        pid = start_supervised!({Countdown, shutdown_time: active_time, mode: :overtime})
+        Process.sleep(50)
+        :sys.replace_state(pid, fn state -> %{state | phase: :done} end)
+
+        send(pid, :midnight_reset)
+        Process.sleep(50)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :gentle
+        assert state.mode == :severance
+      end)
+    end
+  end
+
+  describe "ms_until_midnight/1" do
+    test "returns milliseconds until the next local midnight" do
+      assert Countdown.ms_until_midnight(~N[2026-04-09 23:00:00]) == 3_600_000
+      assert Countdown.ms_until_midnight(~N[2026-04-09 00:00:00]) == 86_400_000
     end
   end
 

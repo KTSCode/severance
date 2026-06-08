@@ -49,6 +49,10 @@ mode. Instead of shutting down at T-0, Severance fires a notification
 every 5 seconds for 60 seconds, then stops. It trusts your judgment after
 that.
 
+Overtime is a single-day opt-out. If you leave the machine on past
+midnight, the daemon resets at midnight as though it just started —
+back to severance mode, waiting to enforce the next day's shutdown.
+
 ## Requirements
 
 - macOS (uses `osascript` for notifications and shutdown)

@@ -112,12 +112,33 @@ defmodule Severance.Countdown do
     Time.compare(now, shutdown_time) != :lt
   end
 
+  @doc """
+  Returns milliseconds from the given moment until the next local midnight.
+
+  ## Examples
+
+      iex> Severance.Countdown.ms_until_midnight(~N[2026-04-09 23:00:00])
+      3600000
+
+  """
+  @spec ms_until_midnight(NaiveDateTime.t()) :: non_neg_integer()
+  def ms_until_midnight(now) do
+    next_midnight =
+      now
+      |> NaiveDateTime.to_date()
+      |> Date.add(1)
+      |> NaiveDateTime.new!(~T[00:00:00])
+
+    NaiveDateTime.diff(next_midnight, now, :millisecond)
+  end
+
   # --- GenServer Callbacks ---
 
   @impl true
   def init({shutdown_time, mode}) do
     state = %__MODULE__{shutdown_time: shutdown_time, mode: mode}
     schedule_countdown_start(state)
+    schedule_midnight_reset()
     {:ok, state}
   end
 
@@ -233,6 +254,18 @@ defmodule Severance.Countdown do
   end
 
   @impl true
+  def handle_info(:midnight_reset, state) do
+    Logger.info("Midnight reset — starting a fresh day.")
+
+    # Overtime is a single-day opt-out, so a new day starts clean: back to
+    # severance mode, waiting for the configured shutdown time.
+    fresh = %__MODULE__{shutdown_time: state.shutdown_time}
+    schedule_countdown_start(fresh)
+    schedule_midnight_reset()
+    {:noreply, fresh}
+  end
+
+  @impl true
   def handle_info(_msg, state) do
     {:noreply, state}
   end
@@ -267,6 +300,10 @@ defmodule Severance.Countdown do
 
   defp schedule_tick(phase) do
     Process.send_after(self(), :tick, tick_interval_ms(phase))
+  end
+
+  defp schedule_midnight_reset do
+    Process.send_after(self(), :midnight_reset, ms_until_midnight(local_now()))
   end
 
   defp tick do
