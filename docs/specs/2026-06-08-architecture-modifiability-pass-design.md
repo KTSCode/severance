@@ -61,10 +61,17 @@ existing custom-palette behavior of `color_for_phase/2`.
 - `blink?/1` — boolean
 - `default_palette/0` — `["colour51", "colour226", "colour196"]`
 
-### Consumer changes (delegations only)
+### Consumer changes
 
-- `Countdown.phase_for_remaining/1` → `Phase.phase_for_remaining/1`
-- `Countdown.tick_interval_ms/1` → `Phase.interval_ms/1`
+- `Countdown` calls `Phase.phase_for_remaining/1` and `Phase.interval_ms/1`
+  directly at the tick call sites. The former `Countdown.phase_for_remaining/1`
+  and `Countdown.tick_interval_ms/1` were helpers exposed only for unit
+  testing — not part of any user-facing contract (`sev help --agent`,
+  `docs/configuration.md`), and Severance ships as a binary, not a Hex
+  library. They are removed here, not preserved as delegations: keeping
+  forwarders for callers that cannot exist would be dead code, and
+  delegating `tick_interval_ms` to `Phase.interval_ms` (which returns `nil`
+  for non-escalation phases) would muddy its `non_neg_integer()` contract.
 - `Notifier.phase_sound(:overtime)` stays (mode-specific, not a phase);
   remaining clauses → `Phase.sound/1`
 - `Format.color_for_phase/1,2` → `Phase.color/2`
@@ -121,8 +128,9 @@ does not fix:
 ## Testing
 
 - New `test/severance/phase_test.exs` — unit tests for each `Phase`
-  function, mirroring the cases currently asserted via `Countdown`,
-  `Notifier`, and `Format`
-- Existing `countdown_test`, `notifier_test`, `format_test` stay
-  unchanged and pass — they now exercise the delegations end-to-end,
-  serving as the regression check that behavior is preserved
+  function, taking over the cases previously asserted via the removed
+  `Countdown.phase_for_remaining/1` and `Countdown.tick_interval_ms/1`
+- The two `countdown_test` describe blocks for those helpers move to
+  `phase_test`; the rest of `countdown_test`, plus `notifier_test` and
+  `format_test`, stay unchanged and pass — they exercise the delegations
+  end-to-end, serving as the regression check that behavior is preserved
