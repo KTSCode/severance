@@ -261,9 +261,8 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Add sev upgrade as an alias for sev update
 - [x] Add research doc cataloging ways past the macOS interrupted-shutdown dialog
 - [x] Add research doc on Do Not Disturb control
   - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings
-- [ ] When I use overtime protocol and forget to turn my computer off until th e next day, severance should reset at midnight as though it was just started
+- [x] Reset the daemon at midnight as a fresh day, so overtime is a single-day opt-out and the next day's shutdown is enforced again
