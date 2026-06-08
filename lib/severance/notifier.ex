@@ -4,8 +4,13 @@ defmodule Severance.Notifier do
   based on countdown phase.
   """
 
+  alias Severance.Phase
+
   @doc """
   Returns the notification sound for a given phase.
+
+  Escalation-phase sounds come from `Severance.Phase`. `:overtime` is a
+  mode rather than a countdown phase, so its sound is mapped here.
 
   ## Examples
 
@@ -23,10 +28,8 @@ defmodule Severance.Notifier do
 
   """
   @spec phase_sound(:gentle | :aggressive | :final | :overtime) :: String.t()
-  def phase_sound(:gentle), do: "Tink"
-  def phase_sound(:aggressive), do: "Funk"
-  def phase_sound(:final), do: "Basso"
   def phase_sound(:overtime), do: "Basso"
+  def phase_sound(phase), do: Phase.sound(phase)
 
   @doc """
   Returns `{title, body}` for a countdown notification.

@@ -13,13 +13,11 @@ defmodule Severance.Countdown do
 
   alias Severance.ActivityLog
   alias Severance.Notifier
+  alias Severance.Phase
   alias Severance.StatusPublisher.Tmux.Panes
 
   require Logger
 
-  @gentle_interval_ms 5 * 60 * 1000
-  @aggressive_interval_ms 2 * 60 * 1000
-  @final_interval_ms 60 * 1000
   @overtime_burst_interval_ms 5 * 1000
   @overtime_burst_count 12
   @stale_threshold_minutes 15
@@ -79,23 +77,6 @@ defmodule Severance.Countdown do
   def status do
     GenServer.call(__MODULE__, :status)
   end
-
-  @doc """
-  Returns the phase for a given number of minutes remaining.
-  """
-  @spec phase_for_remaining(integer()) :: :gentle | :aggressive | :final | :shutdown
-  def phase_for_remaining(minutes) when minutes > 15, do: :gentle
-  def phase_for_remaining(minutes) when minutes > 5, do: :aggressive
-  def phase_for_remaining(minutes) when minutes > 0, do: :final
-  def phase_for_remaining(_minutes), do: :shutdown
-
-  @doc """
-  Returns the tick interval in milliseconds for a given phase.
-  """
-  @spec tick_interval_ms(:gentle | :aggressive | :final) :: non_neg_integer()
-  def tick_interval_ms(:gentle), do: @gentle_interval_ms
-  def tick_interval_ms(:aggressive), do: @aggressive_interval_ms
-  def tick_interval_ms(:final), do: @final_interval_ms
 
   @doc """
   Returns true if the given date falls on a weekend.
@@ -221,7 +202,7 @@ defmodule Severance.Countdown do
   @impl true
   def handle_info(:tick, state) do
     minutes_left = minutes_remaining(state.shutdown_time)
-    phase = phase_for_remaining(minutes_left)
+    phase = Phase.phase_for_remaining(minutes_left)
     state = %{state | phase: phase}
 
     case phase do
@@ -326,7 +307,7 @@ defmodule Severance.Countdown do
   end
 
   defp schedule_tick(phase) do
-    Process.send_after(self(), :tick, tick_interval_ms(phase))
+    Process.send_after(self(), :tick, Phase.interval_ms(phase))
   end
 
   defp schedule_midnight_reset do
