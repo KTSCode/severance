@@ -273,60 +273,53 @@ defmodule Severance.CountdownTest do
     end
   end
 
-  describe "midnight reset" do
-    test "resets mode and phase to a fresh waiting state when the date advances" do
-      capture_log(fn ->
-        pid = start_supervised!({Countdown, shutdown_time: ~T[17:00:00], mode: :overtime})
-        Process.sleep(20)
+  describe "reset_state/2" do
+    test "rolls over to a fresh waiting state when the day advances" do
+      state = %Countdown{
+        shutdown_time: ~T[17:00:00],
+        mode: :overtime,
+        phase: :done,
+        day: ~D[2026-04-09]
+      }
 
-        # Mirror the TODO scenario: overtime used, day finished, machine
-        # left on past midnight with the daemon parked in :done.
-        :sys.replace_state(pid, fn state -> %{state | phase: :done} end)
-
-        Application.put_env(:severance, :now_fn, fn -> ~N[2026-04-10 00:00:30] end)
-        send(pid, :midnight_reset)
-        Process.sleep(50)
-
-        state = :sys.get_state(pid)
-        assert state.mode == :severance
-        assert state.phase == :waiting
-        assert state.shutdown_time == ~T[17:00:00]
-        assert state.day == ~D[2026-04-10]
-      end)
+      assert {:reset, fresh} = Countdown.reset_state(state, ~D[2026-04-10])
+      assert fresh.mode == :severance
+      assert fresh.phase == :waiting
+      assert fresh.shutdown_time == ~T[17:00:00]
+      assert fresh.day == ~D[2026-04-10]
     end
 
-    test "reschedules the countdown lifecycle so the next day enforces shutdown" do
+    test "leaves the session untouched when the date has not advanced" do
+      # A DST-driven early fire: the timer elapsed but the wall clock has not
+      # crossed midnight, so the session must be left untouched.
+      state = %Countdown{
+        shutdown_time: ~T[17:00:00],
+        mode: :overtime,
+        phase: :done,
+        day: ~D[2026-04-09]
+      }
+
+      assert {:wait, ^state} = Countdown.reset_state(state, ~D[2026-04-09])
+    end
+  end
+
+  describe "midnight reset" do
+    test "reschedules the countdown lifecycle on a day rollover" do
       capture_log(fn ->
-        # On the new day, shutdown 20 minutes out puts T-30 in the past, so a
-        # fresh start transitions straight into the countdown.
+        # Shutdown 20 minutes out puts T-30 in the past, so a fresh start
+        # transitions straight into the countdown. A stale session day makes
+        # the frozen "today" a rollover.
         pid = start_supervised!({Countdown, shutdown_time: ~T[10:20:00], mode: :overtime})
         Process.sleep(50)
-        :sys.replace_state(pid, fn state -> %{state | phase: :done} end)
+        :sys.replace_state(pid, fn state -> %{state | phase: :done, day: ~D[2026-04-08]} end)
 
-        Application.put_env(:severance, :now_fn, fn -> ~N[2026-04-10 10:00:00] end)
         send(pid, :midnight_reset)
         Process.sleep(50)
 
         state = :sys.get_state(pid)
         assert state.phase == :gentle
         assert state.mode == :severance
-      end)
-    end
-
-    test "does not reset when the local date has not advanced (early fire)" do
-      capture_log(fn ->
-        pid = start_supervised!({Countdown, shutdown_time: ~T[17:00:00], mode: :overtime})
-        Process.sleep(20)
-        :sys.replace_state(pid, fn state -> %{state | phase: :done} end)
-
-        # A DST-driven early fire: the timer elapsed but the wall clock has
-        # not crossed midnight, so the session must be left untouched.
-        send(pid, :midnight_reset)
-        Process.sleep(50)
-
-        state = :sys.get_state(pid)
-        assert state.mode == :overtime
-        assert state.phase == :done
+        assert state.day == ~D[2026-04-09]
       end)
     end
   end

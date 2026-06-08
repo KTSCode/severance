@@ -134,6 +134,28 @@ defmodule Severance.Countdown do
     NaiveDateTime.diff(next_midnight, now, :millisecond)
   end
 
+  @doc """
+  Decides the next state for a midnight-reset tick at `current_day`.
+
+  Overtime is a single-day opt-out, so once the local date advances past the
+  session's day the daemon starts the new day clean: back to severance mode,
+  waiting for the configured shutdown time. The reset timer fires on monotonic
+  time while the interval to midnight is wall-clock, so a DST transition can
+  fire it before the wall clock crosses midnight; in that case the date has
+  not advanced and the session is left untouched.
+
+  Returns `{:reset, fresh_state}` on a day rollover, or `{:wait, state}` when
+  the date has not advanced yet.
+  """
+  @spec reset_state(t(), Date.t()) :: {:reset, t()} | {:wait, t()}
+  def reset_state(%__MODULE__{day: day} = state, current_day) do
+    if Date.after?(current_day, day) do
+      {:reset, %__MODULE__{shutdown_time: state.shutdown_time, day: current_day}}
+    else
+      {:wait, state}
+    end
+  end
+
   # --- GenServer Callbacks ---
 
   @impl true
@@ -257,21 +279,16 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info(:midnight_reset, state) do
-    # The timer waits monotonic milliseconds, but the interval to midnight is
-    # wall-clock, so a DST transition can fire it early. Re-arming re-reads the
-    # clock; only roll the day over once the local date has actually advanced.
-    if Date.after?(today(), state.day) do
-      Logger.info("Midnight reset — starting a fresh day.")
+    case reset_state(state, today()) do
+      {:reset, fresh} ->
+        Logger.info("Midnight reset — starting a fresh day.")
+        schedule_countdown_start(fresh)
+        schedule_midnight_reset()
+        {:noreply, fresh}
 
-      # Overtime is a single-day opt-out, so a new day starts clean: back to
-      # severance mode, waiting for the configured shutdown time.
-      fresh = %__MODULE__{shutdown_time: state.shutdown_time, day: today()}
-      schedule_countdown_start(fresh)
-      schedule_midnight_reset()
-      {:noreply, fresh}
-    else
-      schedule_midnight_reset()
-      {:noreply, state}
+      {:wait, state} ->
+        schedule_midnight_reset()
+        {:noreply, state}
     end
   end
 
