@@ -204,11 +204,15 @@ defmodule Mix.Tasks.Todo do
        Choose a concise, descriptive branch name (e.g., `todo/add-user-auth`).
     2. Read AGENTS.md and the codebase to understand conventions and patterns.
     3. Follow TDD: write a failing test first, then implement until it passes.
-    4. Do not edit `CHANGELOG.md` — the `[Unreleased]` entry is added
+    4. If your change alters the system architecture (supervision tree,
+       countdown state machine, config resolution, the RPC seam, or the set
+       of modules), update `docs/architecture.md` in the same PR so it never
+       describes a system that no longer exists.
+    5. Do not edit `CHANGELOG.md` — the `[Unreleased]` entry is added
        automatically when the work is finalized.
-    5. Commit your changes. Quality checks run automatically on commit.
-    6. Push your branch and open a PR with `gh pr create`.
-    7. Stop and wait for review. When told to finalize, run
+    6. Commit your changes. Quality checks run automatically on commit.
+    7. Push your branch and open a PR with `gh pr create`.
+    8. Stop and wait for review. When told to finalize, run
        `mix todo --done "<one-line description of what you built>"`. That
        description rewrites this item's TODO line in README.md and becomes the
        CHANGELOG entry, so make it accurate and user-facing.
