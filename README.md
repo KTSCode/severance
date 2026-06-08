@@ -250,6 +250,26 @@ Small, well-understood changes go straight to code. For anything larger:
 1. **Plan** — `docs/plans/<feature>.md`
 1. **Execute** — one phase at a time
 
+#### Autonomous issue loop
+
+`mix loop` runs a self-correcting AI loop against a GitHub issue. It picks
+an open issue, classifies it as a feature or a bug, and repeatedly invokes
+`claude` to implement (or fix) it — verifying each attempt with
+`mix quality` and feeding any failure back into the next attempt until the
+suite passes or the iteration budget is spent. On success it commits,
+pushes, opens a PR that closes the issue, and comments the outcome back on
+the issue (it opens a PR for review rather than auto-merging).
+
+```bash
+mix loop                 # work the next open issue
+mix loop --issue 42      # work a specific issue
+mix loop --label bug     # only consider issues with this label
+mix loop --max 8         # cap the loop at 8 attempts (default 5)
+mix loop --full          # run the full mix quality each iteration
+```
+
+Requires the `gh` and `claude` CLIs on your PATH.
+
 ## Roadmap
 - Homebrew distribution
 - Linux support

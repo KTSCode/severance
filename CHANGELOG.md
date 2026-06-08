@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `mix loop` drives an autonomous feature/debug AI loop against a GitHub issue: it classifies the issue as a feature or a bug, repeatedly invokes `claude` to implement or fix it, verifies each attempt with `mix quality`, feeds failures back into the next attempt until the suite is green (or the iteration budget is spent), then commits, pushes, opens a PR closing the issue, and comments the outcome back on the issue
 - Add sev upgrade as an alias for sev update
 - Add research doc cataloging ways past the macOS interrupted-shutdown dialog
 - Add research doc on Do Not Disturb control
