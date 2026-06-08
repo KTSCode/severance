@@ -266,3 +266,4 @@ Small, well-understood changes go straight to code. For anything larger:
   - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings
 - [x] Reset the daemon at midnight as a fresh day, so overtime is a single-day opt-out and the next day's shutdown is enforced again
+- [ ] Do a documentation, architecture and modifiability pass on this application
