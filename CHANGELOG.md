@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Add sev upgrade as an alias for sev update
 - Add research doc cataloging ways past the macOS interrupted-shutdown dialog
+- Add research doc on Do Not Disturb control
 
 ## [0.17.0] -- 2026-06-04
 

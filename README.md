@@ -257,9 +257,8 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Add `sev help --agent`, a machine-readable usage reference for LLM agents covering all commands, configuration keys and defaults, the publisher contract, and task-oriented setup recipes
 - [x] Add sev upgrade as an alias for sev update
 - [x] Add research doc cataloging ways past the macOS interrupted-shutdown dialog
-- [ ] create a research doc with different ways of allowing severance to turn Do not disturb mode on the host machine
+- [x] Add research doc on Do Not Disturb control
   - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings 
