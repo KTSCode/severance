@@ -188,6 +188,10 @@ countdown publisher that writes `@sev_countdown` once per minute.
 
 ## Development
 
+See [`docs/architecture.md`](docs/architecture.md) for how the system fits
+together — the supervision tree, countdown state machine, config
+resolution, and the RPC seam.
+
 ### Dependencies
 
 - [asdf](https://asdf-vm.com/) — installs Erlang, Elixir, and Zig from `.tool-versions`
