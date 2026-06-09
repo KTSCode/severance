@@ -4,7 +4,7 @@ defmodule Severance.Status do
   rendered by `sev status`. Returned by `Severance.Countdown.status/0`.
   """
 
-  @type phase :: :waiting | :gentle | :aggressive | :final | :shutdown | :done
+  @type phase :: Severance.Phase.name()
   @type mode :: :severance | :overtime
 
   @type t :: %__MODULE__{

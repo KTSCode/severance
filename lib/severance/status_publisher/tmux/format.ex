@@ -1,10 +1,11 @@
 defmodule Severance.StatusPublisher.Tmux.Format do
   @moduledoc """
   Optional helpers for users writing tmux-targeted publisher formatters.
-  Non-tmux sinks ignore these.
+  Non-tmux sinks ignore these. Phase color and blink come from
+  `Severance.Phase`, the single source of truth for phase attributes.
   """
 
-  @default_colors ["colour51", "colour226", "colour196"]
+  alias Severance.Phase
 
   @doc """
   Returns a tmux color (256-color name) for the given countdown phase.
@@ -19,14 +20,9 @@ defmodule Severance.StatusPublisher.Tmux.Format do
       "c"
   """
   @spec color_for_phase(Severance.Status.phase(), [String.t()]) :: String.t()
-  def color_for_phase(phase, colors \\ @default_colors)
-
-  def color_for_phase(:waiting, [color, _, _]), do: color
-  def color_for_phase(:gentle, [color, _, _]), do: color
-  def color_for_phase(:aggressive, [_, color, _]), do: color
-  def color_for_phase(:final, [_, _, color]), do: color
-  def color_for_phase(:shutdown, [_, _, color]), do: color
-  def color_for_phase(:done, [_, _, color]), do: color
+  def color_for_phase(phase, palette \\ Phase.default_palette()) do
+    Phase.color(phase, palette)
+  end
 
   @doc """
   Returns the tmux `,blink` suffix when the given phase should blink,
@@ -38,7 +34,7 @@ defmodule Severance.StatusPublisher.Tmux.Format do
       ""
   """
   @spec blink_for_phase(Severance.Status.phase()) :: String.t()
-  def blink_for_phase(:aggressive), do: ",blink"
-  def blink_for_phase(:final), do: ",blink"
-  def blink_for_phase(_), do: ""
+  def blink_for_phase(phase) do
+    if Phase.blink?(phase), do: ",blink", else: ""
+  end
 end

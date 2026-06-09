@@ -571,6 +571,11 @@ defmodule Mix.Tasks.TodoTest do
       assert result =~ "AGENTS.md"
     end
 
+    test "instructs the agent to keep docs/architecture.md current" do
+      result = Todo.build_prompt("Fix bug", "# Readme")
+      assert result =~ "docs/architecture.md"
+    end
+
     test "instructs not to edit CHANGELOG since mix todo --done owns it" do
       result = Todo.build_prompt("Fix bug", "# Readme")
       assert result =~ "Do not edit `CHANGELOG.md`"

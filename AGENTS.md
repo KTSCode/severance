@@ -70,6 +70,17 @@ For anything larger:
 - Write entries from the user's perspective, not the developer's
 
 ## Documentation Lifecycle
+Living docs track the current system and MUST stay current — update them in
+the same PR as the change that affects them. A PR that leaves one describing
+a system that no longer exists is incomplete.
+- `docs/architecture.md` — current-state architecture. Update when a change
+  alters the supervision tree, the countdown state machine, config
+  resolution, the RPC seam, or the set of modules
+- `README.md` and `docs/configuration.md` — user-facing usage and the
+  publisher contract
+
+Point-in-time docs (`docs/specs/`, `docs/research/`) are snapshots, not
+living docs:
 - Superseded specs move to `docs/archive/`
 - Files keep their original names (date prefix provides chronological ordering)
 - Agents ignore `docs/archive/` during routine sessions
