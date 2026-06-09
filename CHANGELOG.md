@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.19.0] -- 2026-06-08
+
 ### Added
 
 - Add a current-state architecture doc and centralize countdown phase definitions in a single Severance.Phase module
