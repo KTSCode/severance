@@ -40,7 +40,7 @@ defmodule Severance.MixProject do
       {:burrito, "~> 1.5"},
       {:cli_mate, "~> 0.10"},
       {:doctor, "~> 0.22", only: :dev},
-      {:ex_quality, "~> 0.6", only: :dev},
+      {:ex_quality, "~> 0.13", only: :dev},
       {:excoveralls, "~> 0.18", only: :test},
       {:styler, "~> 1.11", only: [:dev, :test], runtime: false},
       {:mimic, "~> 2.3", only: :test},
