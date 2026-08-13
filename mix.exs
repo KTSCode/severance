@@ -79,6 +79,89 @@ defmodule Severance.MixProject do
     {local, 0} = System.cmd("git", ["rev-parse", "HEAD"])
     {remote, 0} = System.cmd("git", ["rev-parse", "origin/main"])
     if String.trim(local) != String.trim(remote), do: Mix.raise("Local main is behind or ahead of origin/main.")
+
+    check_ci_release_build!()
+  end
+
+  # Dispatches release.yml on CI, waits for it, downloads the built binary
+  # and smokes it locally. Local main equals origin/main at this point, so
+  # the dispatch builds exactly the code being tagged. Refusing to tag on
+  # any failure here is the point: a tag must never outrun a proven release.
+  defp check_ci_release_build! do
+    ensure_gh!()
+    previous = latest_release_run_id()
+
+    Mix.shell().info("Dispatching release.yml dry-run on CI...")
+    {_, 0} = System.cmd("gh", ["workflow", "run", "release.yml", "--ref", "main"])
+
+    run_id = await_new_release_run(previous, 30)
+    Mix.shell().info("Watching CI run #{run_id}...")
+
+    case System.cmd("gh", ["run", "watch", run_id, "--exit-status"], into: IO.stream()) do
+      {_, 0} -> smoke_ci_artifact!(run_id)
+      {_, code} -> Mix.raise("CI release build failed (gh run watch exit #{code}). Not tagging.")
+    end
+  end
+
+  defp ensure_gh! do
+    case System.cmd("gh", ["auth", "status"], stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      {out, _} -> Mix.raise("gh is not authenticated — the CI release gate cannot run. Not tagging.\n#{out}")
+    end
+  rescue
+    ErlangError ->
+      Mix.raise("gh CLI not found — the CI release gate cannot run. Install gh, then re-run mix tag.")
+  end
+
+  defp latest_release_run_id do
+    {out, 0} =
+      System.cmd("gh", ["run", "list", "--workflow=release.yml", "--limit", "1", "--json", "databaseId"])
+
+    case Regex.run(~r/"databaseId":\s*(\d+)/, out) do
+      [_, id] -> id
+      nil -> nil
+    end
+  end
+
+  defp await_new_release_run(_previous, 0) do
+    Mix.raise("Dispatched release.yml but no new CI run appeared. Not tagging.")
+  end
+
+  defp await_new_release_run(previous, attempts_left) do
+    Process.sleep(2_000)
+
+    case latest_release_run_id() do
+      nil -> await_new_release_run(previous, attempts_left - 1)
+      ^previous -> await_new_release_run(previous, attempts_left - 1)
+      run_id -> run_id
+    end
+  end
+
+  defp smoke_ci_artifact!(run_id) do
+    dir = Path.join(System.tmp_dir!(), "sev_release_gate_#{run_id}")
+    File.rm_rf!(dir)
+
+    {_, 0} = System.cmd("gh", ["run", "download", run_id, "-n", "burrito_out", "-D", dir])
+
+    {arch, 0} = System.cmd("uname", ["-m"])
+    binary = if String.trim(arch) == "arm64", do: "sev_macos_arm64", else: "sev_macos_x86"
+    script = Path.expand("bin/checks/release_smoke.sh")
+
+    Mix.shell().info("Smoking CI artifact #{binary}...")
+
+    case System.cmd(script, [Path.join(dir, binary)], into: IO.stream(), stderr_to_stdout: true) do
+      {_, 0} ->
+        Mix.shell().info("CI artifact smoke passed.")
+
+      {_, 2} ->
+        Mix.raise(
+          "Release smoke was skipped (see output above — likely the local sev daemon is running). " <>
+            "Stop it (launchctl bootout gui/$UID/com.severance.daemon), then re-run mix tag."
+        )
+
+      {_, code} ->
+        Mix.raise("CI artifact failed the release smoke (exit #{code}). Not tagging.")
+    end
   end
 
   defp releases do
