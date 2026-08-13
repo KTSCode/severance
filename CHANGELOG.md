@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.20.0] -- 2026-08-12
+
 ### Fixed
 
 - Pin Zig to 0.16.0 in the release workflow, matching what Burrito 1.6 requires — the 0.20.0 release build failed on the stale 0.15.2 pin
