@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         id: beam
         with:
@@ -19,9 +19,9 @@ jobs:
           elixir-version: "1.20.0"
       - uses: mlugg/setup-zig@v2
         with:
-          version: "0.15.2"
+          version: "0.16.0"
       - run: sudo apt-get install -y xz-utils
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             deps
@@ -30,7 +30,7 @@ jobs:
       - run: mix deps.get
       - run: mix test
       - run: MIX_ENV=prod mix release sev
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: burrito_out/*
           generate_release_notes: true
