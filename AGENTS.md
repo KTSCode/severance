@@ -4,8 +4,8 @@ Shared project conventions for all AI coding agents.
 
 ## Build & Test
 - `mix deps.get` — fetch dependencies
-- `mix quality` — full quality suite (format, compile, credo, dialyzer, doctor, tests + coverage)
-- `mix quality --quick` — fast iteration (skips dialyzer and coverage enforcement)
+- `mix quality` — full quality suite (format, compile, credo, dialyzer, doctor, tests + coverage, release smoke)
+- `mix quality --profile quick` — fast iteration (skips dialyzer, coverage enforcement, and the release smoke stage)
 - `mix test path/to/test.exs` — run a single test file
 - `mix credo --strict` — lint a single file or full project
 - `mix dialyzer` — typecheck (slow first run, builds PLT)
@@ -27,7 +27,7 @@ Background daemon that enforces daily computer shutdown with escalating warnings
 Runs as a LaunchAgent, communicates via BEAM RPC for overtime protocol.
 
 ## Conventions
-- Run `mix quality` before committing (git pre-commit hook does `mix quality --quick`)
+- Git hooks (in `.githooks/`, wired via `core.hooksPath`): pre-commit runs `mix quality --profile quick`, pre-push runs full `mix quality` including the release smoke stage (`bin/checks/release_smoke.sh`)
 - Format with `mix format` after changes
 - Lint with `mix credo --strict`
 - TDD: write failing tests first, then implement. No exceptions.

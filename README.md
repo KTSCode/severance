@@ -222,7 +222,10 @@ Individual checks are still available (`mix credo --strict`, `mix dialyzer`,
 git config core.hooksPath .githooks
 ```
 
-The pre-commit hook runs `mix quality --quick` before each commit.
+The pre-commit hook runs `mix quality --profile quick` before each commit.
+The pre-push hook runs the full `mix quality` suite — including the release
+smoke stage (`bin/checks/release_smoke.sh`), which builds the Burrito binary
+and proves it boots — before anything leaves the machine.
 
 ### Releasing
 
@@ -236,10 +239,16 @@ mix tag --patch   # bump patch version (e.g. 0.11.0 -> 0.11.1)
 
 This orchestrates the full release:
 
+1. Dispatches a `release.yml` dry-run on CI (`workflow_dispatch`), waits for
+   it, downloads the built binary, and smokes it locally with
+   `bin/checks/release_smoke.sh` — refusing to tag on any failure
 1. Shows the `[Unreleased]` changelog entries and prompts for confirmation
 1. Finalizes `CHANGELOG.md` under the new version heading and commits it
 1. Bumps the version in `mix.exs`, commits, and creates an annotated tag
 1. Pushes the commits and tag atomically to trigger the CI release workflow
+
+The gate requires an authenticated `gh` CLI and a stopped local daemon (the
+smoke check refuses to race a live `severance` node).
 
 ### AI-assisted workflow
 
@@ -247,7 +256,7 @@ This project is set up for AI-assisted development. Each coding session
 starts fresh and relies on durable repo files rather than chat history.
 
 - **AGENTS.md** — shared conventions, build commands, workflow, and documentation lifecycle
-- **CLAUDE.md** — Claude Code-specific configuration (hooks run `mix quality` before commits)
+- **CLAUDE.md** — Claude Code-specific configuration (hooks run `mix quality --profile quick` before commits)
 - **dialyxir** — static type analysis via Dialyzer (PLTs cached in `priv/plts/`)
 - **MCP tools** — runtime introspection via tidewave, erl_dist_mcp, and hex-mcp (see `.mcp.json`)
 
