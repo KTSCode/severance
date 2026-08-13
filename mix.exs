@@ -36,17 +36,17 @@ defmodule Severance.MixProject do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:usage_rules, "~> 1.1", only: :dev},
-      {:burrito, "~> 1.5"},
+      {:usage_rules, "~> 1.2", only: :dev},
+      {:burrito, "~> 1.6"},
       {:cli_mate, "~> 0.10"},
-      {:doctor, "~> 0.22", only: :dev},
+      {:doctor, "~> 0.23", only: :dev},
       {:ex_quality, "~> 0.13", only: :dev},
       {:excoveralls, "~> 0.18", only: :test},
-      {:styler, "~> 1.11", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.12", only: [:dev, :test], runtime: false},
       {:mimic, "~> 2.3", only: :test},
-      {:mix_version, "~> 2.4", only: [:dev, :test], runtime: false},
-      {:tidewave, "~> 0.5", only: :dev},
-      {:bandit, "~> 1.0", only: :dev}
+      {:mix_version, "~> 2.5", only: [:dev, :test], runtime: false},
+      {:tidewave, "~> 0.8", only: :dev},
+      {:bandit, "~> 1.12", only: :dev}
     ]
   end
 
