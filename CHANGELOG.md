@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.21.0] -- 2026-08-14
+
 ### Added
 
 - Add a release confidence gate — `mix tag` now dispatches a CI build, smokes the resulting binary, and publishes it directly, so a release is proven before the tag exists
