@@ -68,7 +68,7 @@ defmodule Severance.MixProject do
     {_, 0} =
       System.cmd(
         "gh",
-        ["release", "create", tag, "--generate-notes", "--notes-from-tag"] ++
+        ["release", "create", tag, "--notes-from-tag"] ++
           Path.wildcard(Path.join(artifact_dir, "sev_macos_*"))
       )
 
