@@ -1,8 +1,7 @@
 name: Release
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,9 +16,11 @@ jobs:
         with:
           otp-version: "29.0.1"
           elixir-version: "1.20.0"
+      # Burrito's Zig check is exact equality — this pin must move together
+      # with the {:burrito, ...} version in mix.exs.
       - uses: mlugg/setup-zig@v2
         with:
-          version: "0.16.0"
+          version: "0.15.2"
       - run: sudo apt-get install -y xz-utils
       - uses: actions/cache@v6
         with:
@@ -30,7 +31,7 @@ jobs:
       - run: mix deps.get
       - run: mix test
       - run: MIX_ENV=prod mix release sev
-      - uses: softprops/action-gh-release@v3
+      - uses: actions/upload-artifact@v4
         with:
-          files: burrito_out/*
-          generate_release_notes: true
+          name: burrito_out
+          path: burrito_out/*

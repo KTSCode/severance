@@ -10,7 +10,8 @@ machine, config resolution, the RPC seam, or the set of modules, update it
 in the same PR. See AGENTS.md → Documentation Lifecycle for the full rule.
 
 ## Hooks
-- Pre-commit checks configured in `.claude/settings.json`
+- Agent pre-commit gate in `.claude/settings.json` runs `mix quality --profile quick` before `git commit`
+- Git hooks in `.githooks/` (via `core.hooksPath`): pre-commit runs `mix quality --profile quick`, pre-push runs full `mix quality` including the release smoke stage
 
 ## MCP Servers
 Three MCP servers provide runtime introspection during development:

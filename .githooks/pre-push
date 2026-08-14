@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -e
 
-mix quality --profile quick
+mix quality
