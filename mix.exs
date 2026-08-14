@@ -58,13 +58,21 @@ defmodule Severance.MixProject do
   end
 
   defp tag_release(args) do
-    check_release_preconditions!()
+    artifact_dir = check_release_preconditions!()
     Mix.Task.run("changelog.finalize", args)
     Mix.Task.run("version", args)
     {tag, 0} = System.cmd("git", ["describe", "--tags", "--abbrev=0"])
     tag = String.trim(tag)
     {_, 0} = System.cmd("git", ["push", "--atomic", "origin", "HEAD", tag])
-    Mix.shell().info("Tagged #{tag} and pushed. CI will handle the release.")
+
+    {_, 0} =
+      System.cmd(
+        "gh",
+        ["release", "create", tag, "--generate-notes", "--notes-from-tag"] ++
+          Path.wildcard(Path.join(artifact_dir, "sev_macos_*"))
+      )
+
+    Mix.shell().info("Tagged #{tag} and published the smoked release binaries.")
   end
 
   defp check_release_preconditions! do
@@ -80,21 +88,24 @@ defmodule Severance.MixProject do
     {remote, 0} = System.cmd("git", ["rev-parse", "origin/main"])
     if String.trim(local) != String.trim(remote), do: Mix.raise("Local main is behind or ahead of origin/main.")
 
-    check_ci_release_build!()
+    check_ci_release_build!(String.trim(local))
   end
 
   # Dispatches release.yml on CI, waits for it, downloads the built binary
   # and smokes it locally. Local main equals origin/main at this point, so
   # the dispatch builds exactly the code being tagged. Refusing to tag on
   # any failure here is the point: a tag must never outrun a proven release.
-  defp check_ci_release_build! do
+  # Polling is filtered to this exact commit + workflow_dispatch so a
+  # concurrent run (another dispatch, a stray tag push) can't get smoked
+  # and published in place of this one.
+  defp check_ci_release_build!(sha) do
     ensure_gh!()
-    previous = latest_release_run_id()
+    previous = latest_release_run_id(sha)
 
     Mix.shell().info("Dispatching release.yml dry-run on CI...")
     {_, 0} = System.cmd("gh", ["workflow", "run", "release.yml", "--ref", "main"])
 
-    run_id = await_new_release_run(previous, 30)
+    run_id = await_new_release_run(sha, previous, 30)
     Mix.shell().info("Watching CI run #{run_id}...")
 
     case System.cmd("gh", ["run", "watch", run_id, "--exit-status"], into: IO.stream()) do
@@ -113,9 +124,21 @@ defmodule Severance.MixProject do
       Mix.raise("gh CLI not found — the CI release gate cannot run. Install gh, then re-run mix tag.")
   end
 
-  defp latest_release_run_id do
+  defp latest_release_run_id(sha) do
     {out, 0} =
-      System.cmd("gh", ["run", "list", "--workflow=release.yml", "--limit", "1", "--json", "databaseId"])
+      System.cmd("gh", [
+        "run",
+        "list",
+        "--workflow=release.yml",
+        "--commit",
+        sha,
+        "--event",
+        "workflow_dispatch",
+        "--limit",
+        "1",
+        "--json",
+        "databaseId"
+      ])
 
     case Regex.run(~r/"databaseId":\s*(\d+)/, out) do
       [_, id] -> id
@@ -123,16 +146,16 @@ defmodule Severance.MixProject do
     end
   end
 
-  defp await_new_release_run(_previous, 0) do
+  defp await_new_release_run(_sha, _previous, 0) do
     Mix.raise("Dispatched release.yml but no new CI run appeared. Not tagging.")
   end
 
-  defp await_new_release_run(previous, attempts_left) do
+  defp await_new_release_run(sha, previous, attempts_left) do
     Process.sleep(2_000)
 
-    case latest_release_run_id() do
-      nil -> await_new_release_run(previous, attempts_left - 1)
-      ^previous -> await_new_release_run(previous, attempts_left - 1)
+    case latest_release_run_id(sha) do
+      nil -> await_new_release_run(sha, previous, attempts_left - 1)
+      ^previous -> await_new_release_run(sha, previous, attempts_left - 1)
       run_id -> run_id
     end
   end
@@ -152,6 +175,7 @@ defmodule Severance.MixProject do
     case System.cmd(script, [Path.join(dir, binary)], into: IO.stream(), stderr_to_stdout: true) do
       {_, 0} ->
         Mix.shell().info("CI artifact smoke passed.")
+        dir
 
       {_, 2} ->
         Mix.raise(
