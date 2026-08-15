@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `mix tag` now checks for an empty changelog `[Unreleased]` section before dispatching the CI release gate, instead of after — a release with nothing to release used to wait through a full CI build and smoke cycle before failing
+
 ## [0.21.0] -- 2026-08-14
 
 ### Added

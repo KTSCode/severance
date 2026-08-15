@@ -1,6 +1,8 @@
 defmodule Severance.MixProject do
   use Mix.Project
 
+  alias Mix.Tasks.Changelog.Finalize
+
   def project do
     [
       app: :severance,
@@ -76,6 +78,8 @@ defmodule Severance.MixProject do
   end
 
   defp check_release_preconditions! do
+    check_unreleased_changelog!()
+
     {branch, 0} = System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"])
     branch = String.trim(branch)
     if branch != "main", do: Mix.raise("Must be on main branch (currently on #{branch})")
@@ -89,6 +93,19 @@ defmodule Severance.MixProject do
     if String.trim(local) != String.trim(remote), do: Mix.raise("Local main is behind or ahead of origin/main.")
 
     check_ci_release_build!(String.trim(local))
+  end
+
+  # Fails fast on an empty [Unreleased] section before the CI dispatch/smoke
+  # gate runs — that gate takes minutes, and changelog.finalize would reject
+  # the release anyway once it gets there.
+  defp check_unreleased_changelog! do
+    changelog = File.read!("CHANGELOG.md")
+
+    case Finalize.unreleased_entries(changelog) do
+      {:ok, _entries} -> :ok
+      {:error, :empty_unreleased} -> Mix.raise("No entries in [Unreleased] section. Nothing to release.")
+      {:error, :no_unreleased} -> Mix.raise("No [Unreleased] section found in CHANGELOG.md")
+    end
   end
 
   # Dispatches release.yml on CI, waits for it, downloads the built binary
