@@ -1,8 +1,6 @@
 defmodule Severance.MixProject do
   use Mix.Project
 
-  alias Mix.Tasks.Changelog.Finalize
-
   def project do
     [
       app: :severance,
@@ -97,14 +95,26 @@ defmodule Severance.MixProject do
 
   # Fails fast on an empty [Unreleased] section before the CI dispatch/smoke
   # gate runs — that gate takes minutes, and changelog.finalize would reject
-  # the release anyway once it gets there.
+  # the release anyway once it gets there. Duplicates the small check in
+  # Mix.Tasks.Changelog.Finalize.unreleased_entries/1 rather than calling it:
+  # mix.exs's alias functions run before Mix compiles lib/, so app modules
+  # aren't reliably loaded yet.
   defp check_unreleased_changelog! do
     changelog = File.read!("CHANGELOG.md")
+    lines = String.split(changelog, "\n")
 
-    case Finalize.unreleased_entries(changelog) do
-      {:ok, _entries} -> :ok
-      {:error, :empty_unreleased} -> Mix.raise("No entries in [Unreleased] section. Nothing to release.")
-      {:error, :no_unreleased} -> Mix.raise("No [Unreleased] section found in CHANGELOG.md")
+    case Enum.find_index(lines, &(&1 == "## [Unreleased]")) do
+      nil ->
+        Mix.raise("No [Unreleased] section found in CHANGELOG.md")
+
+      idx ->
+        has_entries =
+          lines
+          |> Enum.drop(idx + 1)
+          |> Enum.take_while(&(not (String.starts_with?(&1, "## [") and &1 != "## [Unreleased]")))
+          |> Enum.any?(&String.starts_with?(&1, "- "))
+
+        if not has_entries, do: Mix.raise("No entries in [Unreleased] section. Nothing to release.")
     end
   end
 
