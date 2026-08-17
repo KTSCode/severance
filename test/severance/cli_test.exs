@@ -84,6 +84,10 @@ defmodule Severance.CLITest do
       assert %{path: [:over_time_protocol]} = CLI.parse_args(["over_time_protocol"])
     end
 
+    test "reload arg returns path [:reload]" do
+      assert %{path: [:reload]} = CLI.parse_args(["reload"])
+    end
+
     test "status arg returns path [:status] with teardown false and no publisher key" do
       parsed = CLI.parse_args(["status"])
       assert %{path: [:status], options: opts} = parsed
@@ -156,6 +160,10 @@ defmodule Severance.CLITest do
   describe "usage/1" do
     test "returns a usage string mentioning the binary name" do
       assert CLI.usage() =~ "sev"
+    end
+
+    test "top-level usage includes reload" do
+      assert CLI.usage() =~ "reload"
     end
 
     test "subcommand usage names the subcommand" do
@@ -447,6 +455,28 @@ defmodule Severance.CLITest do
       output = CLI.format_status({:ok, daemon}, update)
 
       assert output =~ "Update:     unknown (check failed)"
+    end
+  end
+
+  describe "format_reload/1" do
+    test "notes the shutdown time is pinned by the launch flag" do
+      result = %{shutdown_time: ~T[16:00:00], publishers: 1, pinned_shutdown_time?: true}
+
+      output = CLI.format_reload(result)
+
+      assert output =~ "Config reloaded."
+      assert output =~ "Shutdown:   16:00 (pinned by --shutdown-time at launch)"
+      assert output =~ "Publishers: 1 reloaded"
+    end
+
+    test "plain shutdown time when not pinned" do
+      result = %{shutdown_time: ~T[17:00:00], publishers: 0, pinned_shutdown_time?: false}
+
+      output = CLI.format_reload(result)
+
+      assert output =~ "Shutdown:   17:00"
+      assert output =~ "Publishers: 0 reloaded"
+      refute output =~ "pinned"
     end
   end
 

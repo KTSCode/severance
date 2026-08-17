@@ -28,12 +28,14 @@ defmodule Severance.Countdown do
           shutdown_time: Time.t() | nil,
           mode: :severance | :overtime,
           phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done,
-          day: Date.t() | nil
+          day: Date.t() | nil,
+          timer_ref: reference() | nil
         }
 
   defstruct [
     :shutdown_time,
     :day,
+    :timer_ref,
     mode: :severance,
     phase: :waiting
   ]
@@ -76,6 +78,15 @@ defmodule Severance.Countdown do
   @spec status() :: Severance.Status.t()
   def status do
     GenServer.call(__MODULE__, :status)
+  end
+
+  @doc """
+  Re-arms the countdown with a newly resolved `shutdown_time`, cancelling
+  whatever timer is currently pending. `mode` and `day` are preserved.
+  """
+  @spec reload(Time.t()) :: :ok
+  def reload(shutdown_time) do
+    GenServer.call(__MODULE__, {:reload, shutdown_time})
   end
 
   @doc """
@@ -142,7 +153,7 @@ defmodule Severance.Countdown do
   @impl true
   def init({shutdown_time, mode}) do
     state = %__MODULE__{shutdown_time: shutdown_time, mode: mode, day: today()}
-    schedule_countdown_start(state)
+    state = schedule_countdown_start(state)
     schedule_midnight_reset()
     {:ok, state}
   end
@@ -157,6 +168,17 @@ defmodule Severance.Countdown do
   @impl true
   def handle_call(:mode, _from, state) do
     {:reply, state.mode, state}
+  end
+
+  @impl true
+  def handle_call({:reload, shutdown_time}, _from, state) do
+    state =
+      state
+      |> cancel_timer()
+      |> then(&%{&1 | shutdown_time: shutdown_time, phase: :waiting})
+      |> schedule_countdown_start()
+
+    {:reply, :ok, state}
   end
 
   @impl true
@@ -217,8 +239,8 @@ defmodule Severance.Countdown do
           send_stale_pane_warnings()
         end
 
-        schedule_tick(phase)
-        {:noreply, state}
+        ref = schedule_tick(phase)
+        {:noreply, %{state | timer_ref: ref}}
     end
   end
 
@@ -243,17 +265,21 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info(:check_countdown_start, state) do
-    cond do
-      past_shutdown?(state.shutdown_time) ->
-        Logger.info("Started after shutdown time.")
-        send(self(), :late_start)
+    state =
+      cond do
+        past_shutdown?(state.shutdown_time) ->
+          Logger.info("Started after shutdown time.")
+          send(self(), :late_start)
+          %{state | timer_ref: nil}
 
-      ms_until_countdown_start(state.shutdown_time) <= 0 ->
-        send(self(), :start_countdown)
+        ms_until_countdown_start(state.shutdown_time) <= 0 ->
+          send(self(), :start_countdown)
+          %{state | timer_ref: nil}
 
-      true ->
-        Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
-    end
+        true ->
+          ref = Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
+          %{state | timer_ref: ref}
+      end
 
     {:noreply, state}
   end
@@ -263,7 +289,7 @@ defmodule Severance.Countdown do
     case reset_state(state, today()) do
       {:reset, fresh} ->
         Logger.info("Midnight reset — starting a fresh day.")
-        schedule_countdown_start(fresh)
+        fresh = schedule_countdown_start(fresh)
         schedule_midnight_reset()
         {:noreply, fresh}
 
@@ -297,12 +323,15 @@ defmodule Severance.Countdown do
       past_shutdown?(state.shutdown_time) ->
         Logger.info("Started after shutdown time.")
         send(self(), :late_start)
+        %{state | timer_ref: nil}
 
       ms > 0 ->
-        Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
+        ref = Process.send_after(self(), :check_countdown_start, @wait_poll_ms)
+        %{state | timer_ref: ref}
 
       true ->
         send(self(), :start_countdown)
+        %{state | timer_ref: nil}
     end
   end
 
@@ -312,6 +341,21 @@ defmodule Severance.Countdown do
 
   defp schedule_midnight_reset do
     Process.send_after(self(), :midnight_reset, ms_until_midnight(local_now()))
+  end
+
+  defp cancel_timer(%{timer_ref: nil} = state), do: state
+
+  defp cancel_timer(%{timer_ref: ref} = state) do
+    Process.cancel_timer(ref)
+
+    receive do
+      :tick -> :ok
+      :check_countdown_start -> :ok
+    after
+      0 -> :ok
+    end
+
+    %{state | timer_ref: nil}
   end
 
   defp tick do

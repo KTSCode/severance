@@ -188,4 +188,45 @@ defmodule Severance.ApplicationTest do
       assert resolved.log_file == "/compiled/default.log"
     end
   end
+
+  describe "reload/1" do
+    setup do
+      on_exit(fn -> Elixir.Application.delete_env(:severance, :launch_opts) end)
+      :ok
+    end
+
+    test "re-reads shutdown_time from config_dir and applies it to the running Countdown" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_reload_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+      File.write!(Path.join(dir, "config.exs"), ~s(%{shutdown_time: "21:15"}))
+
+      Elixir.Application.put_env(:severance, :launch_opts, [])
+      start_supervised!({Severance.Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert {:ok, result} = Application.reload(config_dir: dir, suppress_warning: true)
+
+      assert result.shutdown_time == ~T[21:15:00]
+      assert result.pinned_shutdown_time? == false
+      assert Severance.Countdown.status().shutdown_time == ~T[21:15:00]
+    end
+
+    test ":launch_opts pins shutdown_time over the config file" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_reload_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+      File.write!(Path.join(dir, "config.exs"), ~s(%{shutdown_time: "21:15"}))
+
+      Elixir.Application.put_env(:severance, :launch_opts, shutdown_time: ~T[16:00:00])
+      start_supervised!({Severance.Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert {:ok, result} = Application.reload(config_dir: dir, suppress_warning: true)
+
+      assert result.shutdown_time == ~T[16:00:00]
+      assert result.pinned_shutdown_time? == true
+      assert Severance.Countdown.status().shutdown_time == ~T[16:00:00]
+    end
+  end
 end

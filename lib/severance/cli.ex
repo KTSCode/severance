@@ -23,6 +23,7 @@ defmodule Severance.CLI do
       sev otp                          # Activate Overtime Protocol on running daemon
       sev overtime                     # Activate Overtime Protocol on running daemon
       sev over_time_protocol           # Activate Overtime Protocol on running daemon
+      sev reload                       # Apply config file changes to the running daemon
       sev help                         # Print top-level usage (alias for sev --help)
       sev help --agent                 # Print LLM-agent usage with full config reference
       sev <cmd> --help                 # Print usage for a subcommand (e.g. sev status --help)
@@ -31,7 +32,7 @@ defmodule Severance.CLI do
   alias CliMate.CLI, as: Mate
   alias Severance.StatusPublisher.Tmux.ConfScanner
 
-  @subcommand_names ~w(start init update upgrade version status log otp overtime over_time_protocol help)
+  @subcommand_names ~w(start init update upgrade version status log otp overtime over_time_protocol reload help)
 
   @command [
     name: "sev",
@@ -57,6 +58,7 @@ defmodule Severance.CLI do
       otp: [options: []],
       overtime: [options: []],
       over_time_protocol: [options: []],
+      reload: [options: []],
       help: [
         options: [
           agent: [type: :boolean, default: false, doc: "Print LLM-agent usage with full config reference"]
@@ -165,7 +167,9 @@ defmodule Severance.CLI do
     one command's flags. `otp`, `overtime`, and `over_time_protocol` are
     aliases for the Overtime Protocol, which cancels today's shutdown and
     fires a 60-second notification burst instead. `upgrade` is an alias for
-    `update`.
+    `update`. `reload` re-resolves the config file, env var, and compiled
+    defaults on the running daemon and applies the result in place — no
+    restart, and any in-progress shutdown or overtime opt-out is left alone.
 
     ## Configuration resolution
 
@@ -252,8 +256,10 @@ defmodule Severance.CLI do
 
     Set a custom shutdown time (three ways; highest precedence wins):
       - Persistent: edit shutdown_time in ~/.config/severance/config.exs,
-        then restart the daemon (sev stop is not exposed; relaunch the
-        LaunchAgent or reboot — or for a one-off, use a flag/env below).
+        then sev reload (applies it to the running daemon without a
+        restart — an active Overtime Protocol opt-out survives the reload).
+        A daemon launched with --shutdown-time or SEVERANCE_SHUTDOWN_TIME
+        keeps that value pinned; reload cannot override it, and says so.
       - This launch only: SEVERANCE_SHUTDOWN_TIME=16:30 sev
       - This launch only: sev --shutdown-time 16:30
 
@@ -261,6 +267,11 @@ defmodule Severance.CLI do
       - sev otp                   (cancels today's shutdown; fires a
         60-second notification burst instead, then trusts you)
       - Set overtime_notifications: false in config to silence that burst.
+
+    Apply a config file change to the running daemon:
+      - sev reload                (re-resolves shutdown_time, publishers,
+        and other config keys in place; mode and any in-progress shutdown
+        or overtime burst are untouched)
 
     Add a status-bar publisher (tmux):
       1. Add a publisher whose :fn actually writes the tmux var — easiest is
@@ -453,6 +464,32 @@ defmodule Severance.CLI do
 
         _result ->
           IO.puts("Overtime Protocol activated. No shutdown today — but you'll hear about it.")
+          :ok
+      end
+    end)
+  end
+
+  @doc """
+  Connects to the running severance node and reloads its configuration.
+
+  Re-resolves config file, env var, and compiled-default sources on the
+  daemon and applies the result in place — `mode` and any in-progress
+  shutdown/overtime chain are left untouched. A `--shutdown-time` (or
+  `SEVERANCE_SHUTDOWN_TIME`) the daemon was launched with stays pinned
+  across the reload; the config file cannot override it.
+
+  Returns `:ok` on success, `{:error, reason}` on failure.
+  """
+  @spec run_reload() :: :ok | {:error, String.t()}
+  def run_reload do
+    with_daemon_rpc(fn target ->
+      case :rpc.call(target, Severance.Application, :reload, []) do
+        {:badrpc, reason} ->
+          IO.puts("RPC failed: #{inspect(reason)}")
+          {:error, "rpc failed"}
+
+        {:ok, result} ->
+          IO.puts(format_reload(result))
           :ok
       end
     end)
@@ -769,6 +806,34 @@ defmodule Severance.CLI do
         Update:     #{update}\
         """
     end
+  end
+
+  @doc """
+  Formats a `Severance.Application.reload/1` result into a human-readable string.
+
+  ## Examples
+
+      iex> Severance.CLI.format_reload(%{shutdown_time: ~T[16:00:00], publishers: 1, pinned_shutdown_time?: true})
+      "Config reloaded.\\nShutdown:   16:00 (pinned by --shutdown-time at launch)\\nPublishers: 1 reloaded"
+
+      iex> Severance.CLI.format_reload(%{shutdown_time: ~T[17:00:00], publishers: 0, pinned_shutdown_time?: false})
+      "Config reloaded.\\nShutdown:   17:00\\nPublishers: 0 reloaded"
+
+  """
+  @spec format_reload(map()) :: String.t()
+  def format_reload(%{shutdown_time: shutdown_time, publishers: publishers, pinned_shutdown_time?: pinned?}) do
+    shutdown =
+      if pinned? do
+        "#{format_time(shutdown_time)} (pinned by --shutdown-time at launch)"
+      else
+        format_time(shutdown_time)
+      end
+
+    """
+    Config reloaded.
+    Shutdown:   #{shutdown}
+    Publishers: #{publishers} reloaded\
+    """
   end
 
   @spec format_time(Time.t()) :: String.t()

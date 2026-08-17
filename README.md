@@ -139,6 +139,7 @@ review any publisher functions it writes before starting the daemon.
 sev            # start the daemon
 sev status     # show daemon status and version info
 sev otp        # activate overtime protocol
+sev reload     # apply config file changes to the running daemon
 sev log        # print the activity log
 sev update     # update to latest release
 sev upgrade    # update to latest release (alias for sev update)
@@ -178,6 +179,12 @@ overtime is active or when starting after shutdown time.
 
 Set `log_file` to a custom path to change where the activity log is
 written. Defaults to `~/.local/state/severance/activity.log`.
+
+Run `sev reload` after editing the config file to apply the change to the
+running daemon without a restart. It preserves an active Overtime Protocol
+opt-out and can't cancel a shutdown already in progress. A `--shutdown-time`
+(or `SEVERANCE_SHUTDOWN_TIME`) the daemon was launched with stays pinned
+across a reload — the config file can't override it.
 
 ### Publishers
 
@@ -279,3 +286,6 @@ Small, well-understood changes go straight to code. For anything larger:
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings
 - [x] Reset the daemon at midnight as a fresh day, so overtime is a single-day opt-out and the next day's shutdown is enforced again
 - [x] Add a current-state architecture doc and centralize countdown phase definitions in a single Severance.Phase module
+- [ ] Add `sev reload` that reloads the process, so that when a user makes a config change they can reload the cofig and see their changes immediately
+- [ ] Clean up logging,I'm seeing a lot of duplication when I run `sev log` and it doesn't seem to be in order
+  - [ ] do an investigation and implementation pass before working on this 

@@ -12,6 +12,8 @@ defmodule Severance.Application do
   alias Severance.ActivityLog
   alias Severance.CLI
   alias Severance.Config
+  alias Severance.Countdown
+  alias Severance.StatusPublisher
 
   require Logger
 
@@ -58,6 +60,11 @@ defmodule Severance.Application do
 
   defp dispatch(%{path: [sub]}) when sub in [:otp, :overtime, :over_time_protocol] do
     result = CLI.run_overtime()
+    System.halt(if result == :ok, do: 0, else: 1)
+  end
+
+  defp dispatch(%{path: [:reload]}) do
+    result = CLI.run_reload()
     System.halt(if result == :ok, do: 0, else: 1)
   end
 
@@ -221,13 +228,14 @@ defmodule Severance.Application do
       ensure_distribution()
     end
 
+    Application.put_env(:severance, :launch_opts, opts)
     config = resolve_config(opts)
     start_children = Application.get_env(:severance, :start_children, true)
 
     children =
       if start_children do
         [
-          {Severance.Countdown, shutdown_time: config.shutdown_time},
+          {Countdown, shutdown_time: config.shutdown_time},
           Severance.StatusPublisher.Supervisor
         ]
       else
@@ -243,6 +251,39 @@ defmodule Severance.Application do
     end
 
     result
+  end
+
+  @doc """
+  Reloads the running daemon's configuration in place, without a restart.
+
+  Re-resolves config from the same sources as `start_daemon/1` (file, env
+  var, launch flag), re-arms `Countdown` with the resolved `shutdown_time`
+  while preserving `mode`, and rebuilds the publisher worker set. Does not
+  touch the `:retry_shutdown` or `:overtime_burst` chains, so an
+  in-progress shutdown or overtime opt-out cannot be escaped by reloading.
+
+  `resolve_opts` passes through to `resolve_config/2` (e.g. `config_dir:`
+  for tests); defaults to suppressing the "no config file" log.
+  """
+  @spec reload(keyword()) :: {:ok, map()}
+  def reload(resolve_opts \\ []) do
+    launch_opts = Application.get_env(:severance, :launch_opts, [])
+    config = resolve_config(launch_opts, Keyword.put_new(resolve_opts, :suppress_warning, true))
+
+    Countdown.reload(config.shutdown_time)
+
+    publishers =
+      case StatusPublisher.Supervisor.reload() do
+        {:ok, count} -> count
+        {:error, :not_running} -> 0
+      end
+
+    {:ok,
+     %{
+       shutdown_time: config.shutdown_time,
+       publishers: publishers,
+       pinned_shutdown_time?: Keyword.has_key?(launch_opts, :shutdown_time)
+     }}
   end
 
   @doc """

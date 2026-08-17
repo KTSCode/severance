@@ -70,6 +70,15 @@ waiting → gentle → aggressive → final → shutdown | overtime → done
 - Midnight reset: overtime is a single-day opt-out. The midnight timer
   resets the session to a fresh severance day once the local date
   advances, re-arming the next day's shutdown.
+- Reload (`sev reload`): re-resolves config and re-arms the countdown-start
+  timer with the new `shutdown_time`, in place. `mode` and `day` are
+  preserved. The struct tracks the pending countdown-start/tick timer in
+  `timer_ref`; reload cancels it with `Process.cancel_timer/1` and flushes
+  a same-tick `:tick`/`:check_countdown_start` message that already landed
+  in the mailbox, so the old chain can't fire alongside the re-armed one.
+  Reload deliberately does **not** touch the `:retry_shutdown` or
+  `:overtime_burst` chains — those aren't tracked in `timer_ref` — so it
+  can't be used to cancel a shutdown or opt-out already in progress.
 
 ### Phases as a single source of truth
 
@@ -115,16 +124,17 @@ starting both EPMD and BEAM distribution itself
 (`Application.ensure_distribution/0`) because Burrito's launcher never sets
 `RELEASE_DISTRIBUTION`/`RELEASE_NODE`.
 
-CLI commands that talk to a running daemon (`sev otp`, `sev status`, and
-the `daemon_running?/0` readiness check) connect over distributed Erlang
-in `CLI.with_daemon_rpc/2`:
+CLI commands that talk to a running daemon (`sev otp`, `sev reload`,
+`sev status`, and the `daemon_running?/0` readiness check) connect over
+distributed Erlang in `CLI.with_daemon_rpc/2`:
 
 1. Start a temporary node `severance_cli_<rand>@localhost`.
 1. Set the cookie to `Node.get_cookie/0` — the cookie baked into the
    release, shared by both sides because the CLI and daemon are the same
    binary.
 1. `Node.connect/1` to `severance@localhost`, then `:rpc.call/4` into
-   `Severance.Countdown`.
+   `Severance.Countdown` (`sev otp`, `sev status`) or
+   `Severance.Application` (`sev reload`).
 
 ## System adapter (test seam)
 
@@ -145,6 +155,12 @@ Each is a map in the user config with a formatter function and an interval.
 `sev init --with-tmux` seeds a tmux countdown publisher. See
 [`docs/configuration.md`](configuration.md) for the full publisher
 contract.
+
+`sev reload` rebuilds the whole worker set: `StatusPublisher.Supervisor.reload/0`
+terminates and deletes every `{:publisher, _}` child, then starts one per
+entry in the (possibly changed) `:publishers` config. A publisher removed
+from config gets its `:teardown` run on the way out; a new one runs
+`:teardown` then `:setup` on init, same as any fresh worker start.
 
 ## Module map
 
