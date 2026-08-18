@@ -478,7 +478,9 @@ defmodule Severance.CLI do
   `SEVERANCE_SHUTDOWN_TIME`) the daemon was launched with stays pinned
   across the reload; the config file cannot override it.
 
-  Returns `:ok` on success, `{:error, reason}` on failure.
+  Returns `:ok` on success. Returns `{:error, reason}` on an RPC failure,
+  or when any publisher failed to start — surfacing the invalid
+  configuration as a non-zero exit rather than a silent partial reload.
   """
   @spec run_reload() :: :ok | {:error, String.t()}
   def run_reload do
@@ -487,6 +489,10 @@ defmodule Severance.CLI do
         {:badrpc, reason} ->
           IO.puts("RPC failed: #{inspect(reason)}")
           {:error, "rpc failed"}
+
+        {:ok, %{failed_publishers: [_ | _]} = result} ->
+          IO.puts(format_reload(result))
+          {:error, "publisher(s) failed to start: #{Enum.join(result.failed_publishers, ", ")}"}
 
         {:ok, result} ->
           IO.puts(format_reload(result))
@@ -813,26 +819,39 @@ defmodule Severance.CLI do
 
   ## Examples
 
-      iex> Severance.CLI.format_reload(%{shutdown_time: ~T[16:00:00], publishers: 1, pinned_shutdown_time?: true})
+      iex> Severance.CLI.format_reload(%{shutdown_time: ~T[16:00:00], publishers: 1, pinned_shutdown_time?: true, pinned_by: :launch_flag})
       "Config reloaded.\\nShutdown:   16:00 (pinned by --shutdown-time at launch)\\nPublishers: 1 reloaded"
 
-      iex> Severance.CLI.format_reload(%{shutdown_time: ~T[17:00:00], publishers: 0, pinned_shutdown_time?: false})
+      iex> Severance.CLI.format_reload(%{shutdown_time: ~T[17:00:00], publishers: 0, pinned_shutdown_time?: false, pinned_by: nil})
       "Config reloaded.\\nShutdown:   17:00\\nPublishers: 0 reloaded"
+
+      iex> Severance.CLI.format_reload(%{shutdown_time: ~T[16:00:00], publishers: 1, pinned_shutdown_time?: true, pinned_by: :env})
+      "Config reloaded.\\nShutdown:   16:00 (pinned by SEVERANCE_SHUTDOWN_TIME)\\nPublishers: 1 reloaded"
 
   """
   @spec format_reload(map()) :: String.t()
-  def format_reload(%{shutdown_time: shutdown_time, publishers: publishers, pinned_shutdown_time?: pinned?}) do
+  def format_reload(%{shutdown_time: shutdown_time, publishers: publishers} = result) do
+    pinned? = Map.get(result, :pinned_shutdown_time?, false)
+    pinned_by = Map.get(result, :pinned_by)
+    failed_publishers = Map.get(result, :failed_publishers, [])
+
     shutdown =
-      if pinned? do
-        "#{format_time(shutdown_time)} (pinned by --shutdown-time at launch)"
-      else
-        format_time(shutdown_time)
+      case {pinned?, pinned_by} do
+        {true, :env} -> "#{format_time(shutdown_time)} (pinned by SEVERANCE_SHUTDOWN_TIME)"
+        {true, _} -> "#{format_time(shutdown_time)} (pinned by --shutdown-time at launch)"
+        {false, _} -> format_time(shutdown_time)
+      end
+
+    failed_line =
+      case failed_publishers do
+        [] -> ""
+        names -> "\nFailed:     #{Enum.join(names, ", ")}"
       end
 
     """
     Config reloaded.
     Shutdown:   #{shutdown}
-    Publishers: #{publishers} reloaded\
+    Publishers: #{publishers} reloaded#{failed_line}\
     """
   end
 

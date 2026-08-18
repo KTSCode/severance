@@ -181,7 +181,19 @@ defmodule Severance.ApplicationTest do
 
       Elixir.Application.put_env(:severance, :log_file, "/compiled/default.log")
 
-      on_exit(fn -> Elixir.Application.delete_env(:severance, :log_file) end)
+      # The daemon's boot-time :compiled_defaults snapshot (taken once, by
+      # start_daemon/1, before this test's put_env) otherwise shadows the
+      # live :log_file read below — clear it to simulate a fresh boot.
+      original_defaults = Elixir.Application.get_env(:severance, :compiled_defaults)
+      Elixir.Application.delete_env(:severance, :compiled_defaults)
+
+      on_exit(fn ->
+        Elixir.Application.delete_env(:severance, :log_file)
+
+        if original_defaults,
+          do: Elixir.Application.put_env(:severance, :compiled_defaults, original_defaults),
+          else: Elixir.Application.delete_env(:severance, :compiled_defaults)
+      end)
 
       resolved = Application.resolve_config([], config_dir: nonexistent, suppress_warning: true)
 
@@ -226,7 +238,79 @@ defmodule Severance.ApplicationTest do
 
       assert result.shutdown_time == ~T[16:00:00]
       assert result.pinned_shutdown_time? == true
+      assert result.pinned_by == :launch_flag
       assert Severance.Countdown.status().shutdown_time == ~T[16:00:00]
+    end
+
+    test "SEVERANCE_SHUTDOWN_TIME env var pins shutdown_time over the config file" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_reload_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+      File.write!(Path.join(dir, "config.exs"), ~s(%{shutdown_time: "21:15"}))
+
+      System.put_env("SEVERANCE_SHUTDOWN_TIME", "16:00")
+      on_exit(fn -> System.delete_env("SEVERANCE_SHUTDOWN_TIME") end)
+
+      Elixir.Application.put_env(:severance, :launch_opts, [])
+      start_supervised!({Severance.Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert {:ok, result} = Application.reload(config_dir: dir, suppress_warning: true)
+
+      assert result.shutdown_time == ~T[16:00:00]
+      assert result.pinned_shutdown_time? == true
+      assert result.pinned_by == :env
+      assert Severance.Countdown.status().shutdown_time == ~T[16:00:00]
+    end
+
+    test "deleting the config file resets publishers and settings to compiled defaults" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_reload_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      original_ot = Elixir.Application.get_env(:severance, :overtime_notifications)
+      original_lf = Elixir.Application.get_env(:severance, :log_file)
+      original_publishers = Elixir.Application.get_env(:severance, :publishers)
+
+      on_exit(fn ->
+        Elixir.Application.put_env(:severance, :overtime_notifications, original_ot || true)
+
+        if original_lf,
+          do: Elixir.Application.put_env(:severance, :log_file, original_lf),
+          else: Elixir.Application.delete_env(:severance, :log_file)
+
+        if original_publishers,
+          do: Elixir.Application.put_env(:severance, :publishers, original_publishers),
+          else: Elixir.Application.delete_env(:severance, :publishers)
+      end)
+
+      File.mkdir_p!(dir)
+      config_path = Path.join(dir, "config.exs")
+
+      config_content = ~s"""
+      %{
+        shutdown_time: "21:15",
+        overtime_notifications: false,
+        log_file: "/tmp/custom_reload_test.log",
+        publishers: %{ticker: %{fn: fn _ -> :ok end, interval_ms: 20}}
+      }
+      """
+
+      File.write!(config_path, config_content)
+
+      Elixir.Application.put_env(:severance, :launch_opts, [])
+      start_supervised!({Severance.Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert {:ok, _result} = Application.reload(config_dir: dir, suppress_warning: true)
+      assert %{ticker: %{interval_ms: 20}} = Elixir.Application.get_env(:severance, :publishers)
+
+      File.rm!(config_path)
+
+      assert {:ok, result} = Application.reload(config_dir: dir, suppress_warning: true)
+
+      assert result.shutdown_time == ~T[17:00:00]
+      assert Elixir.Application.get_env(:severance, :overtime_notifications) == true
+      assert Elixir.Application.get_env(:severance, :log_file) == Severance.ActivityLog.default_log_file()
+      assert Elixir.Application.get_env(:severance, :publishers) == %{}
     end
   end
 end

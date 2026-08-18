@@ -157,21 +157,37 @@ defmodule Severance.Application do
   3. `SEVERANCE_SHUTDOWN_TIME` environment variable
   4. CLI `--shutdown-time` flag (highest)
 
-  Stores `overtime_notifications` in Application env as a side effect.
+  Stores `overtime_notifications`, `log_file`, and `publishers` in
+  Application env as a side effect — so layer 1 is read from the
+  `:compiled_defaults` snapshot `start_daemon/1` takes at boot when one
+  exists, falling back to a live `Application.get_env` read otherwise
+  (e.g. when a test calls this directly without booting the daemon).
+  Without the snapshot, those side-effect writes would make layer 1 drift
+  to the last-resolved value instead of the true compiled default.
+
+  When the config file is missing, `:publishers` resets to `%{}` so a
+  deleted config file clears the publisher set instead of leaving the
+  last-resolved one running.
+
+  `env_pinned_shutdown_time?` reports whether `SEVERANCE_SHUTDOWN_TIME`
+  actually parsed and changed the resolved `shutdown_time`, not merely
+  whether the variable is set — `parse_time_string/2` silently falls back
+  to the prior value on an unparseable string, so presence alone would
+  misreport an ignored env var as a pin.
+
   Accepts `config_dir:` option for testability.
   """
   @spec resolve_config(keyword(), keyword()) :: %{
           shutdown_time: Time.t(),
           overtime_notifications: boolean(),
-          log_file: String.t()
+          log_file: String.t(),
+          env_pinned_shutdown_time?: boolean()
         }
   def resolve_config(opts \\ [], resolve_opts \\ []) do
     config_dir = Keyword.get(resolve_opts, :config_dir)
 
     # Layer 1: compiled defaults
-    compiled_time = Application.get_env(:severance, :shutdown_time, ~T[17:00:00])
-    overtime_notifications = Application.get_env(:severance, :overtime_notifications, true)
-    compiled_log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+    {compiled_time, overtime_notifications, compiled_log_file} = read_compiled_defaults()
 
     # Layer 2: user config file
     file_result =
@@ -195,14 +211,21 @@ defmodule Severance.Application do
             Logger.info("No config file found. Run `sev init` to create one.")
           end
 
+          Application.put_env(:severance, :publishers, %{})
           {compiled_time, overtime_notifications, Path.expand(compiled_log_file)}
       end
 
     # Layer 3: env var
-    shutdown_time =
+    {shutdown_time, env_pinned?} =
       case System.get_env("SEVERANCE_SHUTDOWN_TIME") do
-        nil -> shutdown_time
-        time_str -> parse_time_string(time_str, shutdown_time)
+        nil ->
+          {shutdown_time, false}
+
+        time_str ->
+          case parse_time_string(time_str, shutdown_time) do
+            ^shutdown_time -> {shutdown_time, false}
+            parsed -> {parsed, true}
+          end
       end
 
     # Layer 4: CLI opts
@@ -212,7 +235,12 @@ defmodule Severance.Application do
     Application.put_env(:severance, :overtime_notifications, overtime_notifications)
     Application.put_env(:severance, :log_file, log_file)
 
-    %{shutdown_time: shutdown_time, overtime_notifications: overtime_notifications, log_file: log_file}
+    %{
+      shutdown_time: shutdown_time,
+      overtime_notifications: overtime_notifications,
+      log_file: log_file,
+      env_pinned_shutdown_time?: env_pinned?
+    }
   end
 
   @doc """
@@ -229,6 +257,7 @@ defmodule Severance.Application do
     end
 
     Application.put_env(:severance, :launch_opts, opts)
+    snapshot_compiled_defaults()
     config = resolve_config(opts)
     start_children = Application.get_env(:severance, :start_children, true)
 
@@ -264,6 +293,14 @@ defmodule Severance.Application do
 
   `resolve_opts` passes through to `resolve_config/2` (e.g. `config_dir:`
   for tests); defaults to suppressing the "no config file" log.
+
+  `pinned_shutdown_time?`/`pinned_by` report whether the resolved
+  `shutdown_time` is pinned above the config file — by the `--shutdown-time`
+  launch flag (`:launch_flag`) or by `SEVERANCE_SHUTDOWN_TIME`
+  (`:env`) — so a user editing the config file can tell why it had no
+  effect. `failed_publishers` lists any publisher names that failed to
+  start (e.g. a spec missing `:fn`); `publishers` counts only the ones that
+  actually started.
   """
   @spec reload(keyword()) :: {:ok, map()}
   def reload(resolve_opts \\ []) do
@@ -272,17 +309,26 @@ defmodule Severance.Application do
 
     Countdown.reload(config.shutdown_time)
 
-    publishers =
+    {publishers, failed_publishers} =
       case StatusPublisher.Supervisor.reload() do
-        {:ok, count} -> count
-        {:error, :not_running} -> 0
+        {:ok, count, failed} -> {count, failed}
+        {:error, :not_running} -> {0, []}
+      end
+
+    pinned_by =
+      cond do
+        Keyword.has_key?(launch_opts, :shutdown_time) -> :launch_flag
+        config.env_pinned_shutdown_time? -> :env
+        true -> nil
       end
 
     {:ok,
      %{
        shutdown_time: config.shutdown_time,
        publishers: publishers,
-       pinned_shutdown_time?: Keyword.has_key?(launch_opts, :shutdown_time)
+       failed_publishers: failed_publishers,
+       pinned_shutdown_time?: pinned_by != nil,
+       pinned_by: pinned_by
      }}
   end
 
@@ -369,6 +415,41 @@ defmodule Severance.Application do
     case Time.from_iso8601(padded) do
       {:ok, time} -> time
       {:error, _} -> fallback
+    end
+  end
+
+  # Captures the true compiled defaults (config/config.exs plus fallbacks)
+  # before the first resolve_config/2 call overwrites those same
+  # Application env keys with the last-resolved effective value. Without
+  # this, deleting the user's config file after a successful resolve would
+  # read back stale prior settings instead of the actual compiled defaults.
+  @spec snapshot_compiled_defaults() :: :ok
+  defp snapshot_compiled_defaults do
+    Application.put_env(:severance, :compiled_defaults, %{
+      shutdown_time: Application.get_env(:severance, :shutdown_time, ~T[17:00:00]),
+      overtime_notifications: Application.get_env(:severance, :overtime_notifications, true),
+      log_file: Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+    })
+  end
+
+  # Reads layer 1 (compiled defaults) from the boot-time snapshot when one
+  # exists — resolve_config/2 itself writes these same keys as a side
+  # effect, so after the first successful resolve a live Application.get_env
+  # read would return the last-resolved value instead of the true compiled
+  # default. Tests that call resolve_config/2 directly (without booting the
+  # daemon) have no snapshot, so fall back to the live env reads.
+  @spec read_compiled_defaults() :: {Time.t(), boolean(), String.t()}
+  defp read_compiled_defaults do
+    case Application.get_env(:severance, :compiled_defaults) do
+      nil ->
+        {
+          Application.get_env(:severance, :shutdown_time, ~T[17:00:00]),
+          Application.get_env(:severance, :overtime_notifications, true),
+          Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+        }
+
+      defaults ->
+        {defaults.shutdown_time, defaults.overtime_notifications, defaults.log_file}
     end
   end
 end

@@ -343,19 +343,30 @@ defmodule Severance.Countdown do
     Process.send_after(self(), :midnight_reset, ms_until_midnight(local_now()))
   end
 
-  defp cancel_timer(%{timer_ref: nil} = state), do: state
+  # Cancels the pending timer (if any) and drains any transition messages
+  # already in the mailbox. Unconditional: a nil timer_ref does not mean
+  # the mailbox is clean — handle_info(:check_countdown_start, ...) and
+  # schedule_countdown_start/1 both set timer_ref: nil right after
+  # self-sending :late_start or :start_countdown, so a queued transition
+  # can outlive the timer that (no longer) tracks it.
+  defp cancel_timer(state) do
+    if state.timer_ref, do: Process.cancel_timer(state.timer_ref)
+    flush_transitions()
+    %{state | timer_ref: nil}
+  end
 
-  defp cancel_timer(%{timer_ref: ref} = state) do
-    Process.cancel_timer(ref)
-
+  # Recursive drain, not a single receive — more than one transition
+  # message can be queued (e.g. a stale :check_countdown_start followed by
+  # the :late_start it sent). Leaves :retry_shutdown and :overtime_burst
+  # untouched — reload does not interrupt an in-progress shutdown or
+  # overtime chain.
+  defp flush_transitions do
     receive do
-      :tick -> :ok
-      :check_countdown_start -> :ok
+      msg when msg in [:tick, :check_countdown_start, :late_start, :start_countdown] ->
+        flush_transitions()
     after
       0 -> :ok
     end
-
-    %{state | timer_ref: nil}
   end
 
   defp tick do

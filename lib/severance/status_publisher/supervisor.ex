@@ -24,11 +24,13 @@ defmodule Severance.StatusPublisher.Supervisor do
   `:teardown` then `:setup` on init — that lifecycle already exists in
   `Worker` and is unchanged here.
 
-  Returns `{:ok, count}` with the number of workers started, or
-  `{:error, :not_running}` when the supervisor isn't started (e.g. test
-  config with `start_children: false`).
+  Returns `{:ok, started_count, failed_names}`, where `started_count` counts
+  only publishers that actually started and `failed_names` lists the ones
+  whose `Supervisor.start_child/2` call errored (e.g. a spec missing `:fn`).
+  Returns `{:error, :not_running}` when the supervisor isn't started (e.g.
+  test config with `start_children: false`).
   """
-  @spec reload() :: {:ok, non_neg_integer()} | {:error, :not_running}
+  @spec reload() :: {:ok, non_neg_integer(), [atom()]} | {:error, :not_running}
   def reload do
     if Process.whereis(__MODULE__) do
       __MODULE__
@@ -44,11 +46,14 @@ defmodule Severance.StatusPublisher.Supervisor do
 
       publishers = Application.get_env(:severance, :publishers, %{})
 
-      Enum.each(publishers, fn {name, spec} ->
-        Supervisor.start_child(__MODULE__, child_spec_for({name, spec}))
-      end)
+      {started, failed} =
+        publishers
+        |> Enum.map(fn {name, spec} ->
+          {name, Supervisor.start_child(__MODULE__, child_spec_for({name, spec}))}
+        end)
+        |> Enum.split_with(fn {_name, result} -> match?({:ok, _}, result) or match?({:ok, _, _}, result) end)
 
-      {:ok, map_size(publishers)}
+      {:ok, length(started), Enum.map(failed, fn {name, _result} -> name end)}
     else
       {:error, :not_running}
     end

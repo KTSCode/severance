@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Add `sev reload` — re-resolves config on a running daemon and applies it in place, without a restart. Reports when the resolved `shutdown_time` is pinned above the config file (by `--shutdown-time` at launch or `SEVERANCE_SHUTDOWN_TIME`), and when a publisher failed to start, exiting non-zero in that case. Leaves `:retry_shutdown` and `:overtime_burst` untouched, so it can't be used to escape a shutdown or opt-out already in progress. Deleting the config file and reloading resets settings and publishers to compiled defaults.
+
 ## [0.21.1] -- 2026-08-14
 
 ### Fixed

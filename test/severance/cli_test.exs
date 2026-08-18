@@ -460,7 +460,13 @@ defmodule Severance.CLITest do
 
   describe "format_reload/1" do
     test "notes the shutdown time is pinned by the launch flag" do
-      result = %{shutdown_time: ~T[16:00:00], publishers: 1, pinned_shutdown_time?: true}
+      result = %{
+        shutdown_time: ~T[16:00:00],
+        publishers: 1,
+        failed_publishers: [],
+        pinned_shutdown_time?: true,
+        pinned_by: :launch_flag
+      }
 
       output = CLI.format_reload(result)
 
@@ -469,14 +475,49 @@ defmodule Severance.CLITest do
       assert output =~ "Publishers: 1 reloaded"
     end
 
+    test "notes the shutdown time is pinned by SEVERANCE_SHUTDOWN_TIME" do
+      result = %{
+        shutdown_time: ~T[16:00:00],
+        publishers: 1,
+        failed_publishers: [],
+        pinned_shutdown_time?: true,
+        pinned_by: :env
+      }
+
+      output = CLI.format_reload(result)
+
+      assert output =~ "Shutdown:   16:00 (pinned by SEVERANCE_SHUTDOWN_TIME)"
+    end
+
     test "plain shutdown time when not pinned" do
-      result = %{shutdown_time: ~T[17:00:00], publishers: 0, pinned_shutdown_time?: false}
+      result = %{
+        shutdown_time: ~T[17:00:00],
+        publishers: 0,
+        failed_publishers: [],
+        pinned_shutdown_time?: false,
+        pinned_by: nil
+      }
 
       output = CLI.format_reload(result)
 
       assert output =~ "Shutdown:   17:00"
       assert output =~ "Publishers: 0 reloaded"
       refute output =~ "pinned"
+    end
+
+    test "reports failed publishers" do
+      result = %{
+        shutdown_time: ~T[17:00:00],
+        publishers: 1,
+        failed_publishers: [:bad_name],
+        pinned_shutdown_time?: false,
+        pinned_by: nil
+      }
+
+      output = CLI.format_reload(result)
+
+      assert output =~ "Publishers: 1 reloaded"
+      assert output =~ "Failed:     bad_name"
     end
   end
 
