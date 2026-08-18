@@ -286,6 +286,12 @@ Small, well-understood changes go straight to code. For anything larger:
   - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings
 - [x] Reset the daemon at midnight as a fresh day, so overtime is a single-day opt-out and the next day's shutdown is enforced again
 - [x] Add a current-state architecture doc and centralize countdown phase definitions in a single Severance.Phase module
-- [ ] Add `sev reload` that reloads the process, so that when a user makes a config change they can reload the cofig and see their changes immediately
+- [x] Add `sev reload` that reloads the process, so that when a user makes a config change they can reload the cofig and see their changes immediately
 - [ ] Clean up logging,I'm seeing a lot of duplication when I run `sev log` and it doesn't seem to be in order
   - [ ] do an investigation and implementation pass before working on this 
+- [ ] Countdown reload leaves several state-machine edges unguarded (found verifying the sev-reload Codex fixes, out of scope for that PR)
+  - [ ] `:retry_shutdown` self-reschedules forever (`countdown.ex:248-251`) and reload never flushes it — keeps calling `shutdown_machine()` after reload resets `phase` to `:waiting`
+  - [ ] `handle_info(:midnight_reset, ...)` never calls `cancel_timer/1`; `reset_state/2` drops `timer_ref`, so a previous day's timer survives untracked while a second is armed
+  - [ ] `:done` is not enforced terminal — a late `:tick` can move it back to `:gentle`
+  - [ ] `Code.eval_file/1` in `config.ex:51` is unguarded — a syntax error or non-map return raises out of `resolve_config/2` instead of degrading to defaults
+  - [ ] `resolve_config/2` called without booting the daemon (the `:log`, `:init`, `:status` dispatches) has no snapshot and drifts on a second call
