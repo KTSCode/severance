@@ -207,3 +207,9 @@ clears the tmux user variable so a stale value doesn't linger.
 does not run and the teardown is skipped. The tmux user variable will
 hold its last written value until the next daemon restart, at which
 point init-time teardown clears it.
+
+`sev reload` runs this same teardown-then-setup lifecycle for every
+worker, without restarting the daemon: a publisher removed from config
+gets its `:teardown` run as its worker is torn down, and every publisher
+present after the reload (new or unchanged) starts fresh — `:teardown`
+then `:setup` — as if the daemon had just booted.

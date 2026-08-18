@@ -70,6 +70,21 @@ waiting → gentle → aggressive → final → shutdown | overtime → done
 - Midnight reset: overtime is a single-day opt-out. The midnight timer
   resets the session to a fresh severance day once the local date
   advances, re-arming the next day's shutdown.
+- Reload (`sev reload`): re-resolves config and re-arms the countdown-start
+  timer with the new `shutdown_time`, in place. `mode` and `day` are
+  preserved. The struct tracks the pending countdown-start/tick timer in
+  `timer_ref`; reload cancels it and flushes every self-sent transition
+  message (`:tick`, `:check_countdown_start`, `:late_start`,
+  `:start_countdown`) already in the mailbox — unconditionally, even when
+  `timer_ref` is already `nil`, since `:check_countdown_start` and
+  `schedule_countdown_start/1` both null it out right after self-sending
+  one of those messages. Without the unconditional flush, a stale
+  `:late_start` queued by an in-flight `:midnight_reset` (or a poll that
+  fired moments before reload) could still run against the freshly-reloaded
+  state and trigger a shutdown the reload was meant to avert. Reload
+  deliberately does **not** touch the `:retry_shutdown` or
+  `:overtime_burst` chains — those aren't tracked in `timer_ref` — so it
+  can't be used to cancel a shutdown or opt-out already in progress.
 
 ### Phases as a single source of truth
 
@@ -108,6 +123,26 @@ The user config file is **executed as Elixir code** via `Code.eval_file/1`
 it is not parsed as inert data. Publisher entries are functions defined in
 that file, so it must live in a directory you control.
 
+`start_daemon/1` snapshots layer 1 into `:compiled_defaults` Application env
+once, at boot, before the first `resolve_config/2` call. `resolve_config/2`
+reads layer 1 from that snapshot when present, falling back to a live
+`Application.get_env` read otherwise (tests calling `resolve_config/2`
+directly, without booting the daemon, have no snapshot). This matters
+because `resolve_config/2` also *writes* `:overtime_notifications`,
+`:log_file`, and `:publishers` as a side effect — without the snapshot,
+layer 1 would drift to the last-resolved value instead of staying the true
+compiled default, so deleting the user's config file and reloading would
+read back stale prior settings rather than resetting to defaults. When the
+config file is missing, `:publishers` resets to `%{}` for the same reason —
+a deleted config file clears the publisher set rather than leaving the
+last-resolved one running.
+
+A shutdown time pinned above the config file — by `--shutdown-time` at
+launch or by `SEVERANCE_SHUTDOWN_TIME` — is reported back from
+`Application.reload/1` as `pinned_by: :launch_flag | :env | nil`, so `sev
+reload` can tell the user *why* an edited config file had no effect instead
+of silently ignoring it.
+
 ## RPC seam
 
 The daemon registers as `severance@localhost` (short names) with EPMD,
@@ -115,16 +150,17 @@ starting both EPMD and BEAM distribution itself
 (`Application.ensure_distribution/0`) because Burrito's launcher never sets
 `RELEASE_DISTRIBUTION`/`RELEASE_NODE`.
 
-CLI commands that talk to a running daemon (`sev otp`, `sev status`, and
-the `daemon_running?/0` readiness check) connect over distributed Erlang
-in `CLI.with_daemon_rpc/2`:
+CLI commands that talk to a running daemon (`sev otp`, `sev reload`,
+`sev status`, and the `daemon_running?/0` readiness check) connect over
+distributed Erlang in `CLI.with_daemon_rpc/2`:
 
 1. Start a temporary node `severance_cli_<rand>@localhost`.
 1. Set the cookie to `Node.get_cookie/0` — the cookie baked into the
    release, shared by both sides because the CLI and daemon are the same
    binary.
 1. `Node.connect/1` to `severance@localhost`, then `:rpc.call/4` into
-   `Severance.Countdown`.
+   `Severance.Countdown` (`sev otp`, `sev status`) or
+   `Severance.Application` (`sev reload`).
 
 ## System adapter (test seam)
 
@@ -145,6 +181,20 @@ Each is a map in the user config with a formatter function and an interval.
 `sev init --with-tmux` seeds a tmux countdown publisher. See
 [`docs/configuration.md`](configuration.md) for the full publisher
 contract.
+
+`sev reload` rebuilds the whole worker set: `StatusPublisher.Supervisor.reload/0`
+terminates and deletes every `{:publisher, _}` child, then starts one per
+entry in the (possibly changed) `:publishers` config. A publisher removed
+from config gets its `:teardown` run on the way out; a new one runs
+`:teardown` then `:setup` on init, same as any fresh worker start.
+
+`reload/0` returns `{:ok, started_count, failed_names}` rather than
+silently reporting the configured count — a publisher spec missing `:fn`
+(or otherwise malformed) fails `Supervisor.start_child/2`, and that failure
+is now collected rather than discarded. `Application.reload/1` propagates
+the failed names as `failed_publishers:`; `CLI.run_reload/0` returns
+`{:error, _}` when any publisher failed to start, so `sev reload` exits
+non-zero and surfaces the bad config instead of claiming success.
 
 ## Module map
 

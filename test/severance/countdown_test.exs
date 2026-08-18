@@ -1,9 +1,11 @@
 defmodule Severance.CountdownTest do
   use ExUnit.Case, async: false
+  use Mimic
 
   import ExUnit.CaptureLog
 
   alias Severance.Countdown
+  alias Severance.System.Test
 
   doctest Countdown
 
@@ -285,6 +287,92 @@ defmodule Severance.CountdownTest do
         assert state.mode == :severance
         assert state.day == ~D[2026-04-09]
       end)
+    end
+  end
+
+  describe "reload/1" do
+    test "updates shutdown_time and resets phase to :waiting" do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert :ok = Countdown.reload(~T[23:58:00])
+
+      state = :sys.get_state(pid)
+      assert state.shutdown_time == ~T[23:58:00]
+      assert state.phase == :waiting
+    end
+
+    test "preserves :overtime mode" do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      Countdown.overtime()
+
+      Countdown.reload(~T[23:58:00])
+
+      state = :sys.get_state(pid)
+      assert state.mode == :overtime
+    end
+
+    test "cancels the prior timer" do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      old_ref = :sys.get_state(pid).timer_ref
+
+      Countdown.reload(~T[23:58:00])
+
+      new_ref = :sys.get_state(pid).timer_ref
+      assert Process.read_timer(old_ref) == false
+      refute new_ref == old_ref
+    end
+
+    test "reloading to a past time takes the :late_start path" do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      log =
+        capture_log(fn ->
+          Countdown.reload(~T[00:00:01])
+          Process.sleep(50)
+        end)
+
+      assert log =~ "Started after shutdown time."
+      state = :sys.get_state(pid)
+      assert state.phase == :done
+    end
+
+    test "flushes a stale :late_start a racing :midnight_reset queued ahead of reload" do
+      # :midnight_reset fires independently of reload (a Process.send_after
+      # timer, not a self-send inside reload's own handler), so it can be
+      # queued in the mailbox strictly before an already-in-flight reload
+      # call. If it resets to a still-past shutdown_time, it self-sends
+      # :late_start with timer_ref: nil right before reload's handle_call
+      # runs — exactly the case the old cancel_timer(%{timer_ref: nil})
+      # no-op clause let through.
+      parent = self()
+
+      stub(Test, :shutdown_machine, fn ->
+        send(parent, :shutdown_machine_called)
+        :ok
+      end)
+
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      Mimic.allow(Test, self(), pid)
+
+      # Suspend to deterministically queue :midnight_reset ahead of the
+      # reload call, rather than racing real timers.
+      :sys.suspend(pid)
+      :sys.replace_state(pid, fn state -> %{state | day: ~D[2026-04-08], shutdown_time: ~T[00:00:01]} end)
+      send(pid, :midnight_reset)
+
+      task = Task.async(fn -> capture_log(fn -> Countdown.reload(~T[23:59:59]) end) end)
+      # Give the reload call's message time to queue behind :midnight_reset
+      # before resuming — resuming while still suspended would let the
+      # GenServer.call block indefinitely.
+      Process.sleep(20)
+      :sys.resume(pid)
+      Task.await(task)
+      Process.sleep(30)
+
+      refute_received :shutdown_machine_called
+
+      state = :sys.get_state(pid)
+      assert state.phase == :waiting
     end
   end
 
