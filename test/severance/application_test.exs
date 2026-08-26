@@ -25,6 +25,7 @@ defmodule Severance.ApplicationTest do
     setup do
       original_ot = Elixir.Application.get_env(:severance, :overtime_notifications)
       original_lf = Elixir.Application.get_env(:severance, :log_file)
+      original_sols = Elixir.Application.get_env(:severance, :shutdown_on_late_start)
 
       on_exit(fn ->
         Elixir.Application.put_env(:severance, :overtime_notifications, original_ot || true)
@@ -32,6 +33,10 @@ defmodule Severance.ApplicationTest do
         if original_lf,
           do: Elixir.Application.put_env(:severance, :log_file, original_lf),
           else: Elixir.Application.delete_env(:severance, :log_file)
+
+        if original_sols == nil,
+          do: Elixir.Application.delete_env(:severance, :shutdown_on_late_start),
+          else: Elixir.Application.put_env(:severance, :shutdown_on_late_start, original_sols)
       end)
 
       :ok
@@ -92,6 +97,47 @@ defmodule Severance.ApplicationTest do
       resolved = Application.resolve_config([shutdown_time: ~T[20:00:00]], suppress_warning: true)
 
       assert resolved.shutdown_time == ~T[20:00:00]
+    end
+
+    test "shutdown_on_late_start defaults to false with no config file" do
+      nonexistent =
+        Path.join(System.tmp_dir!(), "sev_no_config_#{System.unique_integer([:positive])}")
+
+      resolved = Application.resolve_config([], config_dir: nonexistent, suppress_warning: true)
+
+      assert resolved.shutdown_on_late_start == false
+    end
+
+    test "config file value true for shutdown_on_late_start is honored" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      config_content =
+        ~s(%{shutdown_time: "17:00", shutdown_on_late_start: true})
+
+      File.write!(Path.join(dir, "config.exs"), config_content)
+
+      resolved = Application.resolve_config([], config_dir: dir)
+
+      assert resolved.shutdown_on_late_start == true
+    end
+
+    test "stores shutdown_on_late_start in Application env" do
+      dir = Path.join(System.tmp_dir!(), "sev_app_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.mkdir_p!(dir)
+
+      config_content =
+        ~s(%{shutdown_time: "17:00", shutdown_on_late_start: true})
+
+      File.write!(Path.join(dir, "config.exs"), config_content)
+
+      Application.resolve_config([], config_dir: dir)
+
+      assert Elixir.Application.get_env(:severance, :shutdown_on_late_start) == true
     end
 
     test "stores overtime_notifications in Application env" do

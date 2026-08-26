@@ -181,13 +181,15 @@ defmodule Severance.Application do
           shutdown_time: Time.t(),
           overtime_notifications: boolean(),
           log_file: String.t(),
+          shutdown_on_late_start: boolean(),
           env_pinned_shutdown_time?: boolean()
         }
   def resolve_config(opts \\ [], resolve_opts \\ []) do
     config_dir = Keyword.get(resolve_opts, :config_dir)
 
     # Layer 1: compiled defaults
-    {compiled_time, overtime_notifications, compiled_log_file} = read_compiled_defaults()
+    {compiled_time, overtime_notifications, compiled_log_file, shutdown_on_late_start} =
+      read_compiled_defaults()
 
     # Layer 2: user config file
     file_result =
@@ -197,14 +199,15 @@ defmodule Severance.Application do
         Config.read()
       end
 
-    {shutdown_time, overtime_notifications, log_file} =
+    {shutdown_time, overtime_notifications, log_file, shutdown_on_late_start} =
       case file_result do
         {:ok, file_config} ->
           time = parse_time_string(file_config.shutdown_time, compiled_time)
           ot = Map.get(file_config, :overtime_notifications, overtime_notifications)
           lf = Map.get(file_config, :log_file, compiled_log_file)
+          sols = Map.get(file_config, :shutdown_on_late_start, shutdown_on_late_start)
           Application.put_env(:severance, :publishers, Map.get(file_config, :publishers, %{}))
-          {time, ot, Path.expand(lf)}
+          {time, ot, Path.expand(lf), sols}
 
         {:error, :not_found} ->
           if !resolve_opts[:suppress_warning] do
@@ -212,7 +215,7 @@ defmodule Severance.Application do
           end
 
           Application.put_env(:severance, :publishers, %{})
-          {compiled_time, overtime_notifications, Path.expand(compiled_log_file)}
+          {compiled_time, overtime_notifications, Path.expand(compiled_log_file), shutdown_on_late_start}
       end
 
     # Layer 3: env var
@@ -234,11 +237,13 @@ defmodule Severance.Application do
     # Side effect: store overtime_notifications for Countdown to read
     Application.put_env(:severance, :overtime_notifications, overtime_notifications)
     Application.put_env(:severance, :log_file, log_file)
+    Application.put_env(:severance, :shutdown_on_late_start, shutdown_on_late_start)
 
     %{
       shutdown_time: shutdown_time,
       overtime_notifications: overtime_notifications,
       log_file: log_file,
+      shutdown_on_late_start: shutdown_on_late_start,
       env_pinned_shutdown_time?: env_pinned?
     }
   end
@@ -428,7 +433,8 @@ defmodule Severance.Application do
     Application.put_env(:severance, :compiled_defaults, %{
       shutdown_time: Application.get_env(:severance, :shutdown_time, ~T[17:00:00]),
       overtime_notifications: Application.get_env(:severance, :overtime_notifications, true),
-      log_file: Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+      log_file: Application.get_env(:severance, :log_file, ActivityLog.default_log_file()),
+      shutdown_on_late_start: Application.get_env(:severance, :shutdown_on_late_start, false)
     })
   end
 
@@ -438,18 +444,19 @@ defmodule Severance.Application do
   # read would return the last-resolved value instead of the true compiled
   # default. Tests that call resolve_config/2 directly (without booting the
   # daemon) have no snapshot, so fall back to the live env reads.
-  @spec read_compiled_defaults() :: {Time.t(), boolean(), String.t()}
+  @spec read_compiled_defaults() :: {Time.t(), boolean(), String.t(), boolean()}
   defp read_compiled_defaults do
     case Application.get_env(:severance, :compiled_defaults) do
       nil ->
         {
           Application.get_env(:severance, :shutdown_time, ~T[17:00:00]),
           Application.get_env(:severance, :overtime_notifications, true),
-          Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+          Application.get_env(:severance, :log_file, ActivityLog.default_log_file()),
+          Application.get_env(:severance, :shutdown_on_late_start, false)
         }
 
       defaults ->
-        {defaults.shutdown_time, defaults.overtime_notifications, defaults.log_file}
+        {defaults.shutdown_time, defaults.overtime_notifications, defaults.log_file, defaults.shutdown_on_late_start}
     end
   end
 end

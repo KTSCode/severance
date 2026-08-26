@@ -16,6 +16,10 @@ defmodule Severance.ConfigTest do
       assert log_file =~ ".local/state/severance/activity.log"
       refute Map.has_key?(defaults, :timezone)
     end
+
+    test "shutdown_on_late_start defaults to false" do
+      assert Config.defaults().shutdown_on_late_start == false
+    end
   end
 
   describe "config_path/0" do
@@ -32,6 +36,7 @@ defmodule Severance.ConfigTest do
         shutdown_time: "16:30",
         overtime_notifications: false,
         log_file: "~/.local/state/severance/activity.log",
+        shutdown_on_late_start: false,
         publishers: %{}
       }
 

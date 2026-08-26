@@ -196,6 +196,12 @@ defmodule Severance.CLI do
                               burst during overtime or when starting after the
                               shutdown time.
       log_file                String path (~ is expanded) for the activity log.
+      shutdown_on_late_start  Boolean, default false. When the daemon starts,
+                              reloads, or wakes from sleep after shutdown_time
+                              has already passed today, false (the safe
+                              default) notifies instead of shutting down; true
+                              restores the immediate power-off. `sev status`
+                              warns when this is enabled.
       publishers              Map of publisher specs (see below).
 
     ## Publisher spec contract
@@ -267,6 +273,9 @@ defmodule Severance.CLI do
       - sev otp                   (cancels today's shutdown; fires a
         60-second notification burst instead, then trusts you)
       - Set overtime_notifications: false in config to silence that burst.
+      - A late daemon start (boot, reload, or wake from sleep after
+        shutdown_time has passed) never powers off unless
+        shutdown_on_late_start: true is set — false is the default.
 
     Apply a config file change to the running daemon:
       - sev reload                (re-resolves shutdown_time, publishers,
@@ -305,7 +314,8 @@ defmodule Severance.CLI do
     seconds_remaining: "integer() | nil",
     version: "String.t() | nil",
     update_available?: "boolean() | nil",
-    log_path: "String.t() | nil"
+    log_path: "String.t() | nil",
+    shutdown_on_late_start: "boolean() | nil"
   }
 
   @spec status_fields_block() :: String.t()
@@ -792,24 +802,27 @@ defmodule Severance.CLI do
           end
 
         update = format_update(update_result, version)
+        warning = late_start_warning_block(daemon.shutdown_on_late_start, nil)
 
         """
         #{header}
         Status:     running
         Overtime:   #{overtime}
         Shutdown:   #{shutdown}
-        Update:     #{update}\
+        Update:     #{update}#{warning}\
         """
 
       {:error, _reason} ->
         version = Severance.Updater.current_version()
         header = "Severance v#{version}"
         update = format_update(update_result, version)
+        local = Application.get_env(:severance, :shutdown_on_late_start, false)
+        warning = late_start_warning_block(local, :local_config)
 
         """
         #{header}
         Status:     not running
-        Update:     #{update}\
+        Update:     #{update}#{warning}\
         """
     end
   end
@@ -859,6 +872,23 @@ defmodule Severance.CLI do
   defp format_time(time) do
     Calendar.strftime(time, "%H:%M")
   end
+
+  @spec late_start_warning_block(boolean() | nil, :local_config | nil) :: String.t()
+  defp late_start_warning_block(true, nil) do
+    "\n\nWarning: shutdown_on_late_start is enabled. If the daemon starts, " <>
+      "reloads, or wakes from sleep after shutdown_time has already passed " <>
+      "today, it will power the machine off immediately, with no warning. " <>
+      "Run `sev reload` after editing the config to apply a change."
+  end
+
+  defp late_start_warning_block(true, :local_config) do
+    "\n\nWarning: shutdown_on_late_start is enabled in the local config " <>
+      "(no daemon running to confirm what's actually armed). If a daemon " <>
+      "starts after shutdown_time has already passed today, it will power " <>
+      "the machine off immediately, with no warning."
+  end
+
+  defp late_start_warning_block(_, _), do: ""
 
   @spec format_update({:ok, String.t()} | {:error, term()}, String.t()) :: String.t()
   defp format_update({:ok, latest}, current) do

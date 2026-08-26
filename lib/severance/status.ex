@@ -15,7 +15,8 @@ defmodule Severance.Status do
           seconds_remaining: integer() | nil,
           version: String.t() | nil,
           update_available?: boolean() | nil,
-          log_path: String.t() | nil
+          log_path: String.t() | nil,
+          shutdown_on_late_start: boolean() | nil
         }
 
   defstruct [
@@ -26,6 +27,7 @@ defmodule Severance.Status do
     :seconds_remaining,
     :version,
     :update_available?,
-    :log_path
+    :log_path,
+    :shutdown_on_late_start
   ]
 end

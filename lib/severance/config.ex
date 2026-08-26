@@ -12,6 +12,7 @@ defmodule Severance.Config do
     shutdown_time: "17:00",
     overtime_notifications: true,
     log_file: "~/.local/state/severance/activity.log",
+    shutdown_on_late_start: false,
     publishers: %{}
   }
 
@@ -84,6 +85,7 @@ defmodule Severance.Config do
       shutdown_time: #{inspect(config.shutdown_time)},
       overtime_notifications: #{inspect(config.overtime_notifications)},
       log_file: #{inspect(config.log_file)},
+      shutdown_on_late_start: #{inspect(config.shutdown_on_late_start)},
     #{publishers_block}
     }
     """

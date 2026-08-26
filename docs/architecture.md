@@ -67,6 +67,14 @@ waiting → gentle → aggressive → final → shutdown | overtime → done
   minute. In overtime mode it fires a notification burst instead.
 - Weekends: `effective_mode/1` forces overtime regardless of the stored
   mode, so the machine never shuts down — you get the burst instead.
+- Late start (`:late_start`): fires when `shutdown_time` has already passed
+  at boot, `sev reload`, or the `:check_countdown_start` poll (which also
+  catches a clock jump — e.g. sleep at 16:00, wake at 18:00 past a 17:00
+  shutdown). By default (`shutdown_on_late_start: false`) this never powers
+  the machine off immediately — it takes the same "burst or finish" path as
+  the T-0 overtime arm (`maybe_burst_and_finish/1`, shared by both), leaving
+  the daemon alive so the next `:midnight_reset` arms tomorrow. Setting
+  `shutdown_on_late_start: true` restores the immediate power-off.
 - Midnight reset: overtime is a single-day opt-out. The midnight timer
   resets the session to a fresh severance day once the local date
   advances, re-arming the next day's shutdown.
@@ -129,10 +137,11 @@ reads layer 1 from that snapshot when present, falling back to a live
 `Application.get_env` read otherwise (tests calling `resolve_config/2`
 directly, without booting the daemon, have no snapshot). This matters
 because `resolve_config/2` also *writes* `:overtime_notifications`,
-`:log_file`, and `:publishers` as a side effect — without the snapshot,
-layer 1 would drift to the last-resolved value instead of staying the true
-compiled default, so deleting the user's config file and reloading would
-read back stale prior settings rather than resetting to defaults. When the
+`:log_file`, `:shutdown_on_late_start`, and `:publishers` as a side effect —
+without the snapshot, layer 1 would drift to the last-resolved value instead
+of staying the true compiled default, so deleting the user's config file and
+reloading would read back stale prior settings rather than resetting to
+defaults. When the
 config file is missing, `:publishers` resets to `%{}` for the same reason —
 a deleted config file clears the publisher set rather than leaving the
 last-resolved one running.

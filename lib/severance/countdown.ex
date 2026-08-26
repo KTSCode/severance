@@ -191,7 +191,8 @@ defmodule Severance.Countdown do
       shutdown_time: state.shutdown_time,
       minutes_remaining: minutes,
       seconds_remaining: seconds_remaining(state.shutdown_time),
-      log_path: Application.get_env(:severance, :log_file)
+      log_path: Application.get_env(:severance, :log_file),
+      shutdown_on_late_start: Application.get_env(:severance, :shutdown_on_late_start, false)
     }
 
     {:reply, status, state}
@@ -208,16 +209,15 @@ defmodule Severance.Countdown do
   def handle_info(:late_start, state) do
     case effective_mode(state) do
       :severance ->
-        handle_shutdown(state)
-        {:noreply, %{state | phase: :done}}
+        if Application.get_env(:severance, :shutdown_on_late_start, false) do
+          handle_shutdown(state)
+          {:noreply, %{state | phase: :done}}
+        else
+          {:noreply, maybe_burst_and_finish(state)}
+        end
 
       :overtime ->
-        if Application.get_env(:severance, :overtime_notifications, true) do
-          Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
-          {:noreply, state}
-        else
-          {:noreply, %{state | phase: :done}}
-        end
+        {:noreply, maybe_burst_and_finish(state)}
     end
   end
 
@@ -382,9 +382,30 @@ defmodule Severance.Countdown do
         Process.send_after(self(), :retry_shutdown, @shutdown_retry_ms)
 
       :overtime ->
-        if Application.get_env(:severance, :overtime_notifications, true) do
-          Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
-        end
+        maybe_send_overtime_burst()
+    end
+  end
+
+  # Fires the overtime notification burst if overtime_notifications is
+  # enabled, otherwise finishes immediately. Shared by the :overtime arm
+  # of handle_shutdown/1 (T-0 shutdown) and the safe late-start path
+  # (boot/reload/clock-jump after shutdown_time has already passed) —
+  # both land on the same "notify or finish" shape once shutdown itself
+  # is off the table.
+  defp maybe_burst_and_finish(state) do
+    if maybe_send_overtime_burst() do
+      state
+    else
+      %{state | phase: :done}
+    end
+  end
+
+  defp maybe_send_overtime_burst do
+    if Application.get_env(:severance, :overtime_notifications, true) do
+      Process.send_after(self(), {:overtime_burst, @overtime_burst_count}, 0)
+      true
+    else
+      false
     end
   end
 
