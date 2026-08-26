@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- If severance starts after the showdown time It should not turn off the computer unless there is a "dangerous shutdown on startup setting set"
+
 ## [0.22.0] -- 2026-08-18
 
 ### Added
