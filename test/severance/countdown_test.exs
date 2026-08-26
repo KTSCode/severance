@@ -59,6 +59,24 @@ defmodule Severance.CountdownTest do
 
       assert status.mode == :overtime
     end
+
+    test "populates shutdown_on_late_start from Application env" do
+      original = Application.get_env(:severance, :shutdown_on_late_start)
+      Application.put_env(:severance, :shutdown_on_late_start, true)
+
+      on_exit(fn ->
+        if original == nil,
+          do: Application.delete_env(:severance, :shutdown_on_late_start),
+          else: Application.put_env(:severance, :shutdown_on_late_start, original)
+      end)
+
+      future = @frozen_now |> NaiveDateTime.add(3600) |> NaiveDateTime.to_time()
+      start_supervised!({Countdown, shutdown_time: future})
+
+      status = Countdown.status()
+
+      assert status.shutdown_on_late_start == true
+    end
   end
 
   describe "tmux isolation" do
@@ -75,6 +93,19 @@ defmodule Severance.CountdownTest do
   end
 
   describe "retry_shutdown" do
+    setup do
+      original = Application.get_env(:severance, :shutdown_on_late_start)
+      Application.put_env(:severance, :shutdown_on_late_start, true)
+
+      on_exit(fn ->
+        if original == nil,
+          do: Application.delete_env(:severance, :shutdown_on_late_start),
+          else: Application.put_env(:severance, :shutdown_on_late_start, original)
+      end)
+
+      :ok
+    end
+
     test "retries shutdown and schedules another retry indefinitely" do
       capture_log(fn ->
         pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
@@ -107,22 +138,6 @@ defmodule Severance.CountdownTest do
   end
 
   describe "late start" do
-    test "attempts shutdown when started after shutdown time on a weekday" do
-      capture_log(fn ->
-        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
-
-        # Let the GenServer process :late_start and handle_shutdown
-        Process.sleep(100)
-
-        assert Process.alive?(pid)
-
-        # In severance mode on a weekday, late start should call
-        # handle_shutdown which sets phase to :done
-        state = :sys.get_state(pid)
-        assert state.phase == :done
-      end)
-    end
-
     test "fires overtime burst instead of shutdown when in overtime mode" do
       capture_log(fn ->
         pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
@@ -185,6 +200,90 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "shutdown_on_late_start gate" do
+    setup do
+      original = Application.get_env(:severance, :shutdown_on_late_start)
+
+      on_exit(fn ->
+        if original == nil,
+          do: Application.delete_env(:severance, :shutdown_on_late_start),
+          else: Application.put_env(:severance, :shutdown_on_late_start, original)
+      end)
+
+      :ok
+    end
+
+    test "default (unset) does not power off on a late weekday start" do
+      parent = self()
+
+      stub(Test, :shutdown_machine, fn ->
+        send(parent, :shutdown_machine_called)
+        :ok
+      end)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        Mimic.allow(Test, self(), pid)
+        Process.sleep(100)
+
+        assert Process.alive?(pid)
+        refute_received :shutdown_machine_called
+      end)
+    end
+
+    test "default (unset) with overtime_notifications false lands on :done" do
+      Application.put_env(:severance, :overtime_notifications, false)
+      on_exit(fn -> Application.put_env(:severance, :overtime_notifications, true) end)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+      end)
+    end
+
+    test "default (unset) with overtime_notifications true does not reach :done yet" do
+      Application.put_env(:severance, :overtime_notifications, true)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        Process.sleep(100)
+
+        state = :sys.get_state(pid)
+        refute state.phase == :done
+      end)
+    end
+
+    test "true powers off on a late weekday start" do
+      Application.put_env(:severance, :shutdown_on_late_start, true)
+
+      parent = self()
+
+      # Global mode (not the private-mode Mimic.allow/3 pattern used
+      # elsewhere in this file): init/1 self-sends :late_start synchronously,
+      # so the GenServer can process it — and call shutdown_machine/0 — before
+      # this test process would otherwise win the race to call
+      # Mimic.allow(Test, self(), pid) with the freshly-returned pid.
+      Mimic.set_mimic_global()
+
+      stub(Test, :shutdown_machine, fn ->
+        send(parent, :shutdown_machine_called)
+        :ok
+      end)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01]})
+        Process.sleep(100)
+
+        assert_received :shutdown_machine_called
+        state = :sys.get_state(pid)
+        assert state.phase == :done
+      end)
+    end
+  end
+
   describe "check_countdown_start poll" do
     test "stays in waiting when countdown start is in the future" do
       capture_log(fn ->
@@ -219,11 +318,20 @@ defmodule Severance.CountdownTest do
       end)
     end
 
-    test "triggers late_start when past shutdown time" do
-      # Start with far-future time so init stays in :waiting,
-      # then swap to a past time and let the poll detect it
+    test "triggers late_start when past shutdown time, without powering off (clock jump)" do
+      # Start with far-future time so init stays in :waiting, then swap to a
+      # past time and let the poll detect it — simulating a clock jump
+      # (e.g. sleep at 16:00, wake at 18:00 past a 17:00 shutdown_time).
+      parent = self()
+
+      stub(Test, :shutdown_machine, fn ->
+        send(parent, :shutdown_machine_called)
+        :ok
+      end)
+
       capture_log(fn ->
         pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+        Mimic.allow(Test, self(), pid)
         Process.sleep(50)
 
         :sys.replace_state(pid, fn state ->
@@ -233,8 +341,7 @@ defmodule Severance.CountdownTest do
         send(pid, :check_countdown_start)
         Process.sleep(100)
 
-        state = :sys.get_state(pid)
-        assert state.phase == :done
+        refute_received :shutdown_machine_called
       end)
     end
   end
@@ -322,8 +429,16 @@ defmodule Severance.CountdownTest do
       refute new_ref == old_ref
     end
 
-    test "reloading to a past time takes the :late_start path" do
+    test "reloading to a past time takes the :late_start path without powering off" do
+      parent = self()
+
+      stub(Test, :shutdown_machine, fn ->
+        send(parent, :shutdown_machine_called)
+        :ok
+      end)
+
       pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      Mimic.allow(Test, self(), pid)
 
       log =
         capture_log(fn ->
@@ -332,8 +447,7 @@ defmodule Severance.CountdownTest do
         end)
 
       assert log =~ "Started after shutdown time."
-      state = :sys.get_state(pid)
-      assert state.phase == :done
+      refute_received :shutdown_machine_called
     end
 
     test "flushes a stale :late_start a racing :midnight_reset queued ahead of reload" do

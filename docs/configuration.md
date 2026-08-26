@@ -51,6 +51,7 @@ The struct passed to every publisher `:fn`:
 | `:version` | `String.t() \| nil` | Daemon version string |
 | `:update_available?` | `boolean() \| nil` | Whether a newer release exists |
 | `:log_path` | `String.t() \| nil` | Path to the activity log |
+| `:shutdown_on_late_start` | `boolean() \| nil` | Whether a late daemon start powers off immediately |
 
 Phases in order: `:waiting`, `:gentle`, `:aggressive`, `:final`, `:shutdown`, `:done`.
 

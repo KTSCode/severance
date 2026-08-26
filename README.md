@@ -170,7 +170,8 @@ The config file is a plain Elixir term:
 %{
   shutdown_time: "17:00",
   overtime_notifications: true,
-  log_file: "~/.local/state/severance/activity.log"
+  log_file: "~/.local/state/severance/activity.log",
+  shutdown_on_late_start: false
 }
 ```
 
@@ -179,6 +180,14 @@ overtime is active or when starting after shutdown time.
 
 Set `log_file` to a custom path to change where the activity log is
 written. Defaults to `~/.local/state/severance/activity.log`.
+
+Set `shutdown_on_late_start: true` to restore the old behavior of powering
+the machine off immediately when the daemon starts, reloads, or wakes from
+sleep after `shutdown_time` has already passed today. The default (`false`)
+is safe: instead of an immediate, unannounced power-off, it fires the same
+notification burst as overtime (or finishes quietly if
+`overtime_notifications` is `false`) and waits for the next day.
+`sev status` warns when this is enabled.
 
 Run `sev reload` after editing the config file to apply the change to the
 running daemon without a restart. It preserves an active Overtime Protocol
@@ -281,12 +290,9 @@ Small, well-understood changes go straight to code. For anything larger:
 - Per-day shutdown schedules (e.g. earlier on Fridays)
 
 ## TODO
-- [x] Add research doc on Do Not Disturb control
-  - It would be nice to give it a script or add a function to the config that is run at the do not disturb intervals 
-  - I'd like to give it access to my calendar so that I can Guarantee that it won't cause users to miss meetings
-- [x] Reset the daemon at midnight as a fresh day, so overtime is a single-day opt-out and the next day's shutdown is enforced again
 - [x] Add a current-state architecture doc and centralize countdown phase definitions in a single Severance.Phase module
 - [x] Add `sev reload` that reloads the process, so that when a user makes a config change they can reload the cofig and see their changes immediately
+- [x] If severance starts after the showdown time It should not turn off the computer unless there is a "dangerous shutdown on startup setting set"
 - [ ] Clean up logging,I'm seeing a lot of duplication when I run `sev log` and it doesn't seem to be in order
   - [ ] do an investigation and implementation pass before working on this 
 - [ ] Countdown reload leaves several state-machine edges unguarded (found verifying the sev-reload Codex fixes, out of scope for that PR)

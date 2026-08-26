@@ -413,6 +413,74 @@ defmodule Severance.CLITest do
       assert output =~ "Shutdown:   17:00 (passed)"
     end
 
+    test "warns when shutdown_on_late_start is armed on the daemon" do
+      daemon = %Severance.Status{
+        version: Severance.Updater.current_version(),
+        mode: :severance,
+        phase: :waiting,
+        shutdown_time: ~T[17:00:00],
+        minutes_remaining: 42,
+        shutdown_on_late_start: true
+      }
+
+      update = {:ok, Severance.Updater.current_version()}
+
+      output = CLI.format_status({:ok, daemon}, update)
+
+      assert output =~ "shutdown_on_late_start"
+      assert output =~ "power the machine off"
+    end
+
+    test "no warning when shutdown_on_late_start is false" do
+      daemon = %Severance.Status{
+        version: Severance.Updater.current_version(),
+        mode: :severance,
+        phase: :waiting,
+        shutdown_time: ~T[17:00:00],
+        minutes_remaining: 42,
+        shutdown_on_late_start: false
+      }
+
+      update = {:ok, Severance.Updater.current_version()}
+
+      output = CLI.format_status({:ok, daemon}, update)
+
+      refute output =~ "shutdown_on_late_start"
+    end
+
+    test "no warning when shutdown_on_late_start is nil" do
+      daemon = %Severance.Status{
+        version: Severance.Updater.current_version(),
+        mode: :severance,
+        phase: :waiting,
+        shutdown_time: ~T[17:00:00],
+        minutes_remaining: 42,
+        shutdown_on_late_start: nil
+      }
+
+      update = {:ok, Severance.Updater.current_version()}
+
+      output = CLI.format_status({:ok, daemon}, update)
+
+      refute output =~ "shutdown_on_late_start"
+    end
+
+    test "daemon not running falls back to local config and labels the source" do
+      original = Application.get_env(:severance, :shutdown_on_late_start)
+      Application.put_env(:severance, :shutdown_on_late_start, true)
+
+      on_exit(fn ->
+        if original == nil,
+          do: Application.delete_env(:severance, :shutdown_on_late_start),
+          else: Application.put_env(:severance, :shutdown_on_late_start, original)
+      end)
+
+      output = CLI.format_status({:error, "connection failed"}, {:error, :nxdomain})
+
+      assert output =~ "shutdown_on_late_start"
+      assert output =~ "local config"
+    end
+
     test "formats daemon not running with failed update check" do
       output = CLI.format_status({:error, "connection failed"}, {:error, :nxdomain})
 
