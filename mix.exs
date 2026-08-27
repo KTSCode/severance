@@ -4,7 +4,7 @@ defmodule Severance.MixProject do
   def project do
     [
       app: :severance,
-      version: "0.22.0",
+      version: "0.23.0",
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
