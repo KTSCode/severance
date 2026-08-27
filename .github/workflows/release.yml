@@ -30,8 +30,9 @@ jobs:
           key: mix-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
       - run: mix deps.get
       - run: mix test
-      - run: MIX_ENV=prod mix release sev
+      - run: MIX_ENV=prod mix release sev --overwrite
       - uses: actions/upload-artifact@v4
         with:
           name: burrito_out
           path: burrito_out/*
+          if-no-files-found: error
