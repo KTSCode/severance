@@ -75,6 +75,13 @@ waiting → gentle → aggressive → final → shutdown | overtime → done
   the T-0 overtime arm (`maybe_burst_and_finish/1`, shared by both), leaving
   the daemon alive so the next `:midnight_reset` arms tomorrow. Setting
   `shutdown_on_late_start: true` restores the immediate power-off.
+- Cancelling overtime (`sev notp` → `Countdown.cancel_overtime/0`): a no-op
+  replying `:not_overtime` when the stored mode is already severance.
+  Otherwise it flips the mode back and logs `overtime_cancelled`. Before
+  `shutdown_time` nothing else changes — the running countdown shuts down at
+  T-0. After `shutdown_time` on a weekday it cancels any in-progress burst
+  (tracked in `burst_ref`, plus a mailbox flush of `:overtime_burst`) and
+  runs the T-0 severance arm immediately. On weekends it never shuts down.
 - Midnight reset: overtime is a single-day opt-out. The midnight timer
   resets the session to a fresh severance day once the local date
   advances, re-arming the next day's shutdown.
@@ -91,7 +98,8 @@ waiting → gentle → aggressive → final → shutdown | overtime → done
   fired moments before reload) could still run against the freshly-reloaded
   state and trigger a shutdown the reload was meant to avert. Reload
   deliberately does **not** touch the `:retry_shutdown` or
-  `:overtime_burst` chains — those aren't tracked in `timer_ref` — so it
+  `:overtime_burst` chains — those aren't tracked in `timer_ref` (the burst
+  has its own `burst_ref`, used only by `cancel_overtime/0`) — so it
   can't be used to cancel a shutdown or opt-out already in progress.
 
 ### Phases as a single source of truth
@@ -159,7 +167,7 @@ starting both EPMD and BEAM distribution itself
 (`Application.ensure_distribution/0`) because Burrito's launcher never sets
 `RELEASE_DISTRIBUTION`/`RELEASE_NODE`.
 
-CLI commands that talk to a running daemon (`sev otp`, `sev reload`,
+CLI commands that talk to a running daemon (`sev otp`, `sev notp`, `sev reload`,
 `sev status`, and the `daemon_running?/0` readiness check) connect over
 distributed Erlang in `CLI.with_daemon_rpc/2`:
 
@@ -168,7 +176,7 @@ distributed Erlang in `CLI.with_daemon_rpc/2`:
    release, shared by both sides because the CLI and daemon are the same
    binary.
 1. `Node.connect/1` to `severance@localhost`, then `:rpc.call/4` into
-   `Severance.Countdown` (`sev otp`, `sev status`) or
+   `Severance.Countdown` (`sev otp`, `sev notp`, `sev status`) or
    `Severance.Application` (`sev reload`).
 
 ## System adapter (test seam)

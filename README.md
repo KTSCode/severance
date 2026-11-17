@@ -49,6 +49,16 @@ mode. Instead of shutting down at T-0, Severance fires a notification
 every 5 seconds for 60 seconds, then stops. It trusts your judgment after
 that.
 
+Changed your mind? Turn it back off:
+
+```bash
+sev notp
+```
+
+Before shutdown time this puts the normal shutdown back on. After shutdown
+time it shuts the machine down immediately (except on weekends, which
+never shut down). If overtime isn't active, it does nothing.
+
 Overtime is a single-day opt-out. If you leave the machine on past
 midnight, the daemon resets at midnight as though it just started —
 back to severance mode, waiting to enforce the next day's shutdown.
@@ -139,6 +149,7 @@ review any publisher functions it writes before starting the daemon.
 sev            # start the daemon
 sev status     # show daemon status and version info
 sev otp        # activate overtime protocol
+sev notp       # deactivate overtime protocol
 sev reload     # apply config file changes to the running daemon
 sev log        # print the activity log
 sev update     # update to latest release

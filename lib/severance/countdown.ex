@@ -29,13 +29,15 @@ defmodule Severance.Countdown do
           mode: :severance | :overtime,
           phase: :waiting | :gentle | :aggressive | :final | :shutdown | :done,
           day: Date.t() | nil,
-          timer_ref: reference() | nil
+          timer_ref: reference() | nil,
+          burst_ref: reference() | nil
         }
 
   defstruct [
     :shutdown_time,
     :day,
     :timer_ref,
+    :burst_ref,
     mode: :severance,
     phase: :waiting
   ]
@@ -54,11 +56,28 @@ defmodule Severance.Countdown do
 
   @doc """
   Activates the Overtime Protocol. The daemon will send annoying
-  notifications at T-0 instead of shutting down the machine.
+  notifications at T-0 instead of shutting down the machine. Undo it with
+  `cancel_overtime/0`.
   """
   @spec overtime() :: :ok
   def overtime do
     GenServer.call(__MODULE__, :overtime)
+  end
+
+  @doc """
+  Deactivates the Overtime Protocol if it is active.
+
+  Returns:
+
+  - `:not_overtime` — overtime was not active; nothing changed.
+  - `:ok` — back in severance mode; the machine shuts down at T-0 as usual.
+  - `:shutting_down` — shutdown time has already passed, so the shutdown
+    runs immediately and any in-progress overtime burst is cancelled.
+  - `:weekend` — back in severance mode, but weekends never shut down.
+  """
+  @spec cancel_overtime() :: :not_overtime | :ok | :shutting_down | :weekend
+  def cancel_overtime do
+    GenServer.call(__MODULE__, :cancel_overtime)
   end
 
   @doc """
@@ -166,6 +185,30 @@ defmodule Severance.Countdown do
   end
 
   @impl true
+  def handle_call(:cancel_overtime, _from, %{mode: :severance} = state) do
+    {:reply, :not_overtime, state}
+  end
+
+  def handle_call(:cancel_overtime, _from, state) do
+    log_file = Application.get_env(:severance, :log_file, ActivityLog.default_log_file())
+    ActivityLog.log_overtime_cancelled(log_file)
+    state = %{state | mode: :severance}
+
+    cond do
+      weekend?(today()) ->
+        {:reply, :weekend, state}
+
+      past_shutdown?(state.shutdown_time) ->
+        state = cancel_burst(state)
+        handle_shutdown(state)
+        {:reply, :shutting_down, %{state | phase: :done}}
+
+      true ->
+        {:reply, :ok, state}
+    end
+  end
+
+  @impl true
   def handle_call(:mode, _from, state) do
     {:reply, state.mode, state}
   end
@@ -253,14 +296,14 @@ defmodule Severance.Countdown do
 
   @impl true
   def handle_info({:overtime_burst, 0}, state) do
-    {:noreply, %{state | phase: :done}}
+    {:noreply, %{state | phase: :done, burst_ref: nil}}
   end
 
   @impl true
   def handle_info({:overtime_burst, remaining}, state) do
     Notifier.send_overtime_burst()
-    Process.send_after(self(), {:overtime_burst, remaining - 1}, @overtime_burst_interval_ms)
-    {:noreply, state}
+    ref = Process.send_after(self(), {:overtime_burst, remaining - 1}, @overtime_burst_interval_ms)
+    {:noreply, %{state | burst_ref: ref}}
   end
 
   @impl true
@@ -364,6 +407,22 @@ defmodule Severance.Countdown do
     receive do
       msg when msg in [:tick, :check_countdown_start, :late_start, :start_countdown] ->
         flush_transitions()
+    after
+      0 -> :ok
+    end
+  end
+
+  # Stops an in-progress overtime burst: cancels the pending step and drains
+  # any step already delivered to the mailbox.
+  defp cancel_burst(state) do
+    if state.burst_ref, do: Process.cancel_timer(state.burst_ref)
+    flush_bursts()
+    %{state | burst_ref: nil}
+  end
+
+  defp flush_bursts do
+    receive do
+      {:overtime_burst, _} -> flush_bursts()
     after
       0 -> :ok
     end

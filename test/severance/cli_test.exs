@@ -84,6 +84,10 @@ defmodule Severance.CLITest do
       assert %{path: [:over_time_protocol]} = CLI.parse_args(["over_time_protocol"])
     end
 
+    test "notp arg returns path [:notp]" do
+      assert %{path: [:notp]} = CLI.parse_args(["notp"])
+    end
+
     test "reload arg returns path [:reload]" do
       assert %{path: [:reload]} = CLI.parse_args(["reload"])
     end
@@ -166,6 +170,10 @@ defmodule Severance.CLITest do
       assert CLI.usage() =~ "reload"
     end
 
+    test "top-level usage includes notp" do
+      assert CLI.usage() =~ "notp"
+    end
+
     test "subcommand usage names the subcommand" do
       assert CLI.usage([:status]) =~ "sev status"
     end
@@ -174,6 +182,16 @@ defmodule Severance.CLITest do
       usage = CLI.usage([:status])
       assert usage =~ "publisher"
       assert usage =~ "teardown"
+    end
+  end
+
+  describe "no_overtime_message/1" do
+    test "has a distinct message for every cancel_overtime/0 result" do
+      messages = Enum.map([:not_overtime, :ok, :shutting_down, :weekend], &CLI.no_overtime_message/1)
+
+      assert Enum.uniq(messages) == messages
+      assert CLI.no_overtime_message(:not_overtime) =~ "not active"
+      assert CLI.no_overtime_message(:shutting_down) =~ "shutting down now"
     end
   end
 

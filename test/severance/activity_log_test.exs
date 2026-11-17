@@ -26,6 +26,13 @@ defmodule Severance.ActivityLogTest do
                "2026-04-15T16:45:00 overtime"
     end
 
+    test "formats an overtime_cancelled event" do
+      timestamp = ~N[2026-04-15 16:50:00]
+
+      assert ActivityLog.format_entry(:overtime_cancelled, timestamp: timestamp) ==
+               "2026-04-15T16:50:00 overtime_cancelled"
+    end
+
     test "formats a stopped event with duration" do
       timestamp = ~N[2026-04-15 18:30:00]
 
@@ -75,6 +82,20 @@ defmodule Severance.ActivityLogTest do
 
       contents = File.read!(log_file)
       assert contents =~ "2026-04-15T16:45:00 overtime"
+    end
+  end
+
+  describe "log_overtime_cancelled/1" do
+    setup :tmp_log_file
+
+    test "appends overtime_cancelled entry", %{log_file: log_file} do
+      frozen = ~N[2026-04-15 16:50:00]
+      Application.put_env(:severance, :now_fn, fn -> frozen end)
+      on_exit(fn -> Application.delete_env(:severance, :now_fn) end)
+
+      assert :ok = ActivityLog.log_overtime_cancelled(log_file)
+
+      assert File.read!(log_file) =~ "2026-04-15T16:50:00 overtime_cancelled"
     end
   end
 
