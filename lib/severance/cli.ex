@@ -23,6 +23,7 @@ defmodule Severance.CLI do
       sev otp                          # Activate Overtime Protocol on running daemon
       sev overtime                     # Activate Overtime Protocol on running daemon
       sev over_time_protocol           # Activate Overtime Protocol on running daemon
+      sev notp                         # Deactivate Overtime Protocol on running daemon
       sev reload                       # Apply config file changes to the running daemon
       sev help                         # Print top-level usage (alias for sev --help)
       sev help --agent                 # Print LLM-agent usage with full config reference
@@ -32,7 +33,7 @@ defmodule Severance.CLI do
   alias CliMate.CLI, as: Mate
   alias Severance.StatusPublisher.Tmux.ConfScanner
 
-  @subcommand_names ~w(start init update upgrade version status log otp overtime over_time_protocol reload help)
+  @subcommand_names ~w(start init update upgrade version status log otp overtime over_time_protocol notp reload help)
 
   @command [
     name: "sev",
@@ -58,6 +59,7 @@ defmodule Severance.CLI do
       otp: [options: []],
       overtime: [options: []],
       over_time_protocol: [options: []],
+      notp: [options: []],
       reload: [options: []],
       help: [
         options: [
@@ -166,7 +168,9 @@ defmodule Severance.CLI do
     Bare `sev` (or `sev start`) starts the daemon; `sev <cmd> --help` prints
     one command's flags. `otp`, `overtime`, and `over_time_protocol` are
     aliases for the Overtime Protocol, which cancels today's shutdown and
-    fires a 60-second notification burst instead. `upgrade` is an alias for
+    fires a 60-second notification burst instead. `notp` turns the Overtime
+    Protocol back off; if shutdown time has already passed on a weekday, it
+    shuts the machine down immediately. `upgrade` is an alias for
     `update`. `reload` re-resolves the config file, env var, and compiled
     defaults on the running daemon and applies the result in place — no
     restart, and any in-progress shutdown or overtime opt-out is left alone.
@@ -272,6 +276,8 @@ defmodule Severance.CLI do
     Keep working past shutdown:
       - sev otp                   (cancels today's shutdown; fires a
         60-second notification burst instead, then trusts you)
+      - sev notp                  (undoes sev otp; past shutdown time on
+        a weekday this powers the machine off right away)
       - Set overtime_notifications: false in config to silence that burst.
       - A late daemon start (boot, reload, or wake from sleep after
         shutdown_time has passed) never powers off unless
@@ -478,6 +484,45 @@ defmodule Severance.CLI do
       end
     end)
   end
+
+  @doc """
+  Connects to the running severance node and deactivates the Overtime Protocol.
+
+  Makes an RPC call to `Severance.Countdown.cancel_overtime/0` and prints
+  what happened: overtime was not active, shutdown is back on, the machine
+  is shutting down now (shutdown time already passed), or it is the weekend
+  and nothing will shut down.
+
+  Returns `:ok` on success — including when overtime was not active —
+  and `{:error, reason}` on failure.
+  """
+  @spec run_no_overtime() :: :ok | {:error, String.t()}
+  def run_no_overtime do
+    with_daemon_rpc(fn target ->
+      case :rpc.call(target, Severance.Countdown, :cancel_overtime, []) do
+        {:badrpc, reason} ->
+          IO.puts("RPC failed: #{inspect(reason)}")
+          {:error, "rpc failed"}
+
+        result ->
+          IO.puts(no_overtime_message(result))
+          :ok
+      end
+    end)
+  end
+
+  @doc """
+  Returns the message `sev notp` prints for a
+  `Severance.Countdown.cancel_overtime/0` result.
+  """
+  @spec no_overtime_message(:not_overtime | :ok | :shutting_down | :weekend) :: String.t()
+  def no_overtime_message(:not_overtime), do: "Overtime Protocol is not active. Nothing to do."
+  def no_overtime_message(:ok), do: "Overtime Protocol deactivated. Shutdown is back on."
+
+  def no_overtime_message(:shutting_down),
+    do: "Overtime Protocol deactivated. Shutdown time has passed — shutting down now."
+
+  def no_overtime_message(:weekend), do: "Overtime Protocol deactivated, but it's the weekend — no shutdown today."
 
   @doc """
   Connects to the running severance node and reloads its configuration.

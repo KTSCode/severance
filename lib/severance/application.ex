@@ -63,6 +63,11 @@ defmodule Severance.Application do
     System.halt(if result == :ok, do: 0, else: 1)
   end
 
+  defp dispatch(%{path: [:notp]}) do
+    result = CLI.run_no_overtime()
+    System.halt(if result == :ok, do: 0, else: 1)
+  end
+
   defp dispatch(%{path: [:reload]}) do
     result = CLI.run_reload()
     System.halt(if result == :ok, do: 0, else: 1)

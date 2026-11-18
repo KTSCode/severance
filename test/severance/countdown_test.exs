@@ -27,6 +27,71 @@ defmodule Severance.CountdownTest do
     end
   end
 
+  describe "cancel_overtime/0" do
+    setup do
+      parent = self()
+
+      stub(Test, :shutdown_machine, fn ->
+        send(parent, :shutdown_machine_called)
+        :ok
+      end)
+
+      :ok
+    end
+
+    test "returns :not_overtime and leaves severance mode alone" do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+
+      assert Countdown.cancel_overtime() == :not_overtime
+      assert Countdown.mode() == :severance
+    end
+
+    test "before shutdown time, switches back to severance without shutting down" do
+      pid = start_supervised!({Countdown, shutdown_time: ~T[23:59:59], mode: :overtime})
+      Mimic.allow(Test, self(), pid)
+
+      assert Countdown.cancel_overtime() == :ok
+      assert Countdown.mode() == :severance
+      refute_received :shutdown_machine_called
+    end
+
+    test "after shutdown time, shuts down immediately and stops the burst" do
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
+        Mimic.allow(Test, self(), pid)
+
+        # Let :late_start run and the overtime burst get going
+        Process.sleep(100)
+        assert is_reference(:sys.get_state(pid).burst_ref)
+
+        assert Countdown.cancel_overtime() == :shutting_down
+        assert_received :shutdown_machine_called
+
+        state = :sys.get_state(pid)
+        assert state.mode == :severance
+        assert state.phase == :done
+        assert state.burst_ref == nil
+
+        {:messages, messages} = Process.info(pid, :messages)
+        refute Enum.any?(messages, &match?({:overtime_burst, _}, &1))
+      end)
+    end
+
+    test "on a weekend, switches mode but never shuts down" do
+      # 2026-04-11 is a Saturday
+      Application.put_env(:severance, :now_fn, fn -> ~N[2026-04-11 10:00:00] end)
+
+      capture_log(fn ->
+        pid = start_supervised!({Countdown, shutdown_time: ~T[00:00:01], mode: :overtime})
+        Mimic.allow(Test, self(), pid)
+
+        assert Countdown.cancel_overtime() == :weekend
+        assert Countdown.mode() == :severance
+        refute_received :shutdown_machine_called
+      end)
+    end
+  end
+
   describe "mode/0" do
     test "defaults to severance mode" do
       start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
@@ -533,6 +598,20 @@ defmodule Severance.CountdownTest do
       assert File.exists?(log_file)
       contents = File.read!(log_file)
       assert contents =~ "overtime"
+    end
+
+    test "cancel_overtime/0 logs an overtime_cancelled event", %{log_file: log_file} do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59], mode: :overtime})
+      Countdown.cancel_overtime()
+
+      assert File.read!(log_file) =~ "overtime_cancelled"
+    end
+
+    test "cancel_overtime/0 logs nothing when overtime is not active", %{log_file: log_file} do
+      start_supervised!({Countdown, shutdown_time: ~T[23:59:59]})
+      Countdown.cancel_overtime()
+
+      refute File.exists?(log_file)
     end
 
     test "terminate logs a stopped event on normal shutdown", %{log_file: log_file} do

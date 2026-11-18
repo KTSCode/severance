@@ -3,10 +3,11 @@ defmodule Severance.ActivityLog do
   Writes timestamped activity entries to a plain-text log file.
 
   Tracks daemon sessions (start/stop with duration) and overtime
-  protocol activations. Each entry is one line, greppable:
+  protocol activations and cancellations. Each entry is one line, greppable:
 
       2026-04-15T10:00:00 started
       2026-04-15T16:45:00 overtime
+      2026-04-15T16:50:00 overtime_cancelled
       2026-04-15T18:30:00 stopped duration_minutes=510
   """
 
@@ -31,7 +32,7 @@ defmodule Severance.ActivityLog do
   - `:timestamp` — `NaiveDateTime.t()` for the entry (required)
   - `:duration_minutes` — integer minutes, included for `:stopped` events
   """
-  @spec format_entry(:started | :overtime | :stopped, keyword()) :: String.t()
+  @spec format_entry(:started | :overtime | :overtime_cancelled | :stopped, keyword()) :: String.t()
   def format_entry(event, opts) do
     timestamp = Keyword.fetch!(opts, :timestamp)
     ts_str = format_timestamp(timestamp)
@@ -60,6 +61,14 @@ defmodule Severance.ActivityLog do
   @spec log_overtime(String.t()) :: :ok
   def log_overtime(log_file) do
     append(log_file, format_entry(:overtime, timestamp: local_now()))
+  end
+
+  @doc """
+  Logs an overtime protocol cancellation event.
+  """
+  @spec log_overtime_cancelled(String.t()) :: :ok
+  def log_overtime_cancelled(log_file) do
+    append(log_file, format_entry(:overtime_cancelled, timestamp: local_now()))
   end
 
   @doc """
