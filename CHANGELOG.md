@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.24.0] -- 2026-11-17
+
 ### Added
 
 - Add `sev notp` — turns the Overtime Protocol back off. Before shutdown time, the normal shutdown is back on. After shutdown time, the machine shuts down immediately (never on weekends). Does nothing if overtime isn't active.
