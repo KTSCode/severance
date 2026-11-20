@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.25.0] -- 2026-11-19
+
 ### Fixed
 
 - `sev update` now installs the version it says it does. Since 0.21.0, release binaries reported (and ran as) the previous version, so `sev update` kept offering the same update and new features like `sev notp` never arrived.
