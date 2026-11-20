@@ -266,13 +266,17 @@ mix tag --patch   # bump patch version (e.g. 0.11.0 -> 0.11.1)
 
 This orchestrates the full release:
 
-1. Dispatches a `release.yml` dry-run on CI (`workflow_dispatch`), waits for
-   it, downloads the built binary, and smokes it locally with
-   `bin/checks/release_smoke.sh` — refusing to tag on any failure
 1. Shows the `[Unreleased]` changelog entries and prompts for confirmation
 1. Finalizes `CHANGELOG.md` under the new version heading and commits it
 1. Bumps the version in `mix.exs`, commits, and creates an annotated tag
-1. Pushes the commits and tag atomically to trigger the CI release workflow
+   (local only)
+1. Pushes the bumped commit to a temporary `release/<tag>` branch, dispatches
+   a `release.yml` build of it on CI, downloads the binary, and smokes it
+   locally with `bin/checks/release_smoke.sh` (which asserts the binary
+   reports the new version). On any failure it rolls back the local commits
+   and tag and publishes nothing
+1. Pushes `main` and the tag atomically, publishes the GitHub release with the
+   smoked binaries, and deletes the `release/<tag>` branch
 
 The gate requires an authenticated `gh` CLI and a stopped local daemon (the
 smoke check refuses to race a live `severance` node).
