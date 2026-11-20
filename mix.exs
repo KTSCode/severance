@@ -58,12 +58,14 @@ defmodule Severance.MixProject do
   end
 
   defp tag_release(args) do
-    artifact_dir = check_release_preconditions!()
+    check_release_preconditions!()
     Mix.Task.run("changelog.finalize", args)
     Mix.Task.run("version", args)
     {tag, 0} = System.cmd("git", ["describe", "--tags", "--abbrev=0"])
     tag = String.trim(tag)
-    {_, 0} = System.cmd("git", ["push", "--atomic", "origin", "HEAD", tag])
+    {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"])
+    artifact_dir = prove_release!(tag, String.trim(sha))
+    {_, 0} = System.cmd("git", ["push", "--atomic", "origin", "HEAD:main", tag])
 
     {_, 0} =
       System.cmd(
@@ -90,7 +92,41 @@ defmodule Severance.MixProject do
     {remote, 0} = System.cmd("git", ["rev-parse", "origin/main"])
     if String.trim(local) != String.trim(remote), do: Mix.raise("Local main is behind or ahead of origin/main.")
 
-    check_ci_release_build!(String.trim(local))
+    ensure_gh!()
+  end
+
+  # The CI build must run on the version-bumped commit: Burrito bakes the
+  # mix.exs version into the binary and keys its extraction cache on it, so
+  # a pre-bump build ships under the new tag but reports (and runs as) the
+  # old version. The bumped commit goes to a throwaway release/<tag> branch
+  # for CI, so main and the tag stay unpublished until the build is proven.
+  defp prove_release!(tag, sha) do
+    branch = "release/#{tag}"
+    {_, 0} = System.cmd("git", ["push", "origin", "HEAD:refs/heads/#{branch}"])
+
+    try do
+      check_ci_release_build!(sha, branch)
+    rescue
+      error ->
+        rollback_release!(tag)
+        reraise error, __STACKTRACE__
+    after
+      System.cmd("git", ["push", "origin", "--delete", branch])
+    end
+  end
+
+  # Undoes the local changelog + version commits and the local tag so a
+  # failed gate leaves main clean and `mix tag` can be re-run as-is.
+  # Preconditions guaranteed a clean worktree at origin/main, so the reset
+  # only discards this task's own commits. Never raises: a rollback failure
+  # must not mask the gate error being re-raised.
+  defp rollback_release!(tag) do
+    {_, tag_code} = System.cmd("git", ["tag", "-d", tag], stderr_to_stdout: true)
+    {_, reset_code} = System.cmd("git", ["reset", "--hard", "origin/main"], stderr_to_stdout: true)
+
+    if tag_code != 0 or reset_code != 0 do
+      Mix.shell().error("Rollback incomplete. Run: git tag -d #{tag} && git reset --hard origin/main")
+    end
   end
 
   # Fails fast on an empty [Unreleased] section before the CI dispatch/smoke
@@ -119,18 +155,17 @@ defmodule Severance.MixProject do
   end
 
   # Dispatches release.yml on CI, waits for it, downloads the built binary
-  # and smokes it locally. Local main equals origin/main at this point, so
-  # the dispatch builds exactly the code being tagged. Refusing to tag on
+  # and smokes it locally. `ref` points at exactly the version-bumped commit
+  # being tagged, so the dispatch builds that code. Refusing to tag on
   # any failure here is the point: a tag must never outrun a proven release.
   # Polling is filtered to this exact commit + workflow_dispatch so a
   # concurrent run (another dispatch, a stray tag push) can't get smoked
   # and published in place of this one.
-  defp check_ci_release_build!(sha) do
-    ensure_gh!()
+  defp check_ci_release_build!(sha, ref) do
     previous = latest_release_run_id(sha)
 
     Mix.shell().info("Dispatching release.yml dry-run on CI...")
-    {_, 0} = System.cmd("gh", ["workflow", "run", "release.yml", "--ref", "main"])
+    {_, 0} = System.cmd("gh", ["workflow", "run", "release.yml", "--ref", ref])
 
     run_id = await_new_release_run(sha, previous, 30)
     Mix.shell().info("Watching CI run #{run_id}...")
